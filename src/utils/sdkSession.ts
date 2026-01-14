@@ -64,22 +64,41 @@ export interface SDKNativeContentBlock {
 }
 
 /**
- * Encodes a vault path for the SDK project directory name.
- * The SDK uses simple character replacement (NOT base64):
+ * Returns all possible vault path encodings for the SDK project directory.
+ * On Windows, the SDK's colon handling is uncertain, so we try both variants.
+ *
+ * Encoding rules:
  * - `/` or `\` → `-`
  * - spaces → `-`
  * - `~` → `-`
  * - `'` → `-`
+ * - `:` → `-` (possibly, on Windows)
  */
-export function encodeVaultPathForSDK(vaultPath: string): string {
+export function getVaultEncodings(vaultPath: string): string[] {
   const absolutePath = path.resolve(vaultPath);
-  // Replace special characters with dashes
-  // Handle both forward and backslashes for cross-platform support
-  return absolutePath
+  // Base encoding: replace slashes, spaces, tilde, apostrophe
+  const baseEncoded = absolutePath
     .replace(/[\\/]/g, '-')
     .replace(/ /g, '-')
     .replace(/~/g, '-')
     .replace(/'/g, '-');
+
+  // If path contains colon (Windows drive letter), try both with and without colon replacement
+  if (absolutePath.includes(':')) {
+    const colonReplaced = baseEncoded.replace(/:/g, '-');
+    // Return both variants: colon replaced first (more likely), then without
+    return [colonReplaced, baseEncoded];
+  }
+
+  return [baseEncoded];
+}
+
+/**
+ * Encodes a vault path for the SDK project directory name.
+ * Returns the primary encoding (with colon replacement for Windows compatibility).
+ */
+export function encodeVaultPathForSDK(vaultPath: string): string {
+  return getVaultEncodings(vaultPath)[0];
 }
 
 /**
@@ -108,7 +127,26 @@ export function isValidSessionId(sessionId: string): boolean {
 }
 
 /**
+ * Gets all possible paths to an SDK session file.
+ * Returns multiple paths on Windows due to uncertain colon encoding.
+ *
+ * @param vaultPath - The vault's absolute path
+ * @param sessionId - The SDK session ID
+ * @returns Array of possible session file paths
+ * @throws Error if sessionId is invalid (path traversal protection)
+ */
+export function getSDKSessionPaths(vaultPath: string, sessionId: string): string[] {
+  if (!isValidSessionId(sessionId)) {
+    throw new Error(`Invalid session ID: ${sessionId}`);
+  }
+  const projectsPath = getSDKProjectsPath();
+  const encodings = getVaultEncodings(vaultPath);
+  return encodings.map(encoded => path.join(projectsPath, encoded, `${sessionId}.jsonl`));
+}
+
+/**
  * Gets the full path to an SDK session file.
+ * Returns the primary encoding path (use findSDKSessionPath for existence check).
  *
  * @param vaultPath - The vault's absolute path
  * @param sessionId - The SDK session ID (may equal conversation ID for new native sessions)
@@ -116,30 +154,38 @@ export function isValidSessionId(sessionId: string): boolean {
  * @throws Error if sessionId is invalid (path traversal protection)
  */
 export function getSDKSessionPath(vaultPath: string, sessionId: string): string {
-  if (!isValidSessionId(sessionId)) {
-    throw new Error(`Invalid session ID: ${sessionId}`);
+  return getSDKSessionPaths(vaultPath, sessionId)[0];
+}
+
+/**
+ * Finds the actual SDK session file path by trying all possible encodings.
+ * Returns the first path that exists, or null if none exist.
+ */
+export function findSDKSessionPath(vaultPath: string, sessionId: string): string | null {
+  try {
+    const paths = getSDKSessionPaths(vaultPath, sessionId);
+    for (const sessionPath of paths) {
+      if (existsSync(sessionPath)) {
+        return sessionPath;
+      }
+    }
+    return null;
+  } catch {
+    return null;
   }
-  const projectsPath = getSDKProjectsPath();
-  const encodedVault = encodeVaultPathForSDK(vaultPath);
-  return path.join(projectsPath, encodedVault, `${sessionId}.jsonl`);
 }
 
 /**
  * Checks if an SDK session file exists.
- * Uses synchronous check for simple existence test.
+ * Tries all possible vault path encodings.
  */
 export function sdkSessionExists(vaultPath: string, sessionId: string): boolean {
-  try {
-    const sessionPath = getSDKSessionPath(vaultPath, sessionId);
-    return existsSync(sessionPath);
-  } catch {
-    // Invalid session ID or path construction error
-    return false;
-  }
+  return findSDKSessionPath(vaultPath, sessionId) !== null;
 }
 
 /**
  * Reads and parses an SDK session file asynchronously.
+ * Tries all possible vault path encodings to find the session.
  *
  * @param vaultPath - The vault's absolute path
  * @param sessionId - The session ID
@@ -147,8 +193,8 @@ export function sdkSessionExists(vaultPath: string, sessionId: string): boolean 
  */
 export async function readSDKSession(vaultPath: string, sessionId: string): Promise<SDKSessionReadResult> {
   try {
-    const sessionPath = getSDKSessionPath(vaultPath, sessionId);
-    if (!existsSync(sessionPath)) {
+    const sessionPath = findSDKSessionPath(vaultPath, sessionId);
+    if (!sessionPath) {
       return { messages: [], skippedLines: 0 };
     }
 
