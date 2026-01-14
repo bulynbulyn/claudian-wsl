@@ -166,7 +166,7 @@ Use it like Claude Code—read, write, edit, search files in your vault.
 ## Privacy & Data Use
 
 - **Sent to API**: Your input, attached files, images, and tool call outputs. Default: Anthropic; custom endpoint via `ANTHROPIC_BASE_URL`.
-- **Local storage**: Settings, sessions, and commands stored in `vault/.claude/`; image cache in `.claudian-cache/`.
+- **Local storage**: Settings, session metadata, and commands stored in `vault/.claude/`; session messages in `~/.claude/projects/` (SDK-native); legacy sessions in `vault/.claude/sessions/`.
 - **No telemetry**: No tracking beyond your configured API provider.
 
 ## Troubleshooting
