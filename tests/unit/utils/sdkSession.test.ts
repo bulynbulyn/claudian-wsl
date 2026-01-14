@@ -59,6 +59,14 @@ describe('sdkSession', () => {
       const encoded2 = encodeVaultPathForSDK('/Users/test/vault2');
       expect(encoded1).not.toBe(encoded2);
     });
+
+    it('handles backslashes for Windows compatibility', () => {
+      // Test that backslashes are replaced (Windows path separators)
+      // Note: path.resolve may modify the input, so we check the output contains no backslashes
+      const encoded = encodeVaultPathForSDK('C:\\Users\\test\\vault');
+      expect(encoded).not.toContain('\\');
+      expect(encoded).toContain('-Users-test-vault');
+    });
   });
 
   describe('getSDKProjectsPath', () => {

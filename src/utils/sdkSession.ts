@@ -66,7 +66,7 @@ export interface SDKNativeContentBlock {
 /**
  * Encodes a vault path for the SDK project directory name.
  * The SDK uses simple character replacement (NOT base64):
- * - `/` → `-`
+ * - `/` or `\` → `-`
  * - spaces → `-`
  * - `~` → `-`
  * - `'` → `-`
@@ -74,9 +74,9 @@ export interface SDKNativeContentBlock {
 export function encodeVaultPathForSDK(vaultPath: string): string {
   const absolutePath = path.resolve(vaultPath);
   // Replace special characters with dashes
-  // The leading `/` becomes the first `-`
+  // Handle both forward and backslashes for cross-platform support
   return absolutePath
-    .replace(/\//g, '-')
+    .replace(/[\\/]/g, '-')
     .replace(/ /g, '-')
     .replace(/~/g, '-')
     .replace(/'/g, '-');
