@@ -184,6 +184,25 @@ export function sdkSessionExists(vaultPath: string, sessionId: string): boolean 
 }
 
 /**
+ * Deletes an SDK session file.
+ * Tries all possible vault path encodings to find and delete the file.
+ * Fails silently if the file doesn't exist or cannot be deleted.
+ *
+ * @param vaultPath - The vault's absolute path
+ * @param sessionId - The session ID to delete
+ */
+export async function deleteSDKSession(vaultPath: string, sessionId: string): Promise<void> {
+  const sessionPath = findSDKSessionPath(vaultPath, sessionId);
+  if (!sessionPath) return;
+
+  try {
+    await fs.unlink(sessionPath);
+  } catch {
+    // Fail silently - file may have been deleted externally
+  }
+}
+
+/**
  * Reads and parses an SDK session file asynchronously.
  * Tries all possible vault path encodings to find the session.
  *

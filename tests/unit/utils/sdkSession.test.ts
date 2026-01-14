@@ -7,6 +7,7 @@ import * as fsPromises from 'fs/promises';
 import * as os from 'os';
 
 import {
+  deleteSDKSession,
   encodeVaultPathForSDK,
   findSDKSessionPath,
   getSDKProjectsPath,
@@ -216,6 +217,41 @@ describe('sdkSession', () => {
       const exists = sdkSessionExists('/Users/test/vault', 'session-err');
 
       expect(exists).toBe(false);
+    });
+  });
+
+  describe('deleteSDKSession', () => {
+    it('deletes session file when it exists', async () => {
+      mockExistsSync.mockReturnValue(true);
+      mockFsPromises.unlink.mockResolvedValue(undefined);
+
+      await deleteSDKSession('/Users/test/vault', 'session-abc');
+
+      expect(mockFsPromises.unlink).toHaveBeenCalledWith(
+        '/Users/test/.claude/projects/-Users-test-vault/session-abc.jsonl'
+      );
+    });
+
+    it('does nothing when session file does not exist', async () => {
+      mockExistsSync.mockReturnValue(false);
+
+      await deleteSDKSession('/Users/test/vault', 'nonexistent');
+
+      expect(mockFsPromises.unlink).not.toHaveBeenCalled();
+    });
+
+    it('fails silently when unlink throws', async () => {
+      mockExistsSync.mockReturnValue(true);
+      mockFsPromises.unlink.mockRejectedValue(new Error('Permission denied'));
+
+      // Should not throw
+      await expect(deleteSDKSession('/Users/test/vault', 'session-err')).resolves.toBeUndefined();
+    });
+
+    it('does nothing for invalid session ID', async () => {
+      await deleteSDKSession('/Users/test/vault', '../invalid');
+
+      expect(mockFsPromises.unlink).not.toHaveBeenCalled();
     });
   });
 

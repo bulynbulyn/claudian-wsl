@@ -34,7 +34,7 @@ import { ClaudeCliResolver } from './utils/claudeCli';
 import { buildCursorContext } from './utils/editor';
 import { getCurrentModelFromEnvironment, getModelsFromEnvironment, parseEnvironmentVariables } from './utils/env';
 import { getVaultPath } from './utils/path';
-import { loadSDKSessionMessages, sdkSessionExists, type SDKSessionLoadResult } from './utils/sdkSession';
+import { deleteSDKSession, loadSDKSessionMessages, sdkSessionExists, type SDKSessionLoadResult } from './utils/sdkSession';
 
 /**
  * Main plugin class for Claudian.
@@ -640,9 +640,8 @@ export default class ClaudianPlugin extends Plugin {
   /**
    * Deletes a conversation and resets any tabs using it.
    *
-   * For native sessions, deletes the metadata file.
+   * For native sessions, deletes the metadata file and SDK session file.
    * For legacy sessions, deletes the JSONL file.
-   * Note: SDK-stored messages in ~/.claude/projects/ are not deleted.
    */
   async deleteConversation(id: string): Promise<void> {
     const index = this.conversations.findIndex(c => c.id === id);
@@ -651,10 +650,16 @@ export default class ClaudianPlugin extends Plugin {
     const conversation = this.conversations[index];
     this.conversations.splice(index, 1);
 
+    // Delete SDK session file if it exists
+    const vaultPath = getVaultPath(this.app);
+    const sdkSessionId = conversation.sdkSessionId ?? conversation.sessionId;
+    if (vaultPath && sdkSessionId) {
+      await deleteSDKSession(vaultPath, sdkSessionId);
+    }
+
     // Delete the appropriate storage file
     if (conversation.isNative) {
-      // Native session: delete metadata file only
-      // SDK messages in ~/.claude/projects/ are intentionally kept
+      // Native session: delete metadata file
       await this.storage.sessions.deleteMetadata(id);
     } else {
       // Legacy session: delete JSONL file
