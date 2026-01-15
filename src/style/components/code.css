@@ -7,8 +7,7 @@
 /* Code blocks in chat messages */
 .claudian-code-wrapper pre,
 .claudian-message-content pre {
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
+  background: rgba(0, 0, 0, 0.2);
   padding: 8px 12px;
   border-radius: 6px;
   overflow-x: auto;
