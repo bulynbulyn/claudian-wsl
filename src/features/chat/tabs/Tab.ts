@@ -658,16 +658,38 @@ export function wireTabInputEvents(tab: TabData): void {
   dom.eventCleanups.push(() => dom.inputEl.removeEventListener('focus', focusHandler));
 
   // Scroll listener for auto-scroll control during streaming
-  const SCROLL_THRESHOLD = 50; // pixels from bottom to consider "at bottom"
+  const SCROLL_THRESHOLD = 20; // pixels from bottom to consider "at bottom"
+  const RE_ENABLE_DELAY = 150; // ms to wait before re-enabling auto-scroll
+  let reEnableTimeout: ReturnType<typeof setTimeout> | null = null;
+
   const scrollHandler = () => {
     if (!state.isStreaming) return; // Only track during streaming
 
     const { scrollTop, scrollHeight, clientHeight } = dom.messagesEl;
     const isAtBottom = scrollHeight - scrollTop - clientHeight <= SCROLL_THRESHOLD;
-    state.autoScrollEnabled = isAtBottom;
+
+    if (!isAtBottom) {
+      // Immediately disable when user scrolls up
+      if (reEnableTimeout) {
+        clearTimeout(reEnableTimeout);
+        reEnableTimeout = null;
+      }
+      state.autoScrollEnabled = false;
+    } else if (!state.autoScrollEnabled) {
+      // Debounce re-enabling to avoid bounce during scroll animation
+      if (!reEnableTimeout) {
+        reEnableTimeout = setTimeout(() => {
+          state.autoScrollEnabled = true;
+          reEnableTimeout = null;
+        }, RE_ENABLE_DELAY);
+      }
+    }
   };
   dom.messagesEl.addEventListener('scroll', scrollHandler);
-  dom.eventCleanups.push(() => dom.messagesEl.removeEventListener('scroll', scrollHandler));
+  dom.eventCleanups.push(() => {
+    dom.messagesEl.removeEventListener('scroll', scrollHandler);
+    if (reEnableTimeout) clearTimeout(reEnableTimeout);
+  });
 }
 
 /**
