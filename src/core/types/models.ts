@@ -17,13 +17,32 @@ export const DEFAULT_CLAUDE_MODELS: { value: ClaudeModel; label: string; descrip
 /** 1M context beta flag. */
 export const BETA_1M_CONTEXT: SdkBeta = 'context-1m-2025-08-07';
 
+/** Return type when 1M beta is included. */
+export interface ModelWithBetas {
+  model: string;
+  betas: SdkBeta[];
+}
+
+/** Return type when 1M beta is not included. */
+export interface ModelWithoutBetas {
+  model: string;
+  betas?: undefined;
+}
+
 /**
  * Resolves a model to its base model and optional beta flags.
  *
- * @param model - The model identifier
+ * @param model - The model identifier (must be non-empty)
  * @param include1MBeta - If true, include 1M beta flag for 1M context window
+ * @throws Error if model is empty or not a string
  */
-export function resolveModelWithBetas(model: string, include1MBeta = false): { model: string; betas?: SdkBeta[] } {
+export function resolveModelWithBetas(model: string, include1MBeta: true): ModelWithBetas;
+export function resolveModelWithBetas(model: string, include1MBeta?: false): ModelWithoutBetas;
+export function resolveModelWithBetas(model: string, include1MBeta: boolean): ModelWithBetas | ModelWithoutBetas;
+export function resolveModelWithBetas(model: string, include1MBeta = false): ModelWithBetas | ModelWithoutBetas {
+  if (!model || typeof model !== 'string') {
+    throw new Error('resolveModelWithBetas: model is required and must be a non-empty string');
+  }
   if (include1MBeta) {
     return {
       model,

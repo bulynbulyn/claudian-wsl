@@ -639,6 +639,18 @@ describe('types.ts', () => {
         const result = resolveModelWithBetas('sonnet', true);
         expect(result.betas).toHaveLength(1);
       });
+
+      it('should throw when model is empty string', () => {
+        expect(() => resolveModelWithBetas('')).toThrow('model is required');
+        expect(() => resolveModelWithBetas('', true)).toThrow('model is required');
+      });
+
+      it('should throw when model is not provided correctly', () => {
+        // @ts-expect-error - testing runtime validation
+        expect(() => resolveModelWithBetas(null)).toThrow('model is required');
+        // @ts-expect-error - testing runtime validation
+        expect(() => resolveModelWithBetas(undefined)).toThrow('model is required');
+      });
     });
 
     describe('BETA_1M_CONTEXT', () => {

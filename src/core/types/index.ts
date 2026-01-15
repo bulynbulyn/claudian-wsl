@@ -24,6 +24,8 @@ export {
   type ClaudeModel,
   DEFAULT_CLAUDE_MODELS,
   DEFAULT_THINKING_BUDGET,
+  type ModelWithBetas,
+  type ModelWithoutBetas,
   resolveModelWithBetas,
   THINKING_BUDGETS,
   type ThinkingBudget,
