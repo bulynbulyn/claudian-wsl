@@ -44,6 +44,7 @@
 
 .claudian-write-edit-label {
   flex: 1;
+  min-width: 0;
   font-size: 13px;
   font-weight: 500;
   color: var(--text-normal);
