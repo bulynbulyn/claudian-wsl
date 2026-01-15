@@ -91,9 +91,6 @@ export class StreamController {
         }
         msg.content += chunk.content;
         await this.appendText(chunk.content);
-        if (state.currentContentEl) {
-          this.showThinkingIndicator(state.currentContentEl);
-        }
         break;
 
       case 'tool_use': {
@@ -350,9 +347,6 @@ export class StreamController {
     if (!state.currentThinkingState) return;
 
     const durationSeconds = finalizeThinkingBlock(state.currentThinkingState);
-    if (state.currentContentEl) {
-      this.showThinkingIndicator(state.currentContentEl);
-    }
 
     if (msg && state.currentThinkingState.content) {
       msg.contentBlocks = msg.contentBlocks || [];

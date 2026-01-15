@@ -161,6 +161,11 @@ export function buildContextFromHistory(messages: ChatMessage[]): string {
       continue;
     }
 
+    // Skip interrupt messages - they're UI indicators, not actual conversation content
+    if (message.isInterrupt) {
+      continue;
+    }
+
     if (message.role === 'assistant') {
       const hasContent = message.content && message.content.trim().length > 0;
       const hasToolCalls = message.toolCalls && message.toolCalls.length > 0;
