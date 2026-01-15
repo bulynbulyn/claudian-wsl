@@ -135,6 +135,12 @@ export class MessageRenderer {
       return;
     }
 
+    // Skip rebuilt context messages (history sent to SDK on session reset)
+    // These are internal context for the AI, not actual user messages to display
+    if (msg.isRebuiltContext) {
+      return;
+    }
+
     // Render images above bubble for user messages
     if (msg.role === 'user' && msg.images && msg.images.length > 0) {
       this.renderMessageImages(this.messagesEl, msg.images);

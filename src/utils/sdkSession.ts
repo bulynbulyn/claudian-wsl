@@ -398,6 +398,12 @@ export function parseSDKMessageToChat(
   // Detect interrupt messages from SDK (stored as user messages with specific content)
   const isInterrupt = sdkMsg.type === 'user' && textContent === '[Request interrupted by user]';
 
+  // Detect rebuilt context messages (history sent to SDK when session reset)
+  // These start with "User:" pattern and contain conversation history, not actual user input
+  const isRebuiltContext = sdkMsg.type === 'user' &&
+    /^User:\s/.test(textContent) &&
+    (textContent.includes('\n\nUser:') || textContent.includes('\n\nAssistant:') || textContent.includes('\n\nA:'));
+
   return {
     id: sdkMsg.uuid || `sdk-${timestamp}-${Math.random().toString(36).slice(2)}`,
     role: sdkMsg.type,
@@ -408,6 +414,7 @@ export function parseSDKMessageToChat(
     contentBlocks: sdkMsg.type === 'assistant' ? mapContentBlocks(content) : undefined,
     images,
     ...(isInterrupt && { isInterrupt: true }),
+    ...(isRebuiltContext && { isRebuiltContext: true }),
   };
 }
 

@@ -482,6 +482,38 @@ describe('sdkSession', () => {
       expect(chatMsg).not.toBeNull();
       expect(chatMsg!.isInterrupt).toBeUndefined();
     });
+
+    it('marks rebuilt context messages with isRebuiltContext flag', () => {
+      const sdkMsg: SDKNativeMessage = {
+        type: 'user',
+        uuid: 'rebuilt-1',
+        timestamp: '2024-01-15T10:30:00Z',
+        message: {
+          content: 'User: hi\n\nAssistant: Hello!\n\nUser: how are you?',
+        },
+      };
+
+      const chatMsg = parseSDKMessageToChat(sdkMsg);
+
+      expect(chatMsg).not.toBeNull();
+      expect(chatMsg!.isRebuiltContext).toBe(true);
+    });
+
+    it('does not mark regular messages starting with User as rebuilt context', () => {
+      const sdkMsg: SDKNativeMessage = {
+        type: 'user',
+        uuid: 'user-normal',
+        timestamp: '2024-01-15T10:30:00Z',
+        message: {
+          content: 'User settings should be configurable',
+        },
+      };
+
+      const chatMsg = parseSDKMessageToChat(sdkMsg);
+
+      expect(chatMsg).not.toBeNull();
+      expect(chatMsg!.isRebuiltContext).toBeUndefined();
+    });
   });
 
   describe('loadSDKSessionMessages', () => {
