@@ -9,12 +9,14 @@ import type {
   ToolCallInfo
 } from '@/core/types';
 import {
+  BETA_1M_CONTEXT,
   createPermissionRule,
   DEFAULT_SETTINGS,
   getCliPlatformKey,
   legacyPermissionsToCCPermissions,
   legacyPermissionToCCRule,
   parseCCPermissionRule,
+  resolveModelWithBetas,
   VIEW_TYPE_CLAUDIAN
 } from '@/core/types';
 
@@ -106,6 +108,7 @@ describe('types.ts', () => {
         loadUserClaudeSettings: false,
         enabledPlugins: [],
         maxTabs: 3,
+        show1MModel: false,
       };
 
       expect(settings.enableBlocklist).toBe(false);
@@ -138,6 +141,7 @@ describe('types.ts', () => {
         loadUserClaudeSettings: false,
         enabledPlugins: [],
         maxTabs: 3,
+        show1MModel: false,
       };
 
       expect(settings.model).toBe('anthropic/custom-model-v1');
@@ -170,6 +174,7 @@ describe('types.ts', () => {
         loadUserClaudeSettings: false,
         enabledPlugins: [],
         maxTabs: 5,
+        show1MModel: true,
       };
 
       expect(settings.lastClaudeModel).toBe('opus');
@@ -600,6 +605,45 @@ describe('types.ts', () => {
         const result = parseCCPermissionRule(createPermissionRule('not-valid-format'));
         expect(result.tool).toBe('not-valid-format');
         expect(result.pattern).toBeUndefined();
+      });
+    });
+  });
+
+  describe('1M Model Utilities', () => {
+    describe('resolveModelWithBetas', () => {
+      it('should return model with betas when include1MBeta is true', () => {
+        const result = resolveModelWithBetas('sonnet', true);
+        expect(result.model).toBe('sonnet');
+        expect(result.betas).toBeDefined();
+        expect(result.betas).toContain(BETA_1M_CONTEXT);
+      });
+
+      it('should return model without betas when include1MBeta is false', () => {
+        const result = resolveModelWithBetas('sonnet', false);
+        expect(result.model).toBe('sonnet');
+        expect(result.betas).toBeUndefined();
+      });
+
+      it('should return model without betas by default', () => {
+        const result = resolveModelWithBetas('sonnet');
+        expect(result.model).toBe('sonnet');
+        expect(result.betas).toBeUndefined();
+      });
+
+      it('should preserve model name', () => {
+        expect(resolveModelWithBetas('claude-sonnet-4-5', true).model).toBe('claude-sonnet-4-5');
+        expect(resolveModelWithBetas('claude-opus-4-5', false).model).toBe('claude-opus-4-5');
+      });
+
+      it('should return single beta flag in array', () => {
+        const result = resolveModelWithBetas('sonnet', true);
+        expect(result.betas).toHaveLength(1);
+      });
+    });
+
+    describe('BETA_1M_CONTEXT', () => {
+      it('should be defined as the correct beta flag', () => {
+        expect(BETA_1M_CONTEXT).toBe('context-1m-2025-08-07');
       });
     });
   });

@@ -61,6 +61,7 @@ function createMockSettings(overrides: Partial<ClaudianSettings> = {}): Claudian
       focusInputKey: 'i',
     },
     claudeCliPath: '',
+    show1MModel: false,
     ...overrides,
   } as ClaudianSettings;
 }
@@ -94,6 +95,7 @@ describe('QueryOptionsBuilder', () => {
         allowedExportPaths: [],
         settingSources: 'project',
         claudeCliPath: '/mock/claude',
+        show1MModel: false,
       };
 
       expect(QueryOptionsBuilder.needsRestart(null, newConfig)).toBe(true);
@@ -112,6 +114,7 @@ describe('QueryOptionsBuilder', () => {
         allowedExportPaths: [],
         settingSources: 'project',
         claudeCliPath: '/mock/claude',
+        show1MModel: false,
       };
 
       expect(QueryOptionsBuilder.needsRestart(config, { ...config })).toBe(false);
@@ -130,6 +133,7 @@ describe('QueryOptionsBuilder', () => {
         allowedExportPaths: [],
         settingSources: 'project',
         claudeCliPath: '/mock/claude',
+        show1MModel: false,
       };
 
       const newConfig = { ...currentConfig, systemPromptKey: 'key2' };
@@ -149,6 +153,7 @@ describe('QueryOptionsBuilder', () => {
         allowedExportPaths: [],
         settingSources: 'project',
         claudeCliPath: '/mock/claude',
+        show1MModel: false,
       };
 
       const newConfig = { ...currentConfig, disallowedToolsKey: 'tool1|tool2' };
@@ -168,6 +173,7 @@ describe('QueryOptionsBuilder', () => {
         allowedExportPaths: [],
         settingSources: 'project',
         claudeCliPath: '/mock/claude',
+        show1MModel: false,
       };
 
       const newConfig = { ...currentConfig, claudeCliPath: '/new/claude' };
@@ -187,6 +193,7 @@ describe('QueryOptionsBuilder', () => {
         allowedExportPaths: ['/path/a'],
         settingSources: 'project',
         claudeCliPath: '/mock/claude',
+        show1MModel: false,
       };
 
       const newConfig = { ...currentConfig, allowedExportPaths: ['/path/a', '/path/b'] };
@@ -206,6 +213,7 @@ describe('QueryOptionsBuilder', () => {
         allowedExportPaths: [],
         settingSources: 'project',
         claudeCliPath: '/mock/claude',
+        show1MModel: false,
       };
 
       const newConfig = { ...currentConfig, settingSources: 'user,project' };
@@ -225,6 +233,7 @@ describe('QueryOptionsBuilder', () => {
         allowedExportPaths: [],
         settingSources: 'project',
         claudeCliPath: '/mock/claude',
+        show1MModel: false,
       };
 
       const newConfig = { ...currentConfig, pluginsKey: 'plugin-a:/path/a|plugin-b:/path/b' };
@@ -244,9 +253,131 @@ describe('QueryOptionsBuilder', () => {
         allowedExportPaths: [],
         settingSources: 'project',
         claudeCliPath: '/mock/claude',
+        show1MModel: false,
       };
 
       const newConfig = { ...currentConfig, model: 'claude-opus-4-5' };
+      expect(QueryOptionsBuilder.needsRestart(currentConfig, newConfig)).toBe(false);
+    });
+
+    it('returns true when show1MModel changes from false to true', () => {
+      const currentConfig: PersistentQueryConfig = {
+        model: 'sonnet',
+        thinkingTokens: null,
+        permissionMode: 'yolo',
+        systemPromptKey: 'key1',
+        disallowedToolsKey: '',
+        mcpServersKey: '',
+        pluginsKey: '',
+        externalContextPaths: [],
+        allowedExportPaths: [],
+        settingSources: 'project',
+        claudeCliPath: '/mock/claude',
+        show1MModel: false,
+      };
+
+      const newConfig = { ...currentConfig, show1MModel: true };
+      expect(QueryOptionsBuilder.needsRestart(currentConfig, newConfig)).toBe(true);
+    });
+
+    it('returns true when show1MModel changes from true to false', () => {
+      const currentConfig: PersistentQueryConfig = {
+        model: 'sonnet',
+        thinkingTokens: null,
+        permissionMode: 'yolo',
+        systemPromptKey: 'key1',
+        disallowedToolsKey: '',
+        mcpServersKey: '',
+        pluginsKey: '',
+        externalContextPaths: [],
+        allowedExportPaths: [],
+        settingSources: 'project',
+        claudeCliPath: '/mock/claude',
+        show1MModel: true,
+      };
+
+      const newConfig = { ...currentConfig, show1MModel: false };
+      expect(QueryOptionsBuilder.needsRestart(currentConfig, newConfig)).toBe(true);
+    });
+
+    it('returns true when externalContextPaths changes', () => {
+      const currentConfig: PersistentQueryConfig = {
+        model: 'sonnet',
+        thinkingTokens: null,
+        permissionMode: 'yolo',
+        systemPromptKey: 'key1',
+        disallowedToolsKey: '',
+        mcpServersKey: '',
+        pluginsKey: '',
+        externalContextPaths: [],
+        allowedExportPaths: [],
+        settingSources: 'project',
+        claudeCliPath: '/mock/claude',
+        show1MModel: false,
+      };
+
+      const newConfig = { ...currentConfig, externalContextPaths: ['/external/path'] };
+      expect(QueryOptionsBuilder.needsRestart(currentConfig, newConfig)).toBe(true);
+    });
+
+    it('returns true when externalContextPaths is added', () => {
+      const currentConfig: PersistentQueryConfig = {
+        model: 'sonnet',
+        thinkingTokens: null,
+        permissionMode: 'yolo',
+        systemPromptKey: 'key1',
+        disallowedToolsKey: '',
+        mcpServersKey: '',
+        pluginsKey: '',
+        externalContextPaths: ['/path/a'],
+        allowedExportPaths: [],
+        settingSources: 'project',
+        claudeCliPath: '/mock/claude',
+        show1MModel: false,
+      };
+
+      const newConfig = { ...currentConfig, externalContextPaths: ['/path/a', '/path/b'] };
+      expect(QueryOptionsBuilder.needsRestart(currentConfig, newConfig)).toBe(true);
+    });
+
+    it('returns true when externalContextPaths is removed', () => {
+      const currentConfig: PersistentQueryConfig = {
+        model: 'sonnet',
+        thinkingTokens: null,
+        permissionMode: 'yolo',
+        systemPromptKey: 'key1',
+        disallowedToolsKey: '',
+        mcpServersKey: '',
+        pluginsKey: '',
+        externalContextPaths: ['/path/a', '/path/b'],
+        allowedExportPaths: [],
+        settingSources: 'project',
+        claudeCliPath: '/mock/claude',
+        show1MModel: false,
+      };
+
+      const newConfig = { ...currentConfig, externalContextPaths: ['/path/a'] };
+      expect(QueryOptionsBuilder.needsRestart(currentConfig, newConfig)).toBe(true);
+    });
+
+    it('returns false when externalContextPaths order changes (same content)', () => {
+      const currentConfig: PersistentQueryConfig = {
+        model: 'sonnet',
+        thinkingTokens: null,
+        permissionMode: 'yolo',
+        systemPromptKey: 'key1',
+        disallowedToolsKey: '',
+        mcpServersKey: '',
+        pluginsKey: '',
+        externalContextPaths: ['/path/a', '/path/b'],
+        allowedExportPaths: [],
+        settingSources: 'project',
+        claudeCliPath: '/mock/claude',
+        show1MModel: false,
+      };
+
+      // Same paths, different order - should NOT require restart since sorted comparison
+      const newConfig = { ...currentConfig, externalContextPaths: ['/path/b', '/path/a'] };
       expect(QueryOptionsBuilder.needsRestart(currentConfig, newConfig)).toBe(false);
     });
   });
@@ -337,6 +468,59 @@ describe('QueryOptionsBuilder', () => {
 
       expect(options.resume).toBe('session-123');
     });
+
+    it('does not set betas when show1MModel is disabled', () => {
+      const ctx = {
+        ...createMockContext({
+          settings: createMockSettings({ model: 'sonnet', show1MModel: false }),
+        }),
+        abortController: new AbortController(),
+        hooks: {},
+      };
+      const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
+
+      expect(options.model).toBe('sonnet');
+      expect(options.betas).toBeUndefined();
+    });
+
+    it('sets betas for non-1M model when show1MModel is enabled', () => {
+      const ctx = {
+        ...createMockContext({
+          settings: createMockSettings({ model: 'sonnet', show1MModel: true }),
+        }),
+        abortController: new AbortController(),
+        hooks: {},
+      };
+      const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
+
+      expect(options.model).toBe('sonnet');
+      expect(options.betas).toBeDefined();
+      expect(options.betas).toContain('context-1m-2025-08-07');
+    });
+
+    it('sets additionalDirectories when externalContextPaths provided', () => {
+      const ctx = {
+        ...createMockContext(),
+        abortController: new AbortController(),
+        hooks: {},
+        externalContextPaths: ['/external/path1', '/external/path2'],
+      };
+      const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
+
+      expect(options.additionalDirectories).toEqual(['/external/path1', '/external/path2']);
+    });
+
+    it('does not set additionalDirectories when externalContextPaths is empty', () => {
+      const ctx = {
+        ...createMockContext(),
+        abortController: new AbortController(),
+        hooks: {},
+        externalContextPaths: [],
+      };
+      const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
+
+      expect(options.additionalDirectories).toBeUndefined();
+    });
   });
 
   describe('buildColdStartQueryOptions', () => {
@@ -385,6 +569,63 @@ describe('QueryOptionsBuilder', () => {
       const options = QueryOptionsBuilder.buildColdStartQueryOptions(ctx);
 
       expect(options.tools).toEqual(['Read', 'Grep']);
+    });
+
+    it('sets betas when show1MModel is enabled', () => {
+      const ctx = {
+        ...createMockContext({
+          settings: createMockSettings({ model: 'sonnet', show1MModel: true }),
+        }),
+        abortController: new AbortController(),
+        hooks: {},
+        hasEditorContext: false,
+      };
+      const options = QueryOptionsBuilder.buildColdStartQueryOptions(ctx);
+
+      expect(options.model).toBe('sonnet');
+      expect(options.betas).toBeDefined();
+      expect(options.betas).toContain('context-1m-2025-08-07');
+    });
+
+    it('does not set betas when show1MModel is disabled', () => {
+      const ctx = {
+        ...createMockContext({
+          settings: createMockSettings({ model: 'sonnet' }),
+        }),
+        abortController: new AbortController(),
+        hooks: {},
+        hasEditorContext: false,
+      };
+      const options = QueryOptionsBuilder.buildColdStartQueryOptions(ctx);
+
+      expect(options.model).toBe('sonnet');
+      expect(options.betas).toBeUndefined();
+    });
+
+    it('sets additionalDirectories when externalContextPaths provided', () => {
+      const ctx = {
+        ...createMockContext(),
+        abortController: new AbortController(),
+        hooks: {},
+        hasEditorContext: false,
+        externalContextPaths: ['/external/path'],
+      };
+      const options = QueryOptionsBuilder.buildColdStartQueryOptions(ctx);
+
+      expect(options.additionalDirectories).toEqual(['/external/path']);
+    });
+
+    it('does not set additionalDirectories when externalContextPaths is empty', () => {
+      const ctx = {
+        ...createMockContext(),
+        abortController: new AbortController(),
+        hooks: {},
+        hasEditorContext: false,
+        externalContextPaths: [],
+      };
+      const options = QueryOptionsBuilder.buildColdStartQueryOptions(ctx);
+
+      expect(options.additionalDirectories).toBeUndefined();
     });
   });
 

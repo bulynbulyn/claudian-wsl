@@ -144,6 +144,7 @@ export function* transformSDKMessage(
       if (parentToolUseId) {
         break;
       }
+
       // Extract usage info from result message
       const usageByModel = message.modelUsage;
       if (usageByModel) {

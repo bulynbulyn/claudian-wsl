@@ -53,7 +53,7 @@ import type {
   ImageAttachment,
   StreamChunk,
 } from '../types';
-import { THINKING_BUDGETS } from '../types';
+import { resolveModelWithBetas, THINKING_BUDGETS } from '../types';
 import { MessageChannel } from './MessageChannel';
 import {
   type ColdStartQueryContext,
@@ -184,8 +184,12 @@ export class ClaudianService {
   /**
    * Pre-warm the persistent query for faster follow-up messages.
    * Call this on plugin load with the active conversation session ID.
+   *
+   * @param resumeSessionId - Optional session ID to resume
+   * @param externalContextPaths - Optional external context paths to include.
+   *        Pass persistent paths here to avoid restart on first message.
    */
-  async preWarm(resumeSessionId?: string): Promise<void> {
+  async preWarm(resumeSessionId?: string, externalContextPaths?: string[]): Promise<void> {
     if (this.persistentQuery) {
       return;
     }
@@ -200,7 +204,12 @@ export class ClaudianService {
       return;
     }
 
-    await this.startPersistentQuery(vaultPath, resolvedClaudePath, resumeSessionId);
+    // Track external context paths for dynamic updates
+    if (externalContextPaths && externalContextPaths.length > 0) {
+      this.currentExternalContextPaths = externalContextPaths;
+    }
+
+    await this.startPersistentQuery(vaultPath, resolvedClaudePath, resumeSessionId, externalContextPaths);
   }
 
   /**
@@ -209,7 +218,8 @@ export class ClaudianService {
   private async startPersistentQuery(
     vaultPath: string,
     cliPath: string,
-    resumeSessionId?: string
+    resumeSessionId?: string,
+    externalContextPaths?: string[]
   ): Promise<void> {
     if (this.persistentQuery) {
       return;
@@ -230,11 +240,16 @@ export class ClaudianService {
     this.queryAbortController = new AbortController();
 
     // Build initial configuration
-    const config = this.buildPersistentQueryConfig(vaultPath, cliPath);
+    const config = this.buildPersistentQueryConfig(vaultPath, cliPath, externalContextPaths);
     this.currentConfig = config;
 
     // Build SDK options
-    const options = await this.buildPersistentQueryOptions(vaultPath, cliPath, resumeSessionId);
+    const options = await this.buildPersistentQueryOptions(
+      vaultPath,
+      cliPath,
+      resumeSessionId,
+      externalContextPaths
+    );
 
     // Create the persistent query with the message channel
     this.persistentQuery = agentQuery({
@@ -335,14 +350,16 @@ export class ClaudianService {
    * Resume happens when user sends a message via queryViaPersistent.
    */
   async restartPersistentQuery(reason?: string, options?: ClosePersistentQueryOptions): Promise<void> {
+    const sessionId = this.sessionManager.getSessionId();
+    // Preserve external context paths across restart
+    const externalContextPaths = this.currentExternalContextPaths;
     this.closePersistentQuery(reason, options);
 
     const vaultPath = getVaultPath(this.plugin.app);
     const cliPath = this.plugin.getResolvedClaudeCliPath();
 
     if (vaultPath && cliPath) {
-      // Don't pass session ID - just spin up the process
-      await this.startPersistentQuery(vaultPath, cliPath);
+      await this.startPersistentQuery(vaultPath, cliPath, sessionId ?? undefined, externalContextPaths);
     }
   }
 
@@ -356,9 +373,14 @@ export class ClaudianService {
   /**
    * Builds configuration object for tracking changes.
    */
-  private buildPersistentQueryConfig(vaultPath: string, cliPath: string): PersistentQueryConfig {
+  private buildPersistentQueryConfig(
+    vaultPath: string,
+    cliPath: string,
+    externalContextPaths?: string[]
+  ): PersistentQueryConfig {
     return QueryOptionsBuilder.buildPersistentQueryConfig(
-      this.buildQueryOptionsContext(vaultPath, cliPath)
+      this.buildQueryOptionsContext(vaultPath, cliPath),
+      externalContextPaths
     );
   }
 
@@ -386,7 +408,8 @@ export class ClaudianService {
   private buildPersistentQueryOptions(
     vaultPath: string,
     cliPath: string,
-    resumeSessionId?: string
+    resumeSessionId?: string,
+    externalContextPaths?: string[]
   ): Options {
     const baseContext = this.buildQueryOptionsContext(vaultPath, cliPath);
     const hooks = this.buildHooks(vaultPath);
@@ -398,6 +421,7 @@ export class ClaudianService {
       resumeSessionId,
       canUseTool: permissionMode !== 'yolo' ? this.createApprovalCallback() : undefined,
       hooks,
+      externalContextPaths,
     };
 
     return QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
@@ -476,6 +500,13 @@ export class ClaudianService {
           await this.routeMessage(message);
         }
       } catch (error) {
+        // Skip error handling if this consumer was replaced by a new one.
+        // This prevents race conditions where the OLD consumer's error handler
+        // interferes with the NEW handler after a restart (e.g., from applyDynamicUpdates).
+        if (this.persistentQuery !== queryForThisConsumer && this.persistentQuery !== null) {
+          return;
+        }
+
         // Skip restart if cold-start is in progress (it will handle session capture)
         if (!this.shuttingDown && !this.coldStartInProgress) {
           const handler = this.responseHandlers[this.responseHandlers.length - 1];
@@ -957,10 +988,12 @@ export class ClaudianService {
     const budgetConfig = THINKING_BUDGETS.find(b => b.value === budgetSetting);
     const thinkingTokens = budgetConfig?.tokens ?? null;
 
-    // Update model if changed
+    // Model can always be updated dynamically (show1MModel change triggers restart)
+    const show1MModel = this.plugin.settings.show1MModel;
     if (this.currentConfig && selectedModel !== this.currentConfig.model) {
+      const resolved = resolveModelWithBetas(selectedModel, show1MModel);
       try {
-        await this.persistentQuery.setModel(selectedModel);
+        await this.persistentQuery.setModel(resolved.model);
         this.currentConfig.model = selectedModel;
       } catch {
         // Silently ignore model update errors
@@ -1015,14 +1048,12 @@ export class ClaudianService {
       }
     }
 
-    // External context paths are injected per message; track but do not restart.
-    if (this.currentConfig) {
-      this.currentConfig.externalContextPaths = queryOptions?.externalContextPaths || [];
-    }
-    this.currentExternalContextPaths = queryOptions?.externalContextPaths || [];
+    // Track external context paths (used by hooks and for restart detection)
+    const newExternalContextPaths = queryOptions?.externalContextPaths || [];
+    this.currentExternalContextPaths = newExternalContextPaths;
 
-    // Check for other changes that require restart
-    const newConfig = this.buildPersistentQueryConfig(this.vaultPath, cliPath);
+    // Check for other changes that require restart (including external context paths)
+    const newConfig = this.buildPersistentQueryConfig(this.vaultPath, cliPath, newExternalContextPaths);
     if (this.needsRestart(newConfig)) {
       if (!allowRestart) {
         return;
@@ -1130,6 +1161,7 @@ export class ClaudianService {
       enabledMcpServers: queryOptions?.enabledMcpServers,
       allowedTools,
       hasEditorContext,
+      externalContextPaths,
     };
 
     const options = QueryOptionsBuilder.buildColdStartQueryOptions(ctx);

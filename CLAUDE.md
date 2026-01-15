@@ -219,6 +219,7 @@ interface ClaudianSettings {
   claudeCliPath: string;             // Custom Claude CLI path (empty = auto-detect)
   enabledPlugins: string[];          // IDs of enabled Claude Code plugins (per vault)
   maxTabs: number;                   // Maximum concurrent tabs (3-10, default: 3)
+  show1MModel: boolean;              // Show 1M context model in selector (default: false)
 }
 
 // Per-conversation state (session-only, not global settings)
@@ -273,7 +274,10 @@ vault/.claude/
 |-------|------------------|
 | `claude-haiku-4-5` | Off |
 | `claude-sonnet-4-5` | Low (4k) |
+| `claude-sonnet-4-5-1m` | Low (4k) |
 | `claude-opus-4-5` | Medium (8k) |
+
+**1M Context Model**: `claude-sonnet-4-5-1m` provides 1M token context window. Requires Max subscription. Enable via `show1MModel` setting (hidden by default). Uses `context-1m-2025-08-07` beta flag.
 
 Custom models via env vars: `ANTHROPIC_MODEL`, `ANTHROPIC_DEFAULT_*_MODEL`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`
 

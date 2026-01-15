@@ -742,6 +742,7 @@ describe('transformSDKMessage', () => {
 
       expect(results).toHaveLength(1);
     });
+
   });
 
   describe('error messages', () => {

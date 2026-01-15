@@ -240,8 +240,6 @@ export class InputController {
       currentNoteForMessage = currentNotePath;
     }
 
-    promptToSend = this.prependExternalContexts(promptToSend, externalContextPaths);
-
     if (options?.promptPrefix) {
       promptToSend = `${options.promptPrefix}\n\n${promptToSend}`;
     }
@@ -368,26 +366,6 @@ export class InputController {
         this.processQueuedMessage();
       }
     }
-  }
-
-  // ============================================
-  // External Context Helpers
-  // ============================================
-
-  private prependExternalContexts(prompt: string, externalContextPaths?: string[] | null): string {
-    if (!externalContextPaths || externalContextPaths.length === 0) {
-      return prompt;
-    }
-
-    const uniquePaths = Array.from(
-      new Set(externalContextPaths.map((p) => p.trim()).filter(Boolean))
-    );
-    if (uniquePaths.length === 0) {
-      return prompt;
-    }
-
-    const tag = `<external_contexts>\n${uniquePaths.join('\n')}\n</external_contexts>`;
-    return `${tag}\n\n${prompt}`;
   }
 
   // ============================================

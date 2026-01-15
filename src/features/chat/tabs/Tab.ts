@@ -258,8 +258,10 @@ export async function initializeTabService(
       // Continue without permissions - service can still function
     }
 
-    // Pre-warm the SDK process (no session ID - just spin up the process)
-    service.preWarm().catch(() => {
+    // Pre-warm the SDK process with persistent external context paths
+    // This avoids a restart on first message when user has locked paths
+    const persistentPaths = plugin.settings.persistentExternalContextPaths;
+    service.preWarm(undefined, persistentPaths).catch(() => {
       // Pre-warm is best-effort, ignore failures
     });
 
@@ -374,6 +376,7 @@ function initializeInputToolbar(tab: TabData, plugin: ClaudianPlugin): void {
       model: plugin.settings.model,
       thinkingBudget: plugin.settings.thinkingBudget,
       permissionMode: plugin.settings.permissionMode,
+      show1MModel: plugin.settings.show1MModel,
     }),
     getEnvironmentVariables: () => plugin.getActiveEnvironmentVariables(),
     onModelChange: async (model: ClaudeModel) => {

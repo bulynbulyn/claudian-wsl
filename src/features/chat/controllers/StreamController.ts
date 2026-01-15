@@ -158,6 +158,7 @@ export class StreamController {
         }
         break;
       }
+
     }
 
     this.scrollToBottom();

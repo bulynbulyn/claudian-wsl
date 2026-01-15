@@ -240,4 +240,5 @@ describe('ClaudianService', () => {
       expect(service.getSessionId()).toBeNull();
     });
   });
+
 });

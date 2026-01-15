@@ -15,6 +15,7 @@ import type { Locale } from '../../i18n/types';
 import type ClaudianPlugin from '../../main';
 import { getModelsFromEnvironment, parseEnvironmentVariables } from '../../utils/env';
 import { expandHomePath } from '../../utils/path';
+import type { ClaudianView } from '../chat/ClaudianView';
 import { buildNavMappingText, parseNavMappings } from './keyboardNavigation';
 import { EnvSnippetManager } from './ui/EnvSnippetManager';
 import { McpSettingsManager } from './ui/McpSettingsManager';
@@ -490,6 +491,23 @@ export class ClaudianSettingTab extends PluginSettingTab {
 
     // Advanced section
     new Setting(containerEl).setName(t('settings.advanced')).setHeading();
+
+    // 1M context model toggle
+    new Setting(containerEl)
+      .setName(t('settings.show1MModel.name'))
+      .setDesc(t('settings.show1MModel.desc'))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.show1MModel ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.show1MModel = value;
+            await this.plugin.saveSettings();
+
+            // Refresh model selector to show/hide model options
+            const view = this.plugin.app.workspace.getLeavesOfType('claudian-view')[0]?.view as ClaudianView | undefined;
+            view?.refreshModelSelector();
+          })
+      );
 
     // Max tabs setting
     const maxTabsSetting = new Setting(containerEl)
