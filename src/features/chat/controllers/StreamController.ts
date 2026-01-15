@@ -302,6 +302,8 @@ export class StreamController {
     const { state, renderer } = this.deps;
     if (!state.currentContentEl) return;
 
+    this.hideThinkingIndicator();
+
     if (!state.currentTextEl) {
       state.currentTextEl = state.currentContentEl.createDiv({ cls: 'claudian-text-block' });
       state.currentTextContent = '';
