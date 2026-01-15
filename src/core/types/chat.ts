@@ -2,7 +2,7 @@
  * Chat and conversation type definitions.
  */
 
-import type { SubagentInfo, SubagentMode, ToolCallInfo } from './tools';
+import type { SubagentInfo, SubagentMode, ToolCallInfo, ToolDiffData } from './tools';
 
 /** View type identifier for Obsidian. */
 export const VIEW_TYPE_CLAUDIAN = 'claudian-view';
@@ -76,6 +76,11 @@ export interface Conversation {
   legacyCutoffAt?: number;
   /** Internal flag to avoid reloading SDK history repeatedly. */
   sdkMessagesLoaded?: boolean;
+  /**
+   * Cached tool diff data for Write/Edit operations.
+   * Loaded from metadata for native sessions to restore +/- stats on reload.
+   */
+  toolDiffData?: Record<string, ToolDiffData>;
 }
 
 /** Lightweight conversation metadata for the history dropdown. */
@@ -119,6 +124,12 @@ export interface SessionMetadata {
   usage?: UsageInfo;
   /** Timestamp of the last legacy JSONL message (used to merge SDK history). */
   legacyCutoffAt?: number;
+  /**
+   * Tool diff data for Write/Edit operations.
+   * Maps toolUseId to diff data (original/new content for rendering +/- stats).
+   * Stored here because SDK session files don't preserve this Claudian-specific data.
+   */
+  toolDiffData?: Record<string, ToolDiffData>;
 }
 
 /** Normalized stream chunk from the Claude Agent SDK. */

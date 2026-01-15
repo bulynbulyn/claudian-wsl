@@ -27,11 +27,13 @@ export interface SDKSessionReadResult {
  * Based on Claude Agent SDK internal format.
  */
 export interface SDKNativeMessage {
-  type: 'user' | 'assistant' | 'system' | 'result' | 'file-history-snapshot';
+  type: 'user' | 'assistant' | 'system' | 'result' | 'file-history-snapshot' | 'queue-operation';
   parentUuid?: string | null;
   sessionId?: string;
   uuid?: string;
   timestamp?: string;
+  /** Request ID groups assistant messages from the same API call. */
+  requestId?: string;
   message?: {
     role?: string;
     content?: string | SDKNativeContentBlock[];
@@ -40,6 +42,10 @@ export interface SDKNativeMessage {
   subtype?: string;
   duration_ms?: number;
   duration_api_ms?: number;
+  /** Present on tool result user messages - contains the tool execution result. */
+  toolUseResult?: unknown;
+  /** UUID of the assistant message that initiated this tool call. */
+  sourceToolAssistantUUID?: string;
 }
 
 /**
@@ -204,6 +210,43 @@ function extractTextContent(content: string | SDKNativeContentBlock[] | undefine
 }
 
 /**
+ * Extracts display content from user messages by removing XML context wrappers.
+ *
+ * User messages may contain XML context like:
+ * - <current_note>...</current_note>
+ * - <editor_selection>...</editor_selection>
+ * - <query>actual user input</query>
+ *
+ * When <query> tags are present, the inner content is the user's actual input.
+ * When no <query> tags are present, the full content is the user's input.
+ */
+function extractDisplayContent(textContent: string): string | undefined {
+  if (!textContent) return undefined;
+
+  // Check for <query>...</query> wrapper (multiline, non-greedy)
+  const queryMatch = textContent.match(/<query>\n?([\s\S]*?)\n?<\/query>/);
+  if (queryMatch) {
+    return queryMatch[1].trim();
+  }
+
+  // No <query> tags - check if there are any XML context tags
+  // If so, this is unexpected format; return undefined to use content as-is
+  const hasXmlContext =
+    textContent.includes('<current_note') ||
+    textContent.includes('<editor_selection') ||
+    textContent.includes('<context_files');
+
+  // If there's XML context but no <query> wrapper, content is malformed
+  // Return undefined to fall back to showing full content
+  if (hasXmlContext) {
+    return undefined;
+  }
+
+  // No XML context - plain user message, displayContent equals content
+  return undefined;
+}
+
+/**
  * Extracts images from SDK content blocks.
  */
 function extractImages(content: string | SDKNativeContentBlock[] | undefined): ImageAttachment[] | undefined {
@@ -287,8 +330,10 @@ function mapContentBlocks(content: string | SDKNativeContentBlock[] | undefined)
   for (const block of content) {
     switch (block.type) {
       case 'text':
-        if (block.text) {
-          blocks.push({ type: 'text', content: block.text });
+        // Skip empty or whitespace-only text blocks to avoid extra gaps
+        // Also trim the content to remove leading/trailing whitespace that causes visual gaps
+        if (block.text && block.text.trim()) {
+          blocks.push({ type: 'text', content: block.text.trim() });
         }
         break;
 
@@ -345,10 +390,16 @@ export function parseSDKMessageToChat(
     ? new Date(sdkMsg.timestamp).getTime()
     : Date.now();
 
+  // For user messages, extract displayContent from <query> tags if present
+  const displayContent = sdkMsg.type === 'user'
+    ? extractDisplayContent(textContent)
+    : undefined;
+
   return {
     id: sdkMsg.uuid || `sdk-${timestamp}-${Math.random().toString(36).slice(2)}`,
     role: sdkMsg.type,
     content: textContent,
+    displayContent,
     timestamp,
     toolCalls: sdkMsg.type === 'assistant' ? extractToolCalls(content, toolResults) : undefined,
     contentBlocks: sdkMsg.type === 'assistant' ? mapContentBlocks(content) : undefined,
@@ -385,18 +436,12 @@ function collectToolResults(sdkMessages: SDKNativeMessage[]): Map<string, { cont
 }
 
 /**
- * Checks if a user message contains only tool_result (no actual user content).
+ * Checks if a user message is a tool result (not actual user input).
+ * Tool result messages have the `toolUseResult` field set by the SDK.
  * Such messages should be skipped as they're just result delivery.
  */
-function isToolResultOnlyMessage(sdkMsg: SDKNativeMessage): boolean {
-  if (sdkMsg.type !== 'user') return false;
-
-  const content = sdkMsg.message?.content;
-  if (!content || typeof content === 'string') return false;
-
-  // Check if all blocks are tool_result
-  const hasOnlyToolResults = content.every(block => block.type === 'tool_result');
-  return hasOnlyToolResults && content.length > 0;
+function isToolResultMessage(sdkMsg: SDKNativeMessage): boolean {
+  return sdkMsg.type === 'user' && 'toolUseResult' in sdkMsg;
 }
 
 /** Result of loading SDK session messages. */
@@ -407,11 +452,39 @@ export interface SDKSessionLoadResult {
 }
 
 /**
+ * Merges content from a source assistant message into a target message.
+ * Used to combine multiple SDK messages from the same API turn (same requestId).
+ */
+function mergeAssistantMessage(target: ChatMessage, source: ChatMessage): void {
+  // Merge text content (with separator if both have content)
+  if (source.content) {
+    if (target.content) {
+      target.content = target.content + '\n\n' + source.content;
+    } else {
+      target.content = source.content;
+    }
+  }
+
+  // Merge tool calls
+  if (source.toolCalls) {
+    target.toolCalls = [...(target.toolCalls || []), ...source.toolCalls];
+  }
+
+  // Merge content blocks
+  if (source.contentBlocks) {
+    target.contentBlocks = [...(target.contentBlocks || []), ...source.contentBlocks];
+  }
+}
+
+/**
  * Loads and converts all messages from an SDK native session.
  *
  * Uses two-pass approach:
  * 1. First pass: collect all tool_result from all messages
  * 2. Second pass: convert messages and attach results to tool calls
+ *
+ * Consecutive assistant messages with the same requestId are merged into one,
+ * as the SDK stores multiple JSONL entries for a single API turn (text, then tool_use, etc).
  *
  * @param vaultPath - The vault's absolute path
  * @param sessionId - The session ID
@@ -428,16 +501,37 @@ export async function loadSDKSessionMessages(vaultPath: string, sessionId: strin
   const toolResults = collectToolResults(result.messages);
 
   const chatMessages: ChatMessage[] = [];
+  let pendingAssistant: ChatMessage | null = null;
 
-  // Second pass: convert messages
+  // Second pass: convert messages, merging consecutive assistant messages
+  // Assistant messages are merged until an actual user message (not tool_result) appears
   for (const sdkMsg of result.messages) {
-    // Skip user messages that only contain tool_result
-    if (isToolResultOnlyMessage(sdkMsg)) continue;
+    // Skip tool result messages (don't break assistant merge)
+    if (isToolResultMessage(sdkMsg)) continue;
 
     const chatMsg = parseSDKMessageToChat(sdkMsg, toolResults);
-    if (chatMsg) {
+    if (!chatMsg) continue;
+
+    if (chatMsg.role === 'assistant') {
+      // Merge all consecutive assistant messages into one bubble
+      if (pendingAssistant) {
+        mergeAssistantMessage(pendingAssistant, chatMsg);
+      } else {
+        pendingAssistant = chatMsg;
+      }
+    } else {
+      // Actual user message (not tool_result) - push any pending assistant first
+      if (pendingAssistant) {
+        chatMessages.push(pendingAssistant);
+        pendingAssistant = null;
+      }
       chatMessages.push(chatMsg);
     }
+  }
+
+  // Don't forget the last pending assistant message
+  if (pendingAssistant) {
+    chatMessages.push(pendingAssistant);
   }
 
   // Sort by timestamp ascending

@@ -501,33 +501,35 @@ describe('sdkSession', () => {
       mockFsPromises.readFile.mockResolvedValue([
         '{"type":"user","uuid":"u1","timestamp":"2024-01-15T10:00:00Z","message":{"content":"Search for cats"}}',
         '{"type":"assistant","uuid":"a1","timestamp":"2024-01-15T10:01:00Z","message":{"content":[{"type":"text","text":"Let me search"},{"type":"tool_use","id":"tool-1","name":"WebSearch","input":{"query":"cats"}}]}}',
-        '{"type":"user","uuid":"u2","timestamp":"2024-01-15T10:02:00Z","message":{"content":[{"type":"tool_result","tool_use_id":"tool-1","content":"Found 10 results"}]}}',
+        '{"type":"user","uuid":"u2","timestamp":"2024-01-15T10:02:00Z","toolUseResult":{},"message":{"content":[{"type":"tool_result","tool_use_id":"tool-1","content":"Found 10 results"}]}}',
         '{"type":"assistant","uuid":"a2","timestamp":"2024-01-15T10:03:00Z","message":{"content":[{"type":"text","text":"I found 10 results about cats."}]}}',
       ].join('\n'));
 
       const result = await loadSDKSessionMessages('/Users/test/vault', 'session-cross-tool');
 
-      // Should have 3 messages (tool_result-only user message skipped)
-      expect(result.messages).toHaveLength(3);
+      // Should have 2 messages (tool_result-only user skipped, assistant messages merged)
+      expect(result.messages).toHaveLength(2);
       expect(result.messages[0].content).toBe('Search for cats');
+      // Merged assistant message has tool calls and combined content
       expect(result.messages[1].toolCalls).toHaveLength(1);
       expect(result.messages[1].toolCalls![0].id).toBe('tool-1');
       expect(result.messages[1].toolCalls![0].result).toBe('Found 10 results');
       expect(result.messages[1].toolCalls![0].status).toBe('completed');
-      expect(result.messages[2].content).toBe('I found 10 results about cats.');
+      expect(result.messages[1].content).toContain('Let me search');
+      expect(result.messages[1].content).toContain('I found 10 results about cats.');
     });
 
-    it('skips user messages that contain only tool_result', async () => {
+    it('skips user messages that are tool results', async () => {
       mockExistsSync.mockReturnValue(true);
       mockFsPromises.readFile.mockResolvedValue([
         '{"type":"user","uuid":"u1","timestamp":"2024-01-15T10:00:00Z","message":{"content":"Hello"}}',
         '{"type":"assistant","uuid":"a1","timestamp":"2024-01-15T10:01:00Z","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{}}]}}',
-        '{"type":"user","uuid":"u2","timestamp":"2024-01-15T10:02:00Z","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"done"}]}}',
+        '{"type":"user","uuid":"u2","timestamp":"2024-01-15T10:02:00Z","toolUseResult":{},"message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"done"}]}}',
       ].join('\n'));
 
       const result = await loadSDKSessionMessages('/Users/test/vault', 'session-skip-tool-result');
 
-      // Should have 2 messages (tool_result-only user skipped)
+      // Should have 2 messages (tool_result user skipped)
       expect(result.messages).toHaveLength(2);
       expect(result.messages[0].role).toBe('user');
       expect(result.messages[0].content).toBe('Hello');
@@ -538,7 +540,7 @@ describe('sdkSession', () => {
       mockExistsSync.mockReturnValue(true);
       mockFsPromises.readFile.mockResolvedValue([
         '{"type":"assistant","uuid":"a1","timestamp":"2024-01-15T10:00:00Z","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"invalid"}}]}}',
-        '{"type":"user","uuid":"u1","timestamp":"2024-01-15T10:01:00Z","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"Command not found","is_error":true}]}}',
+        '{"type":"user","uuid":"u1","timestamp":"2024-01-15T10:01:00Z","toolUseResult":{},"message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"Command not found","is_error":true}]}}',
       ].join('\n'));
 
       const result = await loadSDKSessionMessages('/Users/test/vault', 'session-error-result');

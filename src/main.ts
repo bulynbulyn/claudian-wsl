@@ -17,7 +17,8 @@ import type {
   ChatMessage,
   ClaudianSettings,
   Conversation,
-  ConversationMeta
+  ConversationMeta,
+  ToolDiffData,
 } from './core/types';
 import {
   DEFAULT_CLAUDE_MODELS,
@@ -325,6 +326,7 @@ export default class ClaudianPlugin extends Plugin {
           titleGenerationStatus: meta.titleGenerationStatus,
           legacyCutoffAt: meta.legacyCutoffAt,
           isNative: true,
+          toolDiffData: meta.toolDiffData, // Preserve for applying to loaded messages
         };
       });
 
@@ -570,8 +572,30 @@ export default class ClaudianPlugin extends Plugin {
       ...filteredSdkMessages,
     ]).sort((a, b) => a.timestamp - b.timestamp);
 
+    // Apply cached toolDiffData to loaded messages (for Write/Edit +/- stats)
+    if (conversation.toolDiffData) {
+      this.applyToolDiffData(merged, conversation.toolDiffData);
+    }
+
     conversation.messages = merged;
     conversation.sdkMessagesLoaded = true;
+  }
+
+  /**
+   * Applies cached toolDiffData to messages.
+   * Restores diffData on tool calls so Write/Edit can show +/- stats.
+   */
+  private applyToolDiffData(messages: ChatMessage[], toolDiffData: Record<string, ToolDiffData>): void {
+    for (const msg of messages) {
+      if (msg.role !== 'assistant' || !msg.toolCalls) continue;
+
+      for (const toolCall of msg.toolCalls) {
+        const diffData = toolDiffData[toolCall.id];
+        if (diffData && !toolCall.diffData) {
+          toolCall.diffData = diffData;
+        }
+      }
+    }
   }
 
   private dedupeMessages(messages: ChatMessage[]): ChatMessage[] {

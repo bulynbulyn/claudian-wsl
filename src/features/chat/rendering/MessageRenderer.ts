@@ -173,6 +173,10 @@ export class MessageRenderer {
             (el, md) => this.renderContent(el, md)
           );
         } else if (block.type === 'text') {
+          // Skip empty or whitespace-only text blocks to avoid extra gaps
+          if (!block.content || !block.content.trim()) {
+            continue;
+          }
           const textEl = contentEl.createDiv({ cls: 'claudian-text-block' });
           void this.renderContent(textEl, block.content);
           this.addTextCopyButton(textEl, block.content);
