@@ -44,6 +44,7 @@ function createInitialState(): ChatStateData {
     subagentsSpawnedThisStream: 0,
     currentTodos: null,
     needsAttention: false,
+    autoScrollEnabled: true,
   };
 }
 
@@ -293,6 +294,18 @@ export class ChatState {
   set needsAttention(value: boolean) {
     this.state.needsAttention = value;
     this._callbacks.onAttentionChanged?.(value);
+  }
+
+  // ============================================
+  // Auto-Scroll Control
+  // ============================================
+
+  get autoScrollEnabled(): boolean {
+    return this.state.autoScrollEnabled;
+  }
+
+  set autoScrollEnabled(value: boolean) {
+    this.state.autoScrollEnabled = value;
   }
 
   // ============================================

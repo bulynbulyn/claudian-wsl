@@ -544,7 +544,7 @@ describe('Tab - Event Wiring', () => {
 
       wireTabInputEvents(tab);
 
-      expect(tab.dom.eventCleanups.length).toBe(3); // keydown, input, focus
+      expect(tab.dom.eventCleanups.length).toBe(4); // keydown, input, focus, scroll
     });
   });
 });

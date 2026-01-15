@@ -670,8 +670,11 @@ export class StreamController {
   // Utilities
   // ============================================
 
-  /** Scrolls messages to bottom. */
+  /** Scrolls messages to bottom if auto-scroll is enabled. */
   private scrollToBottom(): void {
+    const { state } = this.deps;
+    if (!state.autoScrollEnabled) return;
+
     const messagesEl = this.deps.getMessagesEl();
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }

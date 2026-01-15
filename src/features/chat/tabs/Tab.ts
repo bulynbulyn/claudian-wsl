@@ -656,6 +656,18 @@ export function wireTabInputEvents(tab: TabData): void {
   };
   dom.inputEl.addEventListener('focus', focusHandler);
   dom.eventCleanups.push(() => dom.inputEl.removeEventListener('focus', focusHandler));
+
+  // Scroll listener for auto-scroll control during streaming
+  const SCROLL_THRESHOLD = 50; // pixels from bottom to consider "at bottom"
+  const scrollHandler = () => {
+    if (!state.isStreaming) return; // Only track during streaming
+
+    const { scrollTop, scrollHeight, clientHeight } = dom.messagesEl;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight <= SCROLL_THRESHOLD;
+    state.autoScrollEnabled = isAtBottom;
+  };
+  dom.messagesEl.addEventListener('scroll', scrollHandler);
+  dom.eventCleanups.push(() => dom.messagesEl.removeEventListener('scroll', scrollHandler));
 }
 
 /**

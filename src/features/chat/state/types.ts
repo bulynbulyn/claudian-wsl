@@ -85,6 +85,9 @@ export interface ChatStateData {
 
   // Attention state (approval pending, error, etc.)
   needsAttention: boolean;
+
+  // Auto-scroll control during streaming
+  autoScrollEnabled: boolean;
 }
 
 /** Callbacks for ChatState changes. */
