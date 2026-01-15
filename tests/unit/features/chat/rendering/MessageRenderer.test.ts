@@ -41,10 +41,14 @@ function createMockElement() {
     scrollTop: 0,
     scrollHeight: 0,
     textContent: '',
+    innerHTML: '',
     empty: jest.fn(() => { children.length = 0; }),
     createDiv: (opts?: { cls?: string; text?: string }) => {
       const child = createMockElement();
-      if (opts?.cls) child.addClass(opts.cls);
+      if (opts?.cls) {
+        // Handle space-separated class names
+        opts.cls.split(' ').forEach(c => child.addClass(c));
+      }
       if (opts?.text) child.textContent = opts.text;
       children.push(child);
       return child;
@@ -101,6 +105,32 @@ describe('MessageRenderer', () => {
     expect(renderStoredSpy).toHaveBeenCalledTimes(1);
     expect(welcomeEl.hasClass('claudian-welcome')).toBe(true);
     expect(welcomeEl.children[0].textContent).toBe('Hello');
+  });
+
+  it('renders interrupt messages with interrupt styling instead of user bubble', () => {
+    const messagesEl = createMockElement();
+    const mockComponent = createMockComponent();
+    const renderer = new MessageRenderer({} as any, mockComponent as any, messagesEl);
+
+    const interruptMsg: ChatMessage = {
+      id: 'interrupt-1',
+      role: 'user',
+      content: '[Request interrupted by user]',
+      timestamp: Date.now(),
+      isInterrupt: true,
+    };
+
+    renderer.renderStoredMessage(interruptMsg);
+
+    // Should create assistant-style message with interrupt content
+    expect(messagesEl.children.length).toBe(1);
+    const msgEl = messagesEl.children[0];
+    expect(msgEl.hasClass('claudian-message-assistant')).toBe(true);
+    // Check the content contains interrupt styling
+    const contentEl = msgEl.children[0];
+    const textEl = contentEl.children[0];
+    expect(textEl.innerHTML).toContain('claudian-interrupted');
+    expect(textEl.innerHTML).toContain('Interrupted');
   });
 
   it('renders assistant content blocks using specialized renderers', () => {

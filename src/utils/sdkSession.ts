@@ -395,6 +395,9 @@ export function parseSDKMessageToChat(
     ? extractDisplayContent(textContent)
     : undefined;
 
+  // Detect interrupt messages from SDK (stored as user messages with specific content)
+  const isInterrupt = sdkMsg.type === 'user' && textContent === '[Request interrupted by user]';
+
   return {
     id: sdkMsg.uuid || `sdk-${timestamp}-${Math.random().toString(36).slice(2)}`,
     role: sdkMsg.type,
@@ -404,6 +407,7 @@ export function parseSDKMessageToChat(
     toolCalls: sdkMsg.type === 'assistant' ? extractToolCalls(content, toolResults) : undefined,
     contentBlocks: sdkMsg.type === 'assistant' ? mapContentBlocks(content) : undefined,
     images,
+    ...(isInterrupt && { isInterrupt: true }),
   };
 }
 

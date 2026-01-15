@@ -129,6 +129,12 @@ export class MessageRenderer {
    * Renders a persisted message from history.
    */
   renderStoredMessage(msg: ChatMessage): void {
+    // Render interrupt messages with special styling (not as user bubbles)
+    if (msg.isInterrupt) {
+      this.renderInterruptMessage();
+      return;
+    }
+
     // Render images above bubble for user messages
     if (msg.role === 'user' && msg.images && msg.images.length > 0) {
       this.renderMessageImages(this.messagesEl, msg.images);
@@ -157,6 +163,17 @@ export class MessageRenderer {
     } else if (msg.role === 'assistant') {
       this.renderAssistantContent(msg, contentEl);
     }
+  }
+
+  /**
+   * Renders an interrupt indicator (stored interrupts from SDK history).
+   * Uses the same styling as streaming interrupts.
+   */
+  private renderInterruptMessage(): void {
+    const msgEl = this.messagesEl.createDiv({ cls: 'claudian-message claudian-message-assistant' });
+    const contentEl = msgEl.createDiv({ cls: 'claudian-message-content' });
+    const textEl = contentEl.createDiv({ cls: 'claudian-text-block' });
+    textEl.innerHTML = '<span class="claudian-interrupted">Interrupted</span> <span class="claudian-interrupted-hint">· What should Claudian do instead?</span>';
   }
 
   /**

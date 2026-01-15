@@ -449,6 +449,39 @@ describe('sdkSession', () => {
       expect(chatMsg!.timestamp).toBeGreaterThanOrEqual(before);
       expect(chatMsg!.timestamp).toBeLessThanOrEqual(after);
     });
+
+    it('marks interrupt messages with isInterrupt flag', () => {
+      const sdkMsg: SDKNativeMessage = {
+        type: 'user',
+        uuid: 'interrupt-1',
+        timestamp: '2024-01-15T10:30:00Z',
+        message: {
+          content: [{ type: 'text', text: '[Request interrupted by user]' }],
+        },
+      };
+
+      const chatMsg = parseSDKMessageToChat(sdkMsg);
+
+      expect(chatMsg).not.toBeNull();
+      expect(chatMsg!.isInterrupt).toBe(true);
+      expect(chatMsg!.content).toBe('[Request interrupted by user]');
+    });
+
+    it('does not mark regular user messages as interrupt', () => {
+      const sdkMsg: SDKNativeMessage = {
+        type: 'user',
+        uuid: 'user-regular',
+        timestamp: '2024-01-15T10:30:00Z',
+        message: {
+          content: 'Hello, how are you?',
+        },
+      };
+
+      const chatMsg = parseSDKMessageToChat(sdkMsg);
+
+      expect(chatMsg).not.toBeNull();
+      expect(chatMsg!.isInterrupt).toBeUndefined();
+    });
   });
 
   describe('loadSDKSessionMessages', () => {

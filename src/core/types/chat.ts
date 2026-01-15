@@ -43,6 +43,8 @@ export interface ChatMessage {
   contentBlocks?: ContentBlock[];
   currentNote?: string;
   images?: ImageAttachment[];
+  /** True if this message represents a user interrupt (from SDK storage). */
+  isInterrupt?: boolean;
 }
 
 /** Persisted conversation with messages and session state. */
