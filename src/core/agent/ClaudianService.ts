@@ -185,7 +185,9 @@ export class ClaudianService {
    * Pre-warm the persistent query for faster follow-up messages.
    * Call this on plugin load with the active conversation session ID.
    *
-   * @param resumeSessionId - Optional session ID to resume
+   * @param resumeSessionId - Optional session ID to resume. If not provided,
+   *        automatically uses sessionManager.getSessionId() to ensure session
+   *        continuity. Pass explicit `undefined` only for truly new sessions.
    * @param externalContextPaths - Optional external context paths to include.
    *        Pass persistent paths here to avoid restart on first message.
    */
@@ -209,7 +211,11 @@ export class ClaudianService {
       this.currentExternalContextPaths = externalContextPaths;
     }
 
-    await this.startPersistentQuery(vaultPath, resolvedClaudePath, resumeSessionId, externalContextPaths);
+    // Auto-resolve session ID from sessionManager if not explicitly provided
+    // This ensures session continuity even if callers forget to pass the ID
+    const effectiveSessionId = resumeSessionId ?? this.sessionManager.getSessionId() ?? undefined;
+
+    await this.startPersistentQuery(vaultPath, resolvedClaudePath, effectiveSessionId, externalContextPaths);
   }
 
   /**
@@ -231,9 +237,10 @@ export class ClaudianService {
     // Create message channel
     this.messageChannel = new MessageChannel();
 
-    // Pre-set session ID on channel if resuming
+    // Pre-set session ID on channel and sessionManager if resuming
     if (resumeSessionId) {
       this.messageChannel.setSessionId(resumeSessionId);
+      this.sessionManager.setSessionId(resumeSessionId, this.plugin.settings.model);
     }
 
     // Create abort controller for the persistent query
@@ -1267,9 +1274,8 @@ export class ClaudianService {
 
     this.sessionManager.setSessionId(id, this.plugin.settings.model);
 
-    // Pre-warm the SDK process (no session ID - just spin up the process)
-    // Resume happens when user sends a message via queryViaPersistent
-    this.preWarm().catch(() => {
+    // Pre-warm the SDK process with the session ID for resume
+    this.preWarm(id ?? undefined).catch(() => {
       // Pre-warm is best-effort, ignore failures
     });
   }

@@ -237,6 +237,12 @@ function buildTabDOM(contentEl: HTMLElement): TabDOMElements {
  * Initializes the tab's ClaudianService (lazy initialization).
  * Call this when the tab becomes active or when the first message is sent.
  *
+ * Session ID resolution:
+ * - If tab has conversationId (existing chat) → lookup conversation's sessionId → preWarm with it
+ * - If tab has no conversationId (new chat) → preWarm without sessionId
+ *
+ * This ensures the single source of truth (tab.conversationId) determines session behavior.
+ *
  * Ensures consistent state: if initialization fails, tab.service is null
  * and tab.serviceInitialized remains false for retry.
  */
@@ -262,10 +268,20 @@ export async function initializeTabService(
       // Continue without permissions - service can still function
     }
 
-    // Pre-warm the SDK process with persistent external context paths
-    // This avoids a restart on first message when user has locked paths
+    // Resolve session ID from conversation if this is an existing chat
+    // Single source of truth: tab.conversationId determines if we have a session to resume
+    let sessionId: string | undefined;
+    if (tab.conversationId) {
+      const conversation = await plugin.getConversationById(tab.conversationId);
+      sessionId = conversation?.sessionId ?? undefined;
+    }
+
+    // Pre-warm the SDK process
+    // - Existing chat: preWarm with sessionId for resume
+    // - New chat: preWarm without sessionId
+    // Note: startPersistentQuery() handles setting sessionManager when sessionId is provided
     const persistentPaths = plugin.settings.persistentExternalContextPaths;
-    service.preWarm(undefined, persistentPaths).catch(() => {
+    service.preWarm(sessionId, persistentPaths).catch(() => {
       // Pre-warm is best-effort, ignore failures
     });
 
@@ -571,6 +587,7 @@ export function initializeTabControllers(
     // Override to use tab's service instead of plugin.agentService
     getAgentService: () => tab.service,
     // Lazy initialization: ensure service is ready before first query
+    // initializeTabService() handles session ID resolution from tab.conversationId
     ensureServiceInitialized: async () => {
       if (tab.serviceInitialized) {
         return true;
