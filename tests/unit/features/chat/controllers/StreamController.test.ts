@@ -339,7 +339,7 @@ describe('StreamController - Text Content', () => {
       expect(msg.subagents![0].id).toBe('task-1');
     });
 
-    it('should render as raw tool call when TodoWrite parsing fails', async () => {
+    it('should skip inline rendering when TodoWrite parsing fails', async () => {
       const { parseTodoInput } = jest.requireMock('@/core/tools');
       const { renderToolCall } = jest.requireMock('@/features/chat/rendering');
       parseTodoInput.mockReturnValue(null); // Simulate parse failure
@@ -357,13 +357,55 @@ describe('StreamController - Text Content', () => {
         msg
       );
 
-      // Should fall back to rendering as tool call
-      expect(msg.contentBlocks).toHaveLength(1);
-      expect(msg.contentBlocks![0]).toEqual({ type: 'tool_use', toolId: 'todo-1' });
-      expect(renderToolCall).toHaveBeenCalled();
+      // TodoWrite should never render inline (even on parse failure)
+      expect(msg.contentBlocks ?? []).toHaveLength(0);
+      expect(renderToolCall).not.toHaveBeenCalled();
 
       // Should not update currentTodos
       expect(deps.state.currentTodos).toBeNull();
+    });
+
+    it('should re-parse TodoWrite on input updates when streaming completes', async () => {
+      const { parseTodoInput } = jest.requireMock('@/core/tools');
+
+      const mockTodos = [
+        { content: 'Task 1', status: 'pending', activeForm: 'Working on task 1' },
+      ];
+
+      // First chunk: partial input, parsing fails
+      parseTodoInput.mockReturnValueOnce(null);
+
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockElement();
+
+      await controller.handleStreamChunk(
+        {
+          type: 'tool_use',
+          id: 'todo-1',
+          name: TOOL_TODO_WRITE,
+          input: { todos: '[' }, // Incomplete JSON
+        },
+        msg
+      );
+
+      // No todos yet
+      expect(deps.state.currentTodos).toBeNull();
+
+      // Second chunk: complete input, parsing succeeds
+      parseTodoInput.mockReturnValueOnce(mockTodos);
+
+      await controller.handleStreamChunk(
+        {
+          type: 'tool_use',
+          id: 'todo-1',
+          name: TOOL_TODO_WRITE,
+          input: { todos: mockTodos },
+        },
+        msg
+      );
+
+      // Now todos should be updated
+      expect(deps.state.currentTodos).toEqual(mockTodos);
     });
   });
 });

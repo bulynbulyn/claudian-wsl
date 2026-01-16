@@ -65,23 +65,15 @@
 
 /* Content (expanded list) */
 .claudian-todo-panel-content {
-  padding: 4px 0 4px 18px;
+  padding: 2px 0;
 }
 
 /* Individual todo item - reuses existing styles */
 .claudian-todo-panel-content .claudian-todo-item {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 4px 0;
-}
-
-.claudian-todo-panel-content .claudian-todo-item:first-child {
-  padding-top: 0;
-}
-
-.claudian-todo-panel-content .claudian-todo-item:last-child {
-  padding-bottom: 0;
+  gap: 6px;
+  padding: 1px 0;
 }
 
 .claudian-todo-panel-content .claudian-todo-status-icon {
@@ -107,24 +99,37 @@
 
 /* Status-specific styling */
 .claudian-todo-panel-content .claudian-todo-pending .claudian-todo-status-icon {
-  color: var(--text-muted);
+  color: var(--text-normal);
+}
+
+.claudian-todo-panel-content .claudian-todo-pending .claudian-todo-status-icon svg {
+  transform: scale(2);
 }
 
 .claudian-todo-panel-content .claudian-todo-pending .claudian-todo-text {
-  color: var(--text-muted);
+  color: var(--text-normal);
 }
 
 .claudian-todo-panel-content .claudian-todo-in_progress .claudian-todo-status-icon {
   color: var(--interactive-accent);
 }
 
+.claudian-todo-panel-content .claudian-todo-in_progress .claudian-todo-status-icon svg {
+  transform: scale(2);
+}
+
 .claudian-todo-panel-content .claudian-todo-in_progress .claudian-todo-text {
   color: var(--text-normal);
-  font-weight: 500;
 }
 
 .claudian-todo-panel-content .claudian-todo-completed .claudian-todo-status-icon {
   color: var(--color-green);
+}
+
+.claudian-todo-panel-content .claudian-todo-completed .claudian-todo-status-icon svg {
+  width: 12px;
+  height: 12px;
+  transform: translateX(3px);
 }
 
 .claudian-todo-panel-content .claudian-todo-completed .claudian-todo-text {

@@ -177,6 +177,15 @@ export class StreamController {
       const newInput = chunk.input || {};
       if (Object.keys(newInput).length > 0) {
         existingToolCall.input = { ...existingToolCall.input, ...newInput };
+
+        // Re-parse TodoWrite on input updates (streaming may complete the input)
+        if (existingToolCall.name === TOOL_TODO_WRITE) {
+          const todos = parseTodoInput(existingToolCall.input);
+          if (todos) {
+            this.deps.state.currentTodos = todos;
+          }
+        }
+
         const toolEl = state.toolCallElements.get(chunk.id);
         if (toolEl) {
           // Try regular tool label first, then Write/Edit label
@@ -200,19 +209,13 @@ export class StreamController {
     msg.toolCalls = msg.toolCalls || [];
     msg.toolCalls.push(toolCall);
 
-    // TodoWrite always updates the persistent bottom panel
+    // TodoWrite only updates the persistent bottom panel (no inline rendering)
     if (chunk.name === TOOL_TODO_WRITE) {
       const todos = parseTodoInput(chunk.input);
       if (todos) {
         this.deps.state.currentTodos = todos;
-      } else {
-        // Parsing failed - render as raw tool call for debugging
-        if (state.currentContentEl) {
-          msg.contentBlocks = msg.contentBlocks || [];
-          msg.contentBlocks.push({ type: 'tool_use', toolId: chunk.id });
-          renderToolCall(state.currentContentEl, toolCall, state.toolCallElements);
-        }
       }
+      // If parsing fails, skip - streaming may complete the input later
     } else if (state.currentContentEl) {
       msg.contentBlocks = msg.contentBlocks || [];
       msg.contentBlocks.push({ type: 'tool_use', toolId: chunk.id });

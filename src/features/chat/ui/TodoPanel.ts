@@ -181,7 +181,10 @@ export class TodoPanel {
       const statusIcon = document.createElement('div');
       statusIcon.className = 'claudian-todo-status-icon';
       statusIcon.setAttribute('aria-hidden', 'true');
-      setIcon(statusIcon, this.getStatusIcon(todo.status));
+      const iconName = this.getStatusIcon(todo.status);
+      if (iconName) {
+        setIcon(statusIcon, iconName);
+      }
       itemEl.appendChild(statusIcon);
 
       const text = document.createElement('div');
@@ -199,12 +202,11 @@ export class TodoPanel {
   private getStatusIcon(status: TodoItem['status']): string {
     switch (status) {
       case 'completed':
-        return 'check-circle-2';
+        return 'check';
       case 'in_progress':
-        return 'circle-dot';
       case 'pending':
       default:
-        return 'circle';
+        return 'dot';
     }
   }
 
