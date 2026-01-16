@@ -219,13 +219,18 @@ export class StreamController {
     msg.toolCalls = msg.toolCalls || [];
     msg.toolCalls.push(toolCall);
 
-    // TodoWrite only updates the persistent bottom panel (no inline rendering)
+    // TodoWrite updates both inline rendering and the persistent bottom panel
     if (chunk.name === TOOL_TODO_WRITE) {
       const todos = parseTodoInput(chunk.input);
       if (todos) {
         this.deps.state.currentTodos = todos;
       }
-      // If parsing fails, skip - streaming may complete the input later
+      // Render inline like other tools
+      if (state.currentContentEl) {
+        msg.contentBlocks = msg.contentBlocks || [];
+        msg.contentBlocks.push({ type: 'tool_use', toolId: chunk.id });
+        renderToolCall(state.currentContentEl, toolCall, state.toolCallElements);
+      }
     } else if (state.currentContentEl) {
       msg.contentBlocks = msg.contentBlocks || [];
       msg.contentBlocks.push({ type: 'tool_use', toolId: chunk.id });

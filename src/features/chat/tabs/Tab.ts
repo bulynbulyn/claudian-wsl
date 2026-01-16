@@ -195,6 +195,9 @@ function buildTabDOM(contentEl: HTMLElement): TabDOMElements {
   // Welcome message placeholder
   const welcomeEl = messagesEl.createDiv({ cls: 'claudian-welcome' });
 
+  // Todo panel container (fixed between messages and input)
+  const todoPanelContainerEl = contentEl.createDiv({ cls: 'claudian-todo-panel-container' });
+
   // Input container
   const inputContainerEl = contentEl.createDiv({ cls: 'claudian-input-container' });
 
@@ -219,6 +222,7 @@ function buildTabDOM(contentEl: HTMLElement): TabDOMElements {
     contentEl,
     messagesEl,
     welcomeEl,
+    todoPanelContainerEl,
     inputContainerEl,
     inputWrapper,
     inputEl,
@@ -361,7 +365,7 @@ function initializeInstructionAndTodo(tab: TabData, plugin: ClaudianPlugin): voi
   );
 
   tab.ui.todoPanel = new TodoPanel();
-  tab.ui.todoPanel.mount(dom.messagesEl);
+  tab.ui.todoPanel.mount(dom.todoPanelContainerEl);
 }
 
 /**

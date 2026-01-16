@@ -1,5 +1,11 @@
 /* Todo Panel - persistent bottom panel for todos */
 
+/* Fixed container between messages and input */
+.claudian-todo-panel-container {
+  flex-shrink: 0;
+  padding: 0 12px;
+}
+
 /* Main container - no border/background, flows seamlessly */
 .claudian-todo-panel {
   padding: 0;

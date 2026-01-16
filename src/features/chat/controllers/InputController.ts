@@ -101,6 +101,11 @@ export class InputController {
     const hasImages = imageContextManager?.hasImages() ?? false;
     if (!content && !hasImages) return;
 
+    // Clear todo panel if all tasks are done (agent can recreate if needed)
+    if (state.currentTodos && state.currentTodos.every(t => t.status === 'completed')) {
+      state.currentTodos = null;
+    }
+
     // Check for built-in commands first (e.g., /clear, /new)
     const builtInCmd = detectBuiltInCommand(content);
     if (builtInCmd) {

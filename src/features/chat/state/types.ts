@@ -66,6 +66,8 @@ export interface ChatStateData {
   currentThinkingState: ThinkingBlockState | null;
   thinkingEl: HTMLElement | null;
   queueIndicatorEl: HTMLElement | null;
+  /** Debounce timeout for showing thinking indicator after inactivity. */
+  thinkingIndicatorTimeout: ReturnType<typeof setTimeout> | null;
 
   // Tool and subagent tracking maps
   toolCallElements: Map<string, HTMLElement>;

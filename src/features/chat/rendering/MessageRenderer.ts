@@ -69,7 +69,6 @@ export class MessageRenderer {
     if (msg.role === 'user') {
       const textToShow = msg.displayContent ?? msg.content;
       if (!textToShow) {
-        this.ensureTodoPanelAtBottom();
         this.scrollToBottom();
         const lastChild = this.messagesEl.lastElementChild as HTMLElement;
         return lastChild ?? this.messagesEl;
@@ -90,7 +89,6 @@ export class MessageRenderer {
       }
     }
 
-    this.ensureTodoPanelAtBottom();
     this.scrollToBottom();
     return msgEl;
   }
@@ -109,7 +107,6 @@ export class MessageRenderer {
     messages: ChatMessage[],
     getGreeting: () => string
   ): HTMLElement {
-    const existingTodoPanel = this.messagesEl.querySelector('.claudian-todo-panel') as HTMLElement | null;
     this.messagesEl.empty();
 
     // Recreate welcome element after clearing
@@ -120,7 +117,6 @@ export class MessageRenderer {
       this.renderStoredMessage(msg);
     }
 
-    this.ensureTodoPanelAtBottom(existingTodoPanel);
     this.scrollToBottom();
     return newWelcomeEl;
   }
@@ -237,13 +233,9 @@ export class MessageRenderer {
 
   /**
    * Renders a tool call with special handling for Write/Edit.
-   * TodoWrite is not rendered inline - it only shows in the bottom panel.
    */
   private renderToolCall(contentEl: HTMLElement, toolCall: ToolCallInfo): void {
-    if (toolCall.name === TOOL_TODO_WRITE) {
-      // TodoWrite is not rendered inline - only in bottom panel
-      return;
-    } else if (isWriteEditTool(toolCall.name)) {
+    if (isWriteEditTool(toolCall.name)) {
       renderStoredWriteEdit(contentEl, toolCall);
     } else {
       renderStoredToolCall(contentEl, toolCall);
@@ -458,11 +450,4 @@ export class MessageRenderer {
     }
   }
 
-  /** Keeps the persistent todo panel pinned to the bottom of the messages container. */
-  private ensureTodoPanelAtBottom(panelEl?: HTMLElement | null): void {
-    const todoPanel = panelEl ?? (this.messagesEl.querySelector('.claudian-todo-panel') as HTMLElement | null);
-    if (todoPanel) {
-      this.messagesEl.appendChild(todoPanel);
-    }
-  }
 }

@@ -147,6 +147,10 @@ export interface TabDOMElements {
   contentEl: HTMLElement;
   messagesEl: HTMLElement;
   welcomeEl: HTMLElement | null;
+
+  /** Container for todo panel (fixed between messages and input). */
+  todoPanelContainerEl: HTMLElement;
+
   inputContainerEl: HTMLElement;
   inputWrapper: HTMLElement;
   inputEl: HTMLTextAreaElement;

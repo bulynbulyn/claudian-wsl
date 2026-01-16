@@ -146,6 +146,36 @@ export function renderReadResult(container: HTMLElement, result: string): void {
   item.setText(`${lines.length} lines read`);
 }
 
+/** Render TodoWrite result showing todo items (reuses panel CSS). */
+export function renderTodoWriteResult(
+  container: HTMLElement,
+  input: Record<string, unknown>
+): void {
+  container.empty();
+  container.addClass('claudian-todo-panel-content');
+
+  const todos = input.todos as Array<{ content: string; status: string; activeForm: string }> | undefined;
+  if (!todos || !Array.isArray(todos)) {
+    const item = container.createSpan({ cls: 'claudian-tool-result-item' });
+    item.setText('Tasks updated');
+    return;
+  }
+
+  for (const todo of todos) {
+    const item = container.createDiv({ cls: `claudian-todo-item claudian-todo-${todo.status}` });
+
+    const icon = item.createSpan({ cls: 'claudian-todo-status-icon' });
+    if (todo.status === 'completed') {
+      setIcon(icon, 'check');
+    } else {
+      setIcon(icon, 'dot');
+    }
+
+    const text = item.createSpan({ cls: 'claudian-todo-text' });
+    text.setText(todo.status === 'in_progress' ? todo.activeForm : todo.content);
+  }
+}
+
 /** Render generic result as DOM elements. Strips line number prefixes. */
 export function renderResultLines(container: HTMLElement, result: string, maxLines = 3): void {
   container.empty();
@@ -227,12 +257,17 @@ export function renderToolCall(
   // Collapsible content
   const content = toolEl.createDiv({ cls: 'claudian-tool-content' });
 
-  // Tree-branch result row
-  const resultRow = content.createDiv({ cls: 'claudian-tool-result-row' });
-  const branch = resultRow.createSpan({ cls: 'claudian-tool-branch' });
-  branch.setText('└─');
-  const resultText = resultRow.createSpan({ cls: 'claudian-tool-result-text' });
-  resultText.setText('Running...');
+  // TodoWrite: render todo list directly (same as panel, no branch)
+  if (toolCall.name === 'TodoWrite') {
+    renderTodoWriteResult(content, toolCall.input);
+  } else {
+    // Tree-branch result row for other tools
+    const resultRow = content.createDiv({ cls: 'claudian-tool-result-row' });
+    const branch = resultRow.createSpan({ cls: 'claudian-tool-branch' });
+    branch.setText('└─');
+    const resultText = resultRow.createSpan({ cls: 'claudian-tool-result-text' });
+    resultText.setText('Running...');
+  }
 
   // Setup collapsible behavior and sync state to toolCall
   const state = { isExpanded: false };
@@ -270,10 +305,19 @@ export function updateToolCallResult(
     }
   }
 
-  // Update result text (max 3 lines)
+  // TodoWrite: re-render to content area (no resultText element)
+  if (toolCall.name === 'TodoWrite') {
+    const content = toolEl.querySelector('.claudian-tool-content') as HTMLElement;
+    if (content) {
+      renderTodoWriteResult(content, toolCall.input);
+    }
+    return;
+  }
+
+  // Update result text (max 3 lines) for other tools
   const resultText = toolEl.querySelector('.claudian-tool-result-text') as HTMLElement;
   if (resultText && toolCall.result) {
-    // Try special rendering for WebSearch/Read, otherwise use generic line renderer
+    // Try special rendering for specific tools, otherwise use generic line renderer
     if (toolCall.name === 'WebSearch') {
       if (!renderWebSearchResult(resultText, toolCall.result, 3)) {
         renderResultLines(resultText, toolCall.result, 3);
@@ -323,24 +367,29 @@ export function renderStoredToolCall(
   // Collapsible content
   const content = toolEl.createDiv({ cls: 'claudian-tool-content' });
 
-  // Tree-branch result row
-  const resultRow = content.createDiv({ cls: 'claudian-tool-result-row' });
-  const branch = resultRow.createSpan({ cls: 'claudian-tool-branch' });
-  branch.setText('└─');
-  const resultText = resultRow.createSpan({ cls: 'claudian-tool-result-text' });
-  if (toolCall.result) {
-    // Try special rendering for WebSearch/Read, otherwise use generic line renderer
-    if (toolCall.name === 'WebSearch') {
-      if (!renderWebSearchResult(resultText, toolCall.result, 3)) {
+  // TodoWrite: render directly without branch (same as panel)
+  if (toolCall.name === 'TodoWrite') {
+    renderTodoWriteResult(content, toolCall.input);
+  } else {
+    // Tree-branch result row for other tools
+    const resultRow = content.createDiv({ cls: 'claudian-tool-result-row' });
+    const branch = resultRow.createSpan({ cls: 'claudian-tool-branch' });
+    branch.setText('└─');
+    const resultText = resultRow.createSpan({ cls: 'claudian-tool-result-text' });
+    if (toolCall.result) {
+      // Try special rendering for specific tools, otherwise use generic line renderer
+      if (toolCall.name === 'WebSearch') {
+        if (!renderWebSearchResult(resultText, toolCall.result, 3)) {
+          renderResultLines(resultText, toolCall.result, 3);
+        }
+      } else if (toolCall.name === 'Read') {
+        renderReadResult(resultText, toolCall.result);
+      } else {
         renderResultLines(resultText, toolCall.result, 3);
       }
-    } else if (toolCall.name === 'Read') {
-      renderReadResult(resultText, toolCall.result);
     } else {
-      renderResultLines(resultText, toolCall.result, 3);
+      resultText.setText('No result');
     }
-  } else {
-    resultText.setText('No result');
   }
 
   // Setup collapsible behavior (handles click, keyboard, ARIA, CSS)

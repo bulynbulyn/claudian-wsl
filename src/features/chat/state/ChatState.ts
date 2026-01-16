@@ -35,6 +35,7 @@ function createInitialState(): ChatStateData {
     currentThinkingState: null,
     thinkingEl: null,
     queueIndicatorEl: null,
+    thinkingIndicatorTimeout: null,
     toolCallElements: new Map(),
     activeSubagents: new Map(),
     asyncSubagentStates: new Map(),
@@ -219,6 +220,14 @@ export class ChatState {
     this.state.queueIndicatorEl = value;
   }
 
+  get thinkingIndicatorTimeout(): ReturnType<typeof setTimeout> | null {
+    return this.state.thinkingIndicatorTimeout;
+  }
+
+  set thinkingIndicatorTimeout(value: ReturnType<typeof setTimeout> | null) {
+    this.state.thinkingIndicatorTimeout = value;
+  }
+
   // ============================================
   // Tool and Subagent Tracking Maps (mutable references)
   // ============================================
@@ -320,6 +329,11 @@ export class ChatState {
     this.state.currentThinkingState = null;
     this.state.isStreaming = false;
     this.state.cancelRequested = false;
+    // Clear thinking indicator timeout
+    if (this.state.thinkingIndicatorTimeout) {
+      clearTimeout(this.state.thinkingIndicatorTimeout);
+      this.state.thinkingIndicatorTimeout = null;
+    }
   }
 
   /** Clears all maps for a new conversation. */

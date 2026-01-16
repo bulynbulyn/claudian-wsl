@@ -794,7 +794,7 @@ describe('Tab - UI Initialization', () => {
       initializeTabUI(tab, options.plugin);
 
       expect(tab.ui.todoPanel).toBeDefined();
-      expect(mockTodoPanel.mount).toHaveBeenCalledWith(tab.dom.messagesEl);
+      expect(mockTodoPanel.mount).toHaveBeenCalledWith(tab.dom.todoPanelContainerEl);
     });
 
     it('should create input toolbar components', () => {

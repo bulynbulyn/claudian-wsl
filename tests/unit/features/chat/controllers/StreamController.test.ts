@@ -282,20 +282,28 @@ describe('StreamController - Text Content', () => {
 
   describe('Tool handling', () => {
     it('should record tool_use and add to content blocks', async () => {
-      const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      jest.useFakeTimers();
+      try {
+        const msg = createTestMessage();
+        deps.state.currentContentEl = createMockElement();
 
-      await controller.handleStreamChunk(
-        { type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: 'notes/test.md' } },
-        msg
-      );
+        await controller.handleStreamChunk(
+          { type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: 'notes/test.md' } },
+          msg
+        );
 
-      expect(msg.toolCalls).toHaveLength(1);
-      expect(msg.toolCalls![0].id).toBe('tool-1');
-      expect(msg.toolCalls![0].status).toBe('running');
-      expect(msg.contentBlocks).toHaveLength(1);
-      expect(msg.contentBlocks![0]).toEqual({ type: 'tool_use', toolId: 'tool-1' });
-      expect(deps.updateQueueIndicator).toHaveBeenCalled();
+        expect(msg.toolCalls).toHaveLength(1);
+        expect(msg.toolCalls![0].id).toBe('tool-1');
+        expect(msg.toolCalls![0].status).toBe('running');
+        expect(msg.contentBlocks).toHaveLength(1);
+        expect(msg.contentBlocks![0]).toEqual({ type: 'tool_use', toolId: 'tool-1' });
+
+        // Thinking indicator is debounced - advance timer to trigger it
+        jest.advanceTimersByTime(500);
+        expect(deps.updateQueueIndicator).toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it('should update tool_result status', async () => {
@@ -339,10 +347,11 @@ describe('StreamController - Text Content', () => {
       expect(msg.subagents![0].id).toBe('task-1');
     });
 
-    it('should skip inline rendering when TodoWrite parsing fails', async () => {
+    it('should render TodoWrite inline and update panel', async () => {
       const { parseTodoInput } = jest.requireMock('@/core/tools');
       const { renderToolCall } = jest.requireMock('@/features/chat/rendering');
-      parseTodoInput.mockReturnValue(null); // Simulate parse failure
+      const mockTodos = [{ content: 'Task 1', status: 'pending', activeForm: 'Working on task 1' }];
+      parseTodoInput.mockReturnValue(mockTodos);
 
       const msg = createTestMessage();
       deps.state.currentContentEl = createMockElement();
@@ -352,17 +361,18 @@ describe('StreamController - Text Content', () => {
           type: 'tool_use',
           id: 'todo-1',
           name: TOOL_TODO_WRITE,
-          input: { invalid: 'data' },
+          input: { todos: mockTodos },
         },
         msg
       );
 
-      // TodoWrite should never render inline (even on parse failure)
-      expect(msg.contentBlocks ?? []).toHaveLength(0);
-      expect(renderToolCall).not.toHaveBeenCalled();
+      // TodoWrite should render inline
+      expect(msg.contentBlocks).toHaveLength(1);
+      expect(msg.contentBlocks![0]).toEqual({ type: 'tool_use', toolId: 'todo-1' });
+      expect(renderToolCall).toHaveBeenCalled();
 
-      // Should not update currentTodos
-      expect(deps.state.currentTodos).toBeNull();
+      // Should update currentTodos for panel
+      expect(deps.state.currentTodos).toEqual(mockTodos);
     });
 
     it('should re-parse TodoWrite on input updates when streaming completes', async () => {
