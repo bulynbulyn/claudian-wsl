@@ -186,13 +186,23 @@ export class StreamController {
           }
         }
 
-        const toolEl = state.toolCallElements.get(chunk.id);
-        if (toolEl) {
-          // Try regular tool label first, then Write/Edit label
-          const labelEl = toolEl.querySelector('.claudian-tool-label') as HTMLElement | null
-            ?? toolEl.querySelector('.claudian-write-edit-label') as HTMLElement | null;
-          if (labelEl) {
-            labelEl.setText(getToolLabel(existingToolCall.name, existingToolCall.input));
+        // For Write/Edit: render now if we have file_path and haven't rendered yet
+        if (isWriteEditTool(existingToolCall.name) && !state.writeEditStates.has(chunk.id)) {
+          const filePath = existingToolCall.input.file_path as string | undefined;
+          if (filePath && state.currentContentEl) {
+            const writeEditState = createWriteEditBlock(state.currentContentEl, existingToolCall);
+            state.writeEditStates.set(chunk.id, writeEditState);
+            state.toolCallElements.set(chunk.id, writeEditState.wrapperEl);
+          }
+        } else {
+          const toolEl = state.toolCallElements.get(chunk.id);
+          if (toolEl) {
+            // Try regular tool label first, then Write/Edit label
+            const labelEl = toolEl.querySelector('.claudian-tool-label') as HTMLElement | null
+              ?? toolEl.querySelector('.claudian-write-edit-label') as HTMLElement | null;
+            if (labelEl) {
+              labelEl.setText(getToolLabel(existingToolCall.name, existingToolCall.input));
+            }
           }
         }
       }
@@ -221,9 +231,14 @@ export class StreamController {
       msg.contentBlocks.push({ type: 'tool_use', toolId: chunk.id });
 
       if (isWriteEditTool(chunk.name)) {
-        const writeEditState = createWriteEditBlock(state.currentContentEl, toolCall);
-        state.writeEditStates.set(chunk.id, writeEditState);
-        state.toolCallElements.set(chunk.id, writeEditState.wrapperEl);
+        // Delay rendering until we have file_path to avoid empty block with scrollbar
+        const filePath = chunk.input.file_path as string | undefined;
+        if (filePath) {
+          const writeEditState = createWriteEditBlock(state.currentContentEl, toolCall);
+          state.writeEditStates.set(chunk.id, writeEditState);
+          state.toolCallElements.set(chunk.id, writeEditState.wrapperEl);
+        }
+        // else: wait for subsequent chunks with file_path
       } else {
         renderToolCall(state.currentContentEl, toolCall, state.toolCallElements);
       }
@@ -272,6 +287,13 @@ export class StreamController {
     if (existingToolCall) {
       existingToolCall.status = isBlocked ? 'blocked' : (chunk.isError ? 'error' : 'completed');
       existingToolCall.result = chunk.content;
+
+      // For Write/Edit: render now if not rendered yet (fallback for delayed rendering)
+      if (isWriteEditTool(existingToolCall.name) && !state.writeEditStates.has(chunk.id) && state.currentContentEl) {
+        const writeEditState = createWriteEditBlock(state.currentContentEl, existingToolCall);
+        state.writeEditStates.set(chunk.id, writeEditState);
+        state.toolCallElements.set(chunk.id, writeEditState.wrapperEl);
+      }
 
       const writeEditState = state.writeEditStates.get(chunk.id);
       if (writeEditState && isWriteEditTool(existingToolCall.name)) {
@@ -638,30 +660,63 @@ export class StreamController {
   // Thinking Indicator
   // ============================================
 
-  /** Shows the thinking indicator. */
+  /** Debounce delay before showing thinking indicator (ms). */
+  private static readonly THINKING_INDICATOR_DELAY = 400;
+
+  /**
+   * Schedules showing the thinking indicator after a delay.
+   * If content arrives before the delay, the indicator won't show.
+   * This prevents the indicator from appearing during active streaming.
+   * Note: Flavor text is hidden when model thinking block is active (thinking takes priority).
+   */
   showThinkingIndicator(parentEl: HTMLElement): void {
     const { state } = this.deps;
 
+    // Clear any existing timeout
+    if (state.thinkingIndicatorTimeout) {
+      clearTimeout(state.thinkingIndicatorTimeout);
+      state.thinkingIndicatorTimeout = null;
+    }
+
+    // Don't show flavor text while model thinking block is active
+    if (state.currentThinkingState) {
+      return;
+    }
+
+    // If indicator already exists, just re-append it to the bottom
     if (state.thinkingEl) {
-      // Re-append to ensure it's at the bottom
       parentEl.appendChild(state.thinkingEl);
       this.deps.updateQueueIndicator();
       return;
     }
 
-    state.thinkingEl = parentEl.createDiv({ cls: 'claudian-thinking' });
-    const randomText = FLAVOR_TEXTS[Math.floor(Math.random() * FLAVOR_TEXTS.length)];
-    state.thinkingEl.createSpan({ text: randomText });
-    state.thinkingEl.createSpan({ text: ' (esc to interrupt)', cls: 'claudian-thinking-hint' });
+    // Schedule showing the indicator after a delay
+    state.thinkingIndicatorTimeout = setTimeout(() => {
+      state.thinkingIndicatorTimeout = null;
+      // Double-check we still have a content element, no indicator exists, and no thinking block
+      if (!state.currentContentEl || state.thinkingEl || state.currentThinkingState) return;
 
-    // Queue indicator line (initially hidden)
-    state.queueIndicatorEl = state.thinkingEl.createDiv({ cls: 'claudian-queue-indicator' });
-    this.deps.updateQueueIndicator();
+      state.thinkingEl = state.currentContentEl.createDiv({ cls: 'claudian-thinking' });
+      const randomText = FLAVOR_TEXTS[Math.floor(Math.random() * FLAVOR_TEXTS.length)];
+      state.thinkingEl.createSpan({ text: randomText });
+      state.thinkingEl.createSpan({ text: ' (esc to interrupt)', cls: 'claudian-thinking-hint' });
+
+      // Queue indicator line (initially hidden)
+      state.queueIndicatorEl = state.thinkingEl.createDiv({ cls: 'claudian-queue-indicator' });
+      this.deps.updateQueueIndicator();
+    }, StreamController.THINKING_INDICATOR_DELAY);
   }
 
-  /** Hides the thinking indicator. */
+  /** Hides the thinking indicator and cancels any pending show timeout. */
   hideThinkingIndicator(): void {
     const { state } = this.deps;
+
+    // Cancel any pending show timeout
+    if (state.thinkingIndicatorTimeout) {
+      clearTimeout(state.thinkingIndicatorTimeout);
+      state.thinkingIndicatorTimeout = null;
+    }
+
     if (state.thinkingEl) {
       state.thinkingEl.remove();
       state.thinkingEl = null;
