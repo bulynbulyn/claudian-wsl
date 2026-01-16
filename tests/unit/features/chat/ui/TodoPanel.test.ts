@@ -142,6 +142,27 @@ class MockElement {
     this.textContent = '';
   }
 
+  // Obsidian-style helper methods
+  createDiv(options?: { cls?: string; text?: string }): MockElement {
+    const el = new MockElement('div');
+    if (options?.cls) el.className = options.cls;
+    if (options?.text) el.textContent = options.text;
+    this.appendChild(el);
+    return el;
+  }
+
+  createSpan(options?: { cls?: string; text?: string }): MockElement {
+    const el = new MockElement('span');
+    if (options?.cls) el.className = options.cls;
+    if (options?.text) el.textContent = options.text;
+    this.appendChild(el);
+    return el;
+  }
+
+  setText(text: string): void {
+    this.textContent = text;
+  }
+
   querySelector(selector: string): MockElement | null {
     return this.querySelectorAll(selector)[0] || null;
   }

@@ -210,6 +210,17 @@ function extractTextContent(content: string | SDKNativeContentBlock[] | undefine
 }
 
 /**
+ * Checks if user message content represents rebuilt context (history sent to SDK when session reset).
+ * These start with "User:" pattern and contain conversation history, not actual user input.
+ */
+function isRebuiltContextContent(textContent: string): boolean {
+  if (!/^User:\s/.test(textContent)) return false;
+  return textContent.includes('\n\nUser:') ||
+         textContent.includes('\n\nAssistant:') ||
+         textContent.includes('\n\nA:');
+}
+
+/**
  * Extracts display content from user messages by removing XML context wrappers.
  *
  * User messages may contain XML context like:
@@ -399,10 +410,7 @@ export function parseSDKMessageToChat(
   const isInterrupt = sdkMsg.type === 'user' && textContent === '[Request interrupted by user]';
 
   // Detect rebuilt context messages (history sent to SDK when session reset)
-  // These start with "User:" pattern and contain conversation history, not actual user input
-  const isRebuiltContext = sdkMsg.type === 'user' &&
-    /^User:\s/.test(textContent) &&
-    (textContent.includes('\n\nUser:') || textContent.includes('\n\nAssistant:') || textContent.includes('\n\nA:'));
+  const isRebuiltContext = sdkMsg.type === 'user' && isRebuiltContextContent(textContent);
 
   return {
     id: sdkMsg.uuid || `sdk-${timestamp}-${Math.random().toString(36).slice(2)}`,

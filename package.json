@@ -6,7 +6,7 @@
   "scripts": {
     "build:css": "node scripts/build-css.mjs",
     "dev": "npm run build:css && node esbuild.config.mjs",
-    "build": "npm run build:css && node esbuild.config.mjs production",
+    "build": "node scripts/build.mjs production",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"{src,tests}/**/*.ts\"",
     "lint:fix": "npm run lint -- --fix",

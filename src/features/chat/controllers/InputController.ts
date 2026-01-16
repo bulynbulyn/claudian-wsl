@@ -286,7 +286,7 @@ export class InputController {
     state.currentTextEl = null;
     state.currentTextContent = '';
 
-    streamController.showThinkingIndicator(contentEl);
+    streamController.showThinkingIndicator();
 
     // Extract @-mentioned MCP servers from prompt
     const mcpMentions = plugin.mcpService.extractMentions(promptToSend);

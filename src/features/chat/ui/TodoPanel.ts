@@ -10,6 +10,7 @@
 import { setIcon } from 'obsidian';
 
 import type { TodoItem } from '../../../core/tools';
+import { renderTodoItems } from '../rendering/todoUtils';
 
 /**
  * TodoPanel - persistent bottom panel for todos.
@@ -171,43 +172,7 @@ export class TodoPanel {
    */
   private renderContent(todos: TodoItem[]): void {
     if (!this.todoContentEl) return;
-
-    this.todoContentEl.empty();
-
-    for (const todo of todos) {
-      const itemEl = document.createElement('div');
-      itemEl.className = `claudian-todo-item claudian-todo-${todo.status}`;
-
-      const statusIcon = document.createElement('div');
-      statusIcon.className = 'claudian-todo-status-icon';
-      statusIcon.setAttribute('aria-hidden', 'true');
-      const iconName = this.getStatusIcon(todo.status);
-      if (iconName) {
-        setIcon(statusIcon, iconName);
-      }
-      itemEl.appendChild(statusIcon);
-
-      const text = document.createElement('div');
-      text.className = 'claudian-todo-text';
-      text.textContent = todo.status === 'in_progress' ? todo.activeForm : todo.content;
-      itemEl.appendChild(text);
-
-      this.todoContentEl.appendChild(itemEl);
-    }
-  }
-
-  /**
-   * Get status icon name for a todo item.
-   */
-  private getStatusIcon(status: TodoItem['status']): string {
-    switch (status) {
-      case 'completed':
-        return 'check';
-      case 'in_progress':
-      case 'pending':
-      default:
-        return 'dot';
-    }
+    renderTodoItems(this.todoContentEl, todos);
   }
 
   /**

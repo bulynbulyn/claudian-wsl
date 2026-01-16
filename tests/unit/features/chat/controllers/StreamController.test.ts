@@ -382,6 +382,193 @@ describe('StreamController - Text Content', () => {
       expect(deps.state.pendingTools.size).toBe(0);
     });
 
+    it('should flush pending tools before rendering text content', async () => {
+      const { renderToolCall } = jest.requireMock('@/features/chat/rendering');
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockElement();
+
+      // Add a tool - should be buffered
+      await controller.handleStreamChunk(
+        { type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: 'test.md' } },
+        msg
+      );
+      expect(deps.state.pendingTools.size).toBe(1);
+      expect(renderToolCall).not.toHaveBeenCalled();
+
+      // Text chunk should flush pending tools first
+      deps.state.currentTextEl = createMockElement();
+      await controller.handleStreamChunk({ type: 'text', content: 'Hello' }, msg);
+
+      expect(deps.state.pendingTools.size).toBe(0);
+      expect(renderToolCall).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ id: 'read-1', name: 'Read' }),
+        expect.any(Map)
+      );
+    });
+
+    it('should flush pending tools before rendering thinking content', async () => {
+      const { renderToolCall } = jest.requireMock('@/features/chat/rendering');
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockElement();
+
+      // Add a tool - should be buffered
+      await controller.handleStreamChunk(
+        { type: 'tool_use', id: 'grep-1', name: 'Grep', input: { pattern: 'test' } },
+        msg
+      );
+      expect(deps.state.pendingTools.size).toBe(1);
+      expect(renderToolCall).not.toHaveBeenCalled();
+
+      // Thinking chunk should flush pending tools first
+      await controller.handleStreamChunk({ type: 'thinking', content: 'Let me think...' }, msg);
+
+      expect(deps.state.pendingTools.size).toBe(0);
+      expect(renderToolCall).toHaveBeenCalled();
+    });
+
+    it('should render pending tool when tool_result arrives before flush', async () => {
+      const { renderToolCall } = jest.requireMock('@/features/chat/rendering');
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockElement();
+
+      // Add a tool - should be buffered
+      await controller.handleStreamChunk(
+        { type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: 'test.md' } },
+        msg
+      );
+      expect(deps.state.pendingTools.size).toBe(1);
+      expect(renderToolCall).not.toHaveBeenCalled();
+
+      // Result arrives while tool still pending - should render tool first
+      await controller.handleStreamChunk(
+        { type: 'tool_result', id: 'read-1', content: 'file contents here' },
+        msg
+      );
+
+      expect(deps.state.pendingTools.size).toBe(0);
+      expect(renderToolCall).toHaveBeenCalled();
+      expect(msg.toolCalls![0].status).toBe('completed');
+      expect(msg.toolCalls![0].result).toBe('file contents here');
+    });
+
+    it('should buffer Write tool and use createWriteEditBlock on flush', async () => {
+      const { createWriteEditBlock, renderToolCall } = jest.requireMock('@/features/chat/rendering');
+      createWriteEditBlock.mockReturnValue({ wrapperEl: createMockElement() });
+
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockElement();
+
+      // Add Write tool - should be buffered
+      await controller.handleStreamChunk(
+        { type: 'tool_use', id: 'write-1', name: 'Write', input: { file_path: 'test.md', content: 'hello' } },
+        msg
+      );
+
+      expect(deps.state.pendingTools.size).toBe(1);
+      expect(createWriteEditBlock).not.toHaveBeenCalled();
+      expect(renderToolCall).not.toHaveBeenCalled();
+
+      // Flush via done chunk
+      await controller.handleStreamChunk({ type: 'done' }, msg);
+
+      expect(deps.state.pendingTools.size).toBe(0);
+      expect(createWriteEditBlock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ id: 'write-1', name: 'Write' })
+      );
+      // renderToolCall should NOT be called for Write/Edit tools
+      expect(renderToolCall).not.toHaveBeenCalled();
+    });
+
+    it('should buffer Edit tool and use createWriteEditBlock on flush', async () => {
+      const { createWriteEditBlock } = jest.requireMock('@/features/chat/rendering');
+      createWriteEditBlock.mockReturnValue({ wrapperEl: createMockElement() });
+
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockElement();
+
+      // Add Edit tool - should be buffered
+      await controller.handleStreamChunk(
+        { type: 'tool_use', id: 'edit-1', name: 'Edit', input: { file_path: 'test.md', old_string: 'a', new_string: 'b' } },
+        msg
+      );
+
+      expect(deps.state.pendingTools.size).toBe(1);
+      expect(createWriteEditBlock).not.toHaveBeenCalled();
+
+      // Flush via text chunk
+      deps.state.currentTextEl = createMockElement();
+      await controller.handleStreamChunk({ type: 'text', content: 'Done editing' }, msg);
+
+      expect(deps.state.pendingTools.size).toBe(0);
+      expect(createWriteEditBlock).toHaveBeenCalled();
+    });
+
+    it('should flush pending tools before rendering blocked message', async () => {
+      const { renderToolCall } = jest.requireMock('@/features/chat/rendering');
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockElement();
+
+      // Add a tool - should be buffered
+      await controller.handleStreamChunk(
+        { type: 'tool_use', id: 'bash-1', name: 'Bash', input: { command: 'ls' } },
+        msg
+      );
+      expect(deps.state.pendingTools.size).toBe(1);
+
+      // Blocked chunk should flush pending tools first
+      await controller.handleStreamChunk({ type: 'blocked', content: 'Command blocked' }, msg);
+
+      expect(deps.state.pendingTools.size).toBe(0);
+      expect(renderToolCall).toHaveBeenCalled();
+    });
+
+    it('should flush pending tools before rendering error message', async () => {
+      const { renderToolCall } = jest.requireMock('@/features/chat/rendering');
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockElement();
+
+      // Add a tool - should be buffered
+      await controller.handleStreamChunk(
+        { type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: 'missing.md' } },
+        msg
+      );
+      expect(deps.state.pendingTools.size).toBe(1);
+
+      // Error chunk should flush pending tools first
+      await controller.handleStreamChunk({ type: 'error', content: 'Something went wrong' }, msg);
+
+      expect(deps.state.pendingTools.size).toBe(0);
+      expect(renderToolCall).toHaveBeenCalled();
+    });
+
+    it('should flush pending tools before Task tool renders', async () => {
+      const { renderToolCall, createSubagentBlock } = jest.requireMock('@/features/chat/rendering');
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockElement();
+
+      // Add a regular tool - should be buffered
+      await controller.handleStreamChunk(
+        { type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: 'test.md' } },
+        msg
+      );
+      expect(deps.state.pendingTools.size).toBe(1);
+      expect(renderToolCall).not.toHaveBeenCalled();
+
+      // Task tool should flush pending tools before creating subagent block
+      await controller.handleStreamChunk(
+        { type: 'tool_use', id: 'task-1', name: TOOL_TASK, input: { prompt: 'Do something', subagent_type: 'general-purpose' } },
+        msg
+      );
+
+      // Pending tools should be flushed
+      expect(deps.state.pendingTools.size).toBe(0);
+      expect(renderToolCall).toHaveBeenCalled();
+      // Subagent block should be created
+      expect(createSubagentBlock).toHaveBeenCalled();
+    });
+
     it('should re-parse TodoWrite on input updates when streaming completes', async () => {
       const { parseTodoInput } = jest.requireMock('@/core/tools');
 
@@ -423,6 +610,62 @@ describe('StreamController - Text Content', () => {
 
       // Now todos should be updated
       expect(deps.state.currentTodos).toEqual(mockTodos);
+    });
+
+    it('should clear pendingTools on resetStreamingState', async () => {
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockElement();
+
+      // Add some pending tools
+      await controller.handleStreamChunk(
+        { type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: 'a.md' } },
+        msg
+      );
+      await controller.handleStreamChunk(
+        { type: 'tool_use', id: 'read-2', name: 'Read', input: { file_path: 'b.md' } },
+        msg
+      );
+      expect(deps.state.pendingTools.size).toBe(2);
+
+      // Reset streaming state
+      controller.resetStreamingState();
+
+      expect(deps.state.pendingTools.size).toBe(0);
+    });
+
+    it('should handle multiple pending tools and flush in order', async () => {
+      const { renderToolCall } = jest.requireMock('@/features/chat/rendering');
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockElement();
+
+      // Add multiple tools - should all be buffered
+      await controller.handleStreamChunk(
+        { type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: 'a.md' } },
+        msg
+      );
+      await controller.handleStreamChunk(
+        { type: 'tool_use', id: 'grep-1', name: 'Grep', input: { pattern: 'test' } },
+        msg
+      );
+      await controller.handleStreamChunk(
+        { type: 'tool_use', id: 'glob-1', name: 'Glob', input: { pattern: '*.md' } },
+        msg
+      );
+
+      expect(deps.state.pendingTools.size).toBe(3);
+      expect(renderToolCall).not.toHaveBeenCalled();
+
+      // Flush via done
+      await controller.handleStreamChunk({ type: 'done' }, msg);
+
+      expect(deps.state.pendingTools.size).toBe(0);
+      expect(renderToolCall).toHaveBeenCalledTimes(3);
+
+      // Verify tools were rendered in order (Map preserves insertion order)
+      const calls = renderToolCall.mock.calls;
+      expect(calls[0][1].id).toBe('read-1');
+      expect(calls[1][1].id).toBe('grep-1');
+      expect(calls[2][1].id).toBe('glob-1');
     });
   });
 });

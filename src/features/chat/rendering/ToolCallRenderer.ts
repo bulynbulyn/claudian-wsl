@@ -6,10 +6,12 @@
 
 import { setIcon } from 'obsidian';
 
+import type { TodoItem } from '../../../core/tools';
 import { getToolIcon, MCP_ICON_MARKER } from '../../../core/tools/toolIcons';
 import type { ToolCallInfo } from '../../../core/types';
 import { MCP_ICON_SVG } from '../../../shared/icons';
 import { setupCollapsible } from './collapsible';
+import { renderTodoItems } from './todoUtils';
 
 // Note: getToolIcon is now exported from src/core/tools/index.ts
 // This module uses it internally but does not re-export it.
@@ -154,26 +156,14 @@ export function renderTodoWriteResult(
   container.empty();
   container.addClass('claudian-todo-panel-content');
 
-  const todos = input.todos as Array<{ content: string; status: string; activeForm: string }> | undefined;
+  const todos = input.todos as TodoItem[] | undefined;
   if (!todos || !Array.isArray(todos)) {
     const item = container.createSpan({ cls: 'claudian-tool-result-item' });
     item.setText('Tasks updated');
     return;
   }
 
-  for (const todo of todos) {
-    const item = container.createDiv({ cls: `claudian-todo-item claudian-todo-${todo.status}` });
-
-    const icon = item.createSpan({ cls: 'claudian-todo-status-icon' });
-    if (todo.status === 'completed') {
-      setIcon(icon, 'check');
-    } else {
-      setIcon(icon, 'dot');
-    }
-
-    const text = item.createSpan({ cls: 'claudian-todo-text' });
-    text.setText(todo.status === 'in_progress' ? todo.activeForm : todo.content);
-  }
+  renderTodoItems(container, todos);
 }
 
 /** Render generic result as DOM elements. Strips line number prefixes. */

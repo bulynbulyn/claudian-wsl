@@ -80,7 +80,7 @@ export class StreamController {
     switch (chunk.type) {
       case 'thinking':
         // Flush pending tools before rendering new content type
-        this.flushPendingTools(msg);
+        this.flushPendingTools();
         if (state.currentTextEl) {
           this.finalizeCurrentTextBlock(msg);
         }
@@ -89,7 +89,7 @@ export class StreamController {
 
       case 'text':
         // Flush pending tools before rendering new content type
-        this.flushPendingTools(msg);
+        this.flushPendingTools();
         if (state.currentThinkingState) {
           this.finalizeCurrentThinkingBlock(msg);
         }
@@ -105,7 +105,7 @@ export class StreamController {
 
         if (chunk.name === TOOL_TASK) {
           // Flush pending tools before Task (subagent needs immediate render)
-          this.flushPendingTools(msg);
+          this.flushPendingTools();
           // Track subagent spawn for usage filtering
           state.subagentsSpawnedThisStream++;
           const isAsync = this.deps.asyncSubagentManager.isAsyncTask(chunk.input);
@@ -133,19 +133,19 @@ export class StreamController {
 
       case 'blocked':
         // Flush pending tools before rendering blocked message
-        this.flushPendingTools(msg);
+        this.flushPendingTools();
         await this.appendText(`\n\n⚠️ **Blocked:** ${chunk.content}`);
         break;
 
       case 'error':
         // Flush pending tools before rendering error message
-        this.flushPendingTools(msg);
+        this.flushPendingTools();
         await this.appendText(`\n\n❌ **Error:** ${chunk.content}`);
         break;
 
       case 'done':
         // Flush any remaining pending tools
-        this.flushPendingTools(msg);
+        this.flushPendingTools();
         break;
 
       case 'usage': {
@@ -245,10 +245,7 @@ export class StreamController {
         toolCall,
         parentEl: state.currentContentEl,
       });
-    }
-
-    if (state.currentContentEl) {
-      this.showThinkingIndicator(state.currentContentEl);
+      this.showThinkingIndicator();
     }
   }
 
@@ -256,7 +253,7 @@ export class StreamController {
    * Flushes all pending tool calls by rendering them.
    * Called when a different content type arrives or stream ends.
    */
-  private flushPendingTools(msg: ChatMessage): void {
+  private flushPendingTools(): void {
     const { state } = this.deps;
 
     if (state.pendingTools.size === 0) {
@@ -264,19 +261,30 @@ export class StreamController {
     }
 
     // Render pending tools in order (Map preserves insertion order)
-    for (const [toolId, pending] of state.pendingTools) {
-      const { toolCall, parentEl } = pending;
-
-      if (isWriteEditTool(toolCall.name)) {
-        const writeEditState = createWriteEditBlock(parentEl, toolCall);
-        state.writeEditStates.set(toolId, writeEditState);
-        state.toolCallElements.set(toolId, writeEditState.wrapperEl);
-      } else {
-        renderToolCall(parentEl, toolCall, state.toolCallElements);
-      }
+    for (const toolId of state.pendingTools.keys()) {
+      this.renderPendingTool(toolId);
     }
 
     state.pendingTools.clear();
+  }
+
+  /**
+   * Renders a single pending tool call and moves it from pending to rendered state.
+   */
+  private renderPendingTool(toolId: string): void {
+    const { state } = this.deps;
+    const pending = state.pendingTools.get(toolId);
+    if (!pending) return;
+
+    const { toolCall, parentEl } = pending;
+    if (isWriteEditTool(toolCall.name)) {
+      const writeEditState = createWriteEditBlock(parentEl, toolCall);
+      state.writeEditStates.set(toolId, writeEditState);
+      state.toolCallElements.set(toolId, writeEditState.wrapperEl);
+    } else {
+      renderToolCall(parentEl, toolCall, state.toolCallElements);
+    }
+    state.pendingTools.delete(toolId);
   }
 
   /** Handles tool_result chunks. */
@@ -295,32 +303,19 @@ export class StreamController {
 
     // Check if it's an async task result
     if (this.handleAsyncTaskToolResult(chunk, msg)) {
-      if (state.currentContentEl) {
-        this.showThinkingIndicator(state.currentContentEl);
-      }
+      this.showThinkingIndicator();
       return;
     }
 
     // Check if it's an agent output result
     if (this.handleAgentOutputToolResult(chunk, msg)) {
-      if (state.currentContentEl) {
-        this.showThinkingIndicator(state.currentContentEl);
-      }
+      this.showThinkingIndicator();
       return;
     }
 
     // Check if tool is still pending (buffered) - render it now before applying result
-    const pending = state.pendingTools.get(chunk.id);
-    if (pending) {
-      const { toolCall, parentEl } = pending;
-      if (isWriteEditTool(toolCall.name)) {
-        const writeEditState = createWriteEditBlock(parentEl, toolCall);
-        state.writeEditStates.set(chunk.id, writeEditState);
-        state.toolCallElements.set(chunk.id, writeEditState.wrapperEl);
-      } else {
-        renderToolCall(parentEl, toolCall, state.toolCallElements);
-      }
-      state.pendingTools.delete(chunk.id);
+    if (state.pendingTools.has(chunk.id)) {
+      this.renderPendingTool(chunk.id);
     }
 
     const existingToolCall = msg.toolCalls?.find(tc => tc.id === chunk.id);
@@ -347,9 +342,7 @@ export class StreamController {
       }
     }
 
-    if (state.currentContentEl) {
-      this.showThinkingIndicator(state.currentContentEl);
-    }
+    this.showThinkingIndicator();
   }
 
   // ============================================
@@ -462,9 +455,7 @@ export class StreamController {
     msg.contentBlocks = msg.contentBlocks || [];
     msg.contentBlocks.push({ type: 'subagent', subagentId: chunk.id });
 
-    if (state.currentContentEl) {
-      this.showThinkingIndicator(state.currentContentEl);
-    }
+    this.showThinkingIndicator();
   }
 
   /** Routes chunks from subagents. */
@@ -490,9 +481,7 @@ export class StreamController {
           isExpanded: false,
         };
         addSubagentToolCall(subagentState, toolCall);
-        if (state.currentContentEl) {
-          this.showThinkingIndicator(state.currentContentEl);
-        }
+        this.showThinkingIndicator();
         break;
       }
 
@@ -532,9 +521,7 @@ export class StreamController {
 
     state.activeSubagents.delete(chunk.id);
 
-    if (state.currentContentEl) {
-      this.showThinkingIndicator(state.currentContentEl);
-    }
+    this.showThinkingIndicator();
   }
 
   // ============================================
@@ -582,9 +569,7 @@ export class StreamController {
     msg.contentBlocks = msg.contentBlocks || [];
     msg.contentBlocks.push({ type: 'subagent', subagentId: chunk.id, mode: 'async' });
 
-    if (state.currentContentEl) {
-      this.showThinkingIndicator(state.currentContentEl);
-    }
+    this.showThinkingIndicator();
   }
 
   /** Handles AgentOutputTool tool_use (invisible, links to async subagent). */
@@ -706,8 +691,11 @@ export class StreamController {
    * This prevents the indicator from appearing during active streaming.
    * Note: Flavor text is hidden when model thinking block is active (thinking takes priority).
    */
-  showThinkingIndicator(parentEl: HTMLElement): void {
+  showThinkingIndicator(): void {
     const { state } = this.deps;
+
+    // Early return if no content element
+    if (!state.currentContentEl) return;
 
     // Clear any existing timeout
     if (state.thinkingIndicatorTimeout) {
@@ -722,7 +710,7 @@ export class StreamController {
 
     // If indicator already exists, just re-append it to the bottom
     if (state.thinkingEl) {
-      parentEl.appendChild(state.thinkingEl);
+      state.currentContentEl.appendChild(state.thinkingEl);
       this.deps.updateQueueIndicator();
       return;
     }
