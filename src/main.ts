@@ -296,6 +296,7 @@ export default class ClaudianPlugin extends Plugin {
       } else if (conversation.sdkSessionId === undefined && conversation.sessionId) {
         conversation.sdkSessionId = conversation.sessionId;
       }
+      conversation.previousSdkSessionIds = meta.previousSdkSessionIds ?? conversation.previousSdkSessionIds;
       conversation.legacyCutoffAt = meta.legacyCutoffAt ?? conversation.legacyCutoffAt;
     }
 
@@ -317,6 +318,7 @@ export default class ClaudianPlugin extends Plugin {
           lastResponseAt: meta.lastResponseAt,
           sessionId: resumeSessionId,
           sdkSessionId,
+          previousSdkSessionIds: meta.previousSdkSessionIds,
           messages: [], // Messages are in SDK storage, loaded on demand
           currentNote: meta.currentNote,
           externalContextPaths: meta.externalContextPaths,
@@ -609,28 +611,77 @@ export default class ClaudianPlugin extends Plugin {
     if (!conversation.isNative || conversation.sdkMessagesLoaded) return;
 
     const vaultPath = getVaultPath(this.app);
-    const sdkSessionToLoad = conversation.sdkSessionId ?? conversation.sessionId;
-    if (!vaultPath || !sdkSessionToLoad) return;
+    if (!vaultPath) return;
 
-    if (!sdkSessionExists(vaultPath, sdkSessionToLoad)) return;
+    // Collect all SDK session IDs to load from (previous + current)
+    const allSessionIds: string[] = [
+      ...(conversation.previousSdkSessionIds || []),
+      conversation.sdkSessionId ?? conversation.sessionId,
+    ].filter((id): id is string => !!id);
 
-    const result: SDKSessionLoadResult = await loadSDKSessionMessages(vaultPath, sdkSessionToLoad);
+    if (allSessionIds.length === 0) return;
 
-    // Notify user of issues
-    if (result.error) {
-      new Notice(`Failed to load conversation history: ${result.error}`);
+    // Load messages from all session files
+    const allSdkMessages: ChatMessage[] = [];
+    let totalSkippedLines = 0;
+    let missingSessionCount = 0;
+    let errorCount = 0;
+    let successCount = 0;
+
+    for (const sessionId of allSessionIds) {
+      if (!sdkSessionExists(vaultPath, sessionId)) {
+        missingSessionCount++;
+        continue;
+      }
+
+      const result: SDKSessionLoadResult = await loadSDKSessionMessages(vaultPath, sessionId);
+
+      if (result.error) {
+        errorCount++;
+        continue;
+      }
+
+      successCount++;
+      totalSkippedLines += result.skippedLines;
+      allSdkMessages.push(...result.messages);
+    }
+
+    // Notify user of issues with specific counts
+    if (missingSessionCount > 0 || errorCount > 0) {
+      const parts: string[] = [];
+      if (missingSessionCount > 0) {
+        parts.push(`${missingSessionCount} session file(s) not found`);
+      }
+      if (errorCount > 0) {
+        parts.push(`${errorCount} failed to load`);
+      }
+      new Notice(`Conversation history incomplete: ${parts.join(', ')}`);
+    }
+    if (totalSkippedLines > 0) {
+      new Notice(`Some messages could not be loaded (${totalSkippedLines} corrupted)`);
+    }
+
+    // Only mark as loaded if at least one session was successfully loaded,
+    // or if all sessions were missing (no point retrying non-existent files).
+    // If sessions exist but ALL failed to load, allow retry on next view.
+    const allSessionsMissing = missingSessionCount === allSessionIds.length;
+    const hasLoadErrors = errorCount > 0 && successCount === 0 && !allSessionsMissing;
+    if (hasLoadErrors) {
+      // Don't mark as loaded - allow retry on next view
       return;
     }
-    if (result.skippedLines > 0) {
-      new Notice(`Some messages could not be loaded (${result.skippedLines} corrupted)`);
-    }
 
-    const filteredSdkMessages = conversation.legacyCutoffAt != null
-      ? result.messages.filter(msg => msg.timestamp > conversation.legacyCutoffAt!)
-      : result.messages;
+    // Filter out rebuilt context messages (history blobs sent on session reset)
+    const filteredSdkMessages = allSdkMessages.filter(msg => !msg.isRebuiltContext);
+
+    // Apply legacy cutoff filter if needed
+    const afterCutoff = conversation.legacyCutoffAt != null
+      ? filteredSdkMessages.filter(msg => msg.timestamp > conversation.legacyCutoffAt!)
+      : filteredSdkMessages;
+
     const merged = this.dedupeMessages([
       ...conversation.messages,
-      ...filteredSdkMessages,
+      ...afterCutoff,
     ]).sort((a, b) => a.timestamp - b.timestamp);
 
     // Apply cached toolDiffData to loaded messages (for Write/Edit +/- stats)
