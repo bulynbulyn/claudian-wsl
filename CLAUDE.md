@@ -292,6 +292,13 @@ Run multiple concurrent chat sessions in the sidebar.
 - **Tab bar**: Badges show tab index, streaming status, and attention indicators
 - **Hotkeys**: `Cmd/Ctrl+1-9` to switch tabs, `Cmd/Ctrl+W` to close
 
+### Smart Scrolling
+Intelligent scroll behavior during streaming responses.
+- **Auto-scroll**: Automatically scrolls to bottom during streaming
+- **User override**: Scrolling up disables auto-scroll; scrolling back to bottom re-enables it
+- **Scroll-to-bottom button**: Sticky button appears when scrolled up, click to jump to bottom and re-enable auto-scroll
+- **Reset on query**: Auto-scroll resets to enabled when sending a new message
+
 ### Image Support
 - Drag/drop or paste images into the chat input
 - Formats: JPEG, PNG, GIF, WebP (max 5MB)
@@ -457,8 +464,8 @@ All classes use `.claudian-` prefix. Key patterns:
 ## Development Notes
 
 - Test Driven Development
-- Generated docs go in `dev/`, move docs to `dev/archive` before commit
-- Generated agents communication notes in `.agents/`, move notes to `.agents/archive` before commit, do not check in any docs under `.agents/` or `.agents/archive`(already gitignored)
+- Generated docs go in `dev/`
+- Generated agents communication notes in `.agents/`
 - Run `npm run typecheck`, `npm run lint`, `npm run test`, `npm run build` after editing
 - Do not use console msg in production code, only add them upon request from user, and remove them before commit. 
 - If user should be notified/warned about something, use the notification system provided by Obsidian, do not use console msg.
