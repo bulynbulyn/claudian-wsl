@@ -292,18 +292,59 @@ describe('ClaudianPlugin', () => {
   });
 
   describe('applyEnvironmentVariables', () => {
-    it('toggles restart notification state based on runtime env', async () => {
+    it('updates runtime env vars when changed', async () => {
       await plugin.onload();
       (plugin as any).runtimeEnvironmentVariables = 'A=1';
 
       await plugin.applyEnvironmentVariables('A=2');
-      expect((plugin as any).hasNotifiedEnvChange).toBe(true);
+      expect((plugin as any).runtimeEnvironmentVariables).toBe('A=2');
 
       await plugin.applyEnvironmentVariables('A=3');
-      expect((plugin as any).hasNotifiedEnvChange).toBe(true);
+      expect((plugin as any).runtimeEnvironmentVariables).toBe('A=3');
 
-      await plugin.applyEnvironmentVariables('A=1');
-      expect((plugin as any).hasNotifiedEnvChange).toBe(false);
+      // No change - should not update
+      const currentEnv = (plugin as any).runtimeEnvironmentVariables;
+      await plugin.applyEnvironmentVariables('A=3');
+      expect((plugin as any).runtimeEnvironmentVariables).toBe(currentEnv);
+    });
+
+    it('invalidates sessions when env hash changes', async () => {
+      await plugin.onload();
+
+      const conv = await plugin.createConversation('session-123');
+      const saveMetadataSpy = jest.spyOn(plugin.storage.sessions, 'saveMetadata');
+      saveMetadataSpy.mockClear();
+
+      await plugin.applyEnvironmentVariables('ANTHROPIC_MODEL=claude-sonnet-4-5');
+
+      const updated = await plugin.getConversationById(conv.id);
+      expect(updated?.sessionId).toBeNull();
+      expect(saveMetadataSpy).toHaveBeenCalled();
+    });
+
+    it('broadcasts ensureReady with force when env changes without model change', async () => {
+      await plugin.onload();
+
+      // Mock getView to return a view with tabManager
+      const mockEnsureReady = jest.fn().mockResolvedValue(true);
+      const mockBroadcast = jest.fn().mockImplementation(async (fn) => {
+        await fn({ ensureReady: mockEnsureReady });
+      });
+      const mockTabManager = {
+        broadcastToAllTabs: mockBroadcast,
+        getAllTabs: jest.fn().mockReturnValue([]),
+      };
+      const mockView = {
+        getTabManager: jest.fn().mockReturnValue(mockTabManager),
+        refreshModelSelector: jest.fn(),
+      };
+      jest.spyOn(plugin, 'getView').mockReturnValue(mockView as any);
+
+      // Change env but not in a way that affects model
+      await plugin.applyEnvironmentVariables('SOME_VAR=value');
+
+      expect(mockBroadcast).toHaveBeenCalled();
+      expect(mockEnsureReady).toHaveBeenCalledWith({ force: true });
     });
   });
 
