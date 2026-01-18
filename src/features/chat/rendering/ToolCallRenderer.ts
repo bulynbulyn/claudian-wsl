@@ -234,15 +234,19 @@ function createCurrentTaskPreview(
   return currentTaskEl;
 }
 
-/** Create toggle handler that hides current task preview when expanded (TodoWrite only). */
-function createCurrentTaskToggleHandler(
+/** Create toggle handler that hides current task preview and status tick when expanded (TodoWrite only). */
+function createTodoToggleHandler(
   currentTaskEl: HTMLElement | null,
+  statusEl: HTMLElement | null,
   onExpandChange?: (expanded: boolean) => void
 ): (expanded: boolean) => void {
   return (expanded: boolean) => {
     if (onExpandChange) onExpandChange(expanded);
     if (currentTaskEl) {
       currentTaskEl.style.display = expanded ? 'none' : '';
+    }
+    if (statusEl) {
+      statusEl.style.display = expanded ? 'none' : '';
     }
   };
 }
@@ -400,9 +404,10 @@ export function renderToolCall(
   // Setup collapsible behavior and sync state to toolCall
   const state = { isExpanded: false };
   toolCall.isExpanded = false;
+  const todoStatusEl = toolCall.name === 'TodoWrite' ? statusEl : null;
   setupCollapsible(toolEl, header, content, state, {
     initiallyExpanded: false,
-    onToggle: createCurrentTaskToggleHandler(currentTaskEl, (expanded) => {
+    onToggle: createTodoToggleHandler(currentTaskEl, todoStatusEl, (expanded) => {
       toolCall.isExpanded = expanded;
     }),
     baseAriaLabel: getToolLabel(toolCall.name, toolCall.input)
@@ -477,9 +482,10 @@ export function renderStoredToolCall(
 
   // Setup collapsible behavior (handles click, keyboard, ARIA, CSS)
   const state = { isExpanded: false };
+  const todoStatusEl = toolCall.name === 'TodoWrite' ? statusEl : null;
   setupCollapsible(toolEl, header, content, state, {
     initiallyExpanded: false,
-    onToggle: createCurrentTaskToggleHandler(currentTaskEl),
+    onToggle: createTodoToggleHandler(currentTaskEl, todoStatusEl),
     baseAriaLabel: getToolLabel(toolCall.name, toolCall.input)
   });
 

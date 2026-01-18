@@ -213,22 +213,24 @@ export class StatusPanel {
     label.textContent = `Tasks (${completedCount}/${totalCount})`;
     this.todoHeaderEl.appendChild(label);
 
-    // Current task (only when collapsed)
-    if (!this.isTodoExpanded && currentTask) {
-      const current = document.createElement('span');
-      current.className = 'claudian-status-panel-current';
-      current.textContent = currentTask.activeForm;
-      this.todoHeaderEl.appendChild(current);
-    }
+    // Collapsed-only elements: status indicator and current task preview
+    if (!this.isTodoExpanded) {
+      // Status indicator (tick only when all todos complete)
+      if (completedCount === totalCount && totalCount > 0) {
+        const status = document.createElement('span');
+        status.className = 'claudian-status-panel-status status-completed';
+        setIcon(status, 'check');
+        this.todoHeaderEl.appendChild(status);
+      }
 
-    // Status indicator (tick only when all todos complete)
-    const status = document.createElement('span');
-    status.className = 'claudian-status-panel-status';
-    if (completedCount === totalCount && totalCount > 0) {
-      status.classList.add('status-completed');
-      setIcon(status, 'check');
+      // Current task preview
+      if (currentTask) {
+        const current = document.createElement('span');
+        current.className = 'claudian-status-panel-current';
+        current.textContent = currentTask.activeForm;
+        this.todoHeaderEl.appendChild(current);
+      }
     }
-    this.todoHeaderEl.appendChild(status);
   }
 
   /**
@@ -426,12 +428,6 @@ export class StatusPanel {
         ? 'claudian-status-panel-done-row claudian-status-panel-combined-row'
         : 'claudian-status-panel-done-row';
 
-      // Green tick icon
-      const iconEl = document.createElement('span');
-      iconEl.className = 'claudian-status-panel-icon claudian-status-panel-done-icon';
-      setIcon(iconEl, 'check');
-      rowEl.appendChild(iconEl);
-
       // Bot icon
       const botIconEl = document.createElement('span');
       botIconEl.className = 'claudian-status-panel-icon claudian-status-panel-bot-icon';
@@ -443,6 +439,12 @@ export class StatusPanel {
       textEl.className = 'claudian-status-panel-done-text';
       textEl.textContent = this.truncateDescription(subagent.description);
       rowEl.appendChild(textEl);
+
+      // Green tick icon
+      const iconEl = document.createElement('span');
+      iconEl.className = 'claudian-status-panel-icon claudian-status-panel-done-icon';
+      setIcon(iconEl, 'check');
+      rowEl.appendChild(iconEl);
 
       // If last done row and we have running, add running count to the right
       if (showRunningOnThisRow) {
