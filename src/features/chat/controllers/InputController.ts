@@ -359,10 +359,7 @@ export class InputController {
       await streamController.appendText(`\n\n**Error:** ${errorMsg}`);
     } finally {
       // ALWAYS clear the timer interval, even on stream invalidation (prevents memory leaks)
-      if (state.flavorTimerInterval) {
-        clearInterval(state.flavorTimerInterval);
-        state.flavorTimerInterval = null;
-      }
+      state.clearFlavorTimerInterval();
 
       // Skip remaining cleanup if stream was invalidated (tab closed or conversation switched)
       if (!wasInvalidated && state.streamGeneration === streamGeneration) {
@@ -374,25 +371,21 @@ export class InputController {
         state.cancelRequested = false;
 
         // Capture response duration before resetting state
-        if (state.responseStartTime) {
-          const durationSeconds = Math.floor((performance.now() - state.responseStartTime) / 1000);
-          if (durationSeconds > 0) {
-            const flavorWord =
-              COMPLETION_FLAVOR_WORDS[Math.floor(Math.random() * COMPLETION_FLAVOR_WORDS.length)];
-            assistantMsg.durationSeconds = durationSeconds;
-            assistantMsg.durationFlavorWord = flavorWord;
-            // Add footer to live message in DOM (non-critical, shouldn't break cleanup)
-            try {
-              if (contentEl) {
-                const footerEl = contentEl.createDiv({ cls: 'claudian-response-footer' });
-                footerEl.createSpan({
-                  text: `* ${flavorWord} for ${formatDurationMmSs(durationSeconds)}`,
-                  cls: 'claudian-baked-duration',
-                });
-              }
-            } catch {
-              // DOM update failed - duration is still saved to message, just not displayed live
-            }
+        const durationSeconds = state.responseStartTime
+          ? Math.floor((performance.now() - state.responseStartTime) / 1000)
+          : 0;
+        if (durationSeconds > 0) {
+          const flavorWord =
+            COMPLETION_FLAVOR_WORDS[Math.floor(Math.random() * COMPLETION_FLAVOR_WORDS.length)];
+          assistantMsg.durationSeconds = durationSeconds;
+          assistantMsg.durationFlavorWord = flavorWord;
+          // Add footer to live message in DOM
+          if (contentEl) {
+            const footerEl = contentEl.createDiv({ cls: 'claudian-response-footer' });
+            footerEl.createSpan({
+              text: `* ${flavorWord} for ${formatDurationMmSs(durationSeconds)}`,
+              cls: 'claudian-baked-duration',
+            });
           }
         }
 

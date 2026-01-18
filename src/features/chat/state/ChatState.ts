@@ -358,6 +358,14 @@ export class ChatState {
   // Reset Methods
   // ============================================
 
+  /** Clears flavor timer interval if active. */
+  clearFlavorTimerInterval(): void {
+    if (this.state.flavorTimerInterval) {
+      clearInterval(this.state.flavorTimerInterval);
+      this.state.flavorTimerInterval = null;
+    }
+  }
+
   /** Resets streaming-related state. */
   resetStreamingState(): void {
     this.state.currentContentEl = null;
@@ -372,10 +380,7 @@ export class ChatState {
       this.state.thinkingIndicatorTimeout = null;
     }
     // Clear response timer
-    if (this.state.flavorTimerInterval) {
-      clearInterval(this.state.flavorTimerInterval);
-      this.state.flavorTimerInterval = null;
-    }
+    this.clearFlavorTimerInterval();
     this.state.responseStartTime = null;
   }
 

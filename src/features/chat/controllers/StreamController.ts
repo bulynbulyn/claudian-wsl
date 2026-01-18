@@ -841,10 +841,7 @@ export class StreamController {
     }
 
     // Clear timer interval (but preserve responseStartTime for duration capture)
-    if (state.flavorTimerInterval) {
-      clearInterval(state.flavorTimerInterval);
-      state.flavorTimerInterval = null;
-    }
+    state.clearFlavorTimerInterval();
 
     if (state.thinkingEl) {
       state.thinkingEl.remove();
