@@ -18,6 +18,9 @@ import type { TodoItem } from '../../../core/tools';
 import type { AsyncSubagentStatus, SubagentInfo } from '../../../core/types';
 import { renderTodoItems } from '../rendering/todoUtils';
 
+/** Terminal states for async subagents (no longer trackable). */
+const TERMINAL_STATES: PanelSubagentInfo['status'][] = ['completed', 'error', 'orphaned'];
+
 /** Async subagent display info for the panel. */
 export interface PanelSubagentInfo {
   id: string;
@@ -321,10 +324,8 @@ export class StatusPanel {
    * Called when user sends a new query - done entries are dismissed.
    */
   clearTerminalSubagents(): void {
-    const terminalStates: PanelSubagentInfo['status'][] = ['completed', 'error', 'orphaned'];
-
     for (const [id, info] of this.currentSubagents) {
-      if (terminalStates.includes(info.status)) {
+      if (TERMINAL_STATES.includes(info.status)) {
         this.currentSubagents.delete(id);
       }
     }
@@ -344,21 +345,11 @@ export class StatusPanel {
 
     for (const subagent of asyncSubagents) {
       // Determine display status - running/pending become orphaned after reload
-      let status: PanelSubagentInfo['status'];
-      switch (subagent.asyncStatus) {
-        case 'completed':
-          status = 'completed';
-          break;
-        case 'error':
-          status = 'error';
-          break;
-        case 'orphaned':
-          status = 'orphaned';
-          break;
-        default:
-          // running or pending - can't track after reload, mark as orphaned
-          status = 'orphaned';
-      }
+      const status: PanelSubagentInfo['status'] = TERMINAL_STATES.includes(
+        subagent.asyncStatus as PanelSubagentInfo['status']
+      )
+        ? (subagent.asyncStatus as PanelSubagentInfo['status'])
+        : 'orphaned';
 
       this.currentSubagents.set(subagent.id, {
         id: subagent.id,
@@ -377,6 +368,14 @@ export class StatusPanel {
   private truncateDescription(description: string, maxLength = 50): string {
     if (description.length <= maxLength) return description;
     return description.substring(0, maxLength) + '...';
+  }
+
+  /**
+   * Format running task count text.
+   */
+  private formatRunningCount(count: number): string {
+    const taskWord = count === 1 ? 'background task' : 'background tasks';
+    return `${count} ${taskWord}`;
   }
 
   /**
@@ -449,8 +448,7 @@ export class StatusPanel {
       if (showRunningOnThisRow) {
         const runningEl = document.createElement('span');
         runningEl.className = 'claudian-status-panel-running-text';
-        const taskWord = runningSubagents.length === 1 ? 'background task' : 'background tasks';
-        runningEl.textContent = `${runningSubagents.length} ${taskWord}`;
+        runningEl.textContent = this.formatRunningCount(runningSubagents.length);
         rowEl.appendChild(runningEl);
       }
 
@@ -465,8 +463,7 @@ export class StatusPanel {
       // Count text
       const textEl = document.createElement('span');
       textEl.className = 'claudian-status-panel-running-text';
-      const taskWord = runningSubagents.length === 1 ? 'background task' : 'background tasks';
-      textEl.textContent = `${runningSubagents.length} ${taskWord}`;
+      textEl.textContent = this.formatRunningCount(runningSubagents.length);
       rowEl.appendChild(textEl);
 
       this.subagentContainerEl.appendChild(rowEl);

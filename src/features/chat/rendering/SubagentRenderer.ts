@@ -539,18 +539,17 @@ export function renderStoredAsyncSubagent(
   subagent: SubagentInfo
 ): HTMLElement {
   const wrapperEl = parentEl.createDiv({ cls: 'claudian-subagent-list' });
-  const statusClass = getAsyncDisplayStatus(subagent.asyncStatus);
-  setAsyncWrapperStatus(wrapperEl, statusClass);
+  const displayStatus = getAsyncDisplayStatus(subagent.asyncStatus);
+  setAsyncWrapperStatus(wrapperEl, displayStatus);
 
-  if (subagent.asyncStatus === 'completed') {
+  if (displayStatus === 'completed') {
     wrapperEl.addClass('done');
-  } else if (subagent.asyncStatus === 'error' || subagent.asyncStatus === 'orphaned') {
+  } else if (displayStatus === 'error' || displayStatus === 'orphaned') {
     wrapperEl.addClass('error');
   }
   wrapperEl.dataset.asyncSubagentId = subagent.id;
 
   // Status info
-  const displayStatus = getAsyncDisplayStatus(subagent.asyncStatus);
   const statusText = getAsyncStatusText(subagent.asyncStatus);
   const statusAriaLabel = getAsyncStatusAriaLabel(subagent.asyncStatus);
 
@@ -589,7 +588,7 @@ export function renderStoredAsyncSubagent(
   const statusEl = headerEl.createDiv({ cls: `claudian-subagent-status ${statusIconClass}` });
   statusEl.setAttribute('aria-label', `Status: ${statusAriaLabel}`);
 
-  switch (subagent.asyncStatus) {
+  switch (displayStatus) {
     case 'completed':
       setIcon(statusEl, 'check');
       break;
@@ -605,7 +604,7 @@ export function renderStoredAsyncSubagent(
   const contentEl = wrapperEl.createDiv({ cls: 'claudian-subagent-content' });
 
   // Show status-appropriate content
-  switch (subagent.asyncStatus) {
+  switch (displayStatus) {
     case 'completed':
       createStatusRow(contentEl, 'DONE');
       break;
