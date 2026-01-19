@@ -408,9 +408,10 @@ export class SessionStorage {
 
   /** Convert a Conversation to SessionMetadata for native storage. */
   toSessionMetadata(conversation: Conversation): SessionMetadata {
-    // Extract toolDiffData and subagentData from all messages for persistence
+    // Extract toolDiffData, subagentData, and displayContentMap from all messages for persistence
     const toolDiffData = this.extractToolDiffData(conversation.messages);
     const subagentData = this.extractSubagentData(conversation.messages);
+    const displayContentMap = this.extractDisplayContentMap(conversation.messages);
 
     return {
       id: conversation.id,
@@ -429,6 +430,7 @@ export class SessionStorage {
       legacyCutoffAt: conversation.legacyCutoffAt,
       toolDiffData: Object.keys(toolDiffData).length > 0 ? toolDiffData : undefined,
       subagentData: Object.keys(subagentData).length > 0 ? subagentData : undefined,
+      displayContentMap: Object.keys(displayContentMap).length > 0 ? displayContentMap : undefined,
     };
   }
 
@@ -465,6 +467,21 @@ export class SessionStorage {
       for (const subagent of msg.subagents) {
         result[subagent.id] = subagent;
       }
+    }
+
+    return result;
+  }
+
+  /**
+   * Extracts displayContentMap from messages for persistence.
+   * Collects displayContent from user messages that have it (e.g., slash commands).
+   */
+  private extractDisplayContentMap(messages: ChatMessage[]): Record<string, string> {
+    const result: Record<string, string> = {};
+
+    for (const msg of messages) {
+      if (msg.role !== 'user' || !msg.displayContent) continue;
+      result[msg.id] = msg.displayContent;
     }
 
     return result;

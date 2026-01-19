@@ -100,6 +100,12 @@ export interface Conversation {
    * Loaded from metadata for native sessions to restore tool count and status on reload.
    */
   subagentData?: Record<string, SubagentInfo>;
+  /**
+   * Cached display content for user messages with slash commands.
+   * Maps messageId to displayContent (e.g., "/tests" instead of expanded prompt).
+   * Loaded from metadata for native sessions to restore slash command display on reload.
+   */
+  displayContentMap?: Record<string, string>;
 }
 
 /** Lightweight conversation metadata for the history dropdown. */
@@ -161,6 +167,12 @@ export interface SessionMetadata {
    * Stored here because SDK session files don't preserve this Claudian-specific data.
    */
   subagentData?: Record<string, SubagentInfo>;
+  /**
+   * Display content for user messages with slash commands.
+   * Maps messageId to displayContent (e.g., "/tests" instead of expanded prompt).
+   * Stored here because SDK session files don't preserve this Claudian-specific data.
+   */
+  displayContentMap?: Record<string, string>;
 }
 
 /** Normalized stream chunk from the Claude Agent SDK. */

@@ -330,6 +330,7 @@ export default class ClaudianPlugin extends Plugin {
           isNative: true,
           toolDiffData: meta.toolDiffData, // Preserve for applying to loaded messages
           subagentData: meta.subagentData, // Preserve for applying to loaded messages
+          displayContentMap: meta.displayContentMap, // Preserve for applying to loaded messages
         };
       });
 
@@ -696,6 +697,11 @@ export default class ClaudianPlugin extends Plugin {
       this.applySubagentData(merged, conversation.subagentData);
     }
 
+    // Apply cached displayContentMap to loaded messages (for slash command display)
+    if (conversation.displayContentMap) {
+      this.applyDisplayContentMap(merged, conversation.displayContentMap);
+    }
+
     conversation.messages = merged;
     conversation.sdkMessagesLoaded = true;
   }
@@ -766,6 +772,23 @@ export default class ClaudianPlugin extends Plugin {
             }
           }
         }
+      }
+    }
+  }
+
+  /**
+   * Applies cached displayContentMap to messages.
+   * Restores displayContent on user messages so slash commands show "/command" instead of expanded prompt.
+   * Takes precedence over SDK-extracted displayContent since metadata stores the original user input.
+   */
+  private applyDisplayContentMap(messages: ChatMessage[], displayContentMap: Record<string, string>): void {
+    for (const msg of messages) {
+      if (msg.role !== 'user') continue;
+
+      const displayContent = displayContentMap[msg.id];
+      if (displayContent) {
+        // Override SDK-extracted displayContent with saved original user input
+        msg.displayContent = displayContent;
       }
     }
   }
