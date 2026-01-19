@@ -9,7 +9,6 @@ export {
   type DiffLine,
   diffLinesToHtml,
   type DiffStats,
-  isBinaryContent,
   renderDiffContent,
   splitIntoHunks,
 } from './DiffRenderer';

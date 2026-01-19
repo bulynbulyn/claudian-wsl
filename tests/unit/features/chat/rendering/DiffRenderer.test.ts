@@ -7,7 +7,6 @@ import {
   computeLineDiff,
   countLineChanges,
   diffLinesToHtml,
-  isBinaryContent,
   splitIntoHunks,
 } from '@/features/chat/rendering/DiffRenderer';
 
@@ -308,43 +307,6 @@ describe('DiffRenderer', () => {
       expect(hunks).toHaveLength(1);
       expect(hunks[0].oldStart).toBe(2); // Context starts at line 2
       expect(hunks[0].newStart).toBe(2);
-    });
-  });
-
-  describe('isBinaryContent', () => {
-    it('should return false for normal text', () => {
-      expect(isBinaryContent('Hello, world!')).toBe(false);
-      expect(isBinaryContent('Line 1\nLine 2\nLine 3')).toBe(false);
-      expect(isBinaryContent('')).toBe(false);
-    });
-
-    it('should return true for null byte', () => {
-      expect(isBinaryContent('hello\x00world')).toBe(true);
-    });
-
-    it('should return true for high ratio of non-printable characters', () => {
-      // Create string with >10% non-printable chars
-      const binary = 'a'.repeat(80) + '\x01\x02\x03\x04\x05\x06\x07\x08\x0E\x0F\x10\x11';
-      expect(isBinaryContent(binary)).toBe(true);
-    });
-
-    it('should return false for low ratio of non-printable characters', () => {
-      // Create string with <10% non-printable chars
-      const mostlyText = 'a'.repeat(100) + '\x01';
-      expect(isBinaryContent(mostlyText)).toBe(false);
-    });
-
-    it('should handle tabs and newlines as printable', () => {
-      const withTabs = 'hello\tworld';
-      const withNewlines = 'hello\nworld\r\n';
-      expect(isBinaryContent(withTabs)).toBe(false);
-      expect(isBinaryContent(withNewlines)).toBe(false);
-    });
-
-    it('should detect common binary file signatures', () => {
-      // PNG header contains null bytes
-      const pngLike = '\x89PNG\r\n\x1a\n\x00\x00\x00';
-      expect(isBinaryContent(pngLike)).toBe(true);
     });
   });
 

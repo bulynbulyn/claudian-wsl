@@ -296,23 +296,6 @@ describe('WriteEditRenderer', () => {
       expect(contentText).toContain('Diff unavailable');
     });
 
-    it('should display "Binary file" for binary content', () => {
-      const parentEl = createMockElement();
-      const toolCall = createToolCall();
-      const state = createWriteEditBlock(parentEl, toolCall);
-
-      const diffData: ToolDiffData = {
-        filePath: 'test.md',
-        originalContent: 'normal text',
-        newContent: 'binary\x00content',
-      };
-
-      updateWriteEditWithDiff(state, diffData);
-
-      const contentText = getTextContent(state.contentEl);
-      expect(contentText).toContain('Binary file');
-    });
-
     it('should store diffLines in state', () => {
       const parentEl = createMockElement();
       const toolCall = createToolCall();

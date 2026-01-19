@@ -17,13 +17,16 @@ export function getTodayDate(): string {
   return `${readable} (${iso})`;
 }
 
-/** Formats a duration in seconds as mm:ss (e.g., "01:23"). */
+/** Formats a duration in seconds as "1m 23s" or "45s". */
 export function formatDurationMmSs(seconds: number): string {
   // Validate input - return safe fallback for invalid values
   if (!Number.isFinite(seconds) || seconds < 0) {
-    return '00:00';
+    return '0s';
   }
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
-  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  if (mins === 0) {
+    return `${secs}s`;
+  }
+  return `${mins}m ${secs}s`;
 }

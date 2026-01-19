@@ -17,7 +17,6 @@ import type {
 import {
   computeLineDiff,
   countLineChanges,
-  isBinaryContent,
   renderDiffContent,
 } from './DiffRenderer';
 
@@ -143,14 +142,6 @@ export function updateWriteEditWithDiff(state: WriteEditState, diffData: ToolDif
   }
 
   const { originalContent, newContent } = diffData;
-
-  // Check for binary content
-  if (isBinaryContent(originalContent) || isBinaryContent(newContent)) {
-    const row = state.contentEl.createDiv({ cls: 'claudian-write-edit-diff-row' });
-    const binaryEl = row.createDiv({ cls: 'claudian-write-edit-binary' });
-    binaryEl.setText('Binary file');
-    return;
-  }
 
   // Compute diff
   const diffLines = computeLineDiff(originalContent, newContent);
