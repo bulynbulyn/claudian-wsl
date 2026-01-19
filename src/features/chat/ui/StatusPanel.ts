@@ -15,6 +15,8 @@
 import { setIcon } from 'obsidian';
 
 import type { TodoItem } from '../../../core/tools';
+import { getToolIcon } from '../../../core/tools/toolIcons';
+import { TOOL_TASK, TOOL_TODO_WRITE } from '../../../core/tools/toolNames';
 import type { AsyncSubagentStatus, SubagentInfo } from '../../../core/types';
 import { renderTodoItems } from '../rendering/todoUtils';
 
@@ -204,7 +206,7 @@ export class StatusPanel {
     // List icon
     const icon = document.createElement('span');
     icon.className = 'claudian-status-panel-icon';
-    setIcon(icon, 'list-checks');
+    setIcon(icon, getToolIcon(TOOL_TODO_WRITE));
     this.todoHeaderEl.appendChild(icon);
 
     // Label
@@ -431,7 +433,7 @@ export class StatusPanel {
       // Bot icon
       const botIconEl = document.createElement('span');
       botIconEl.className = 'claudian-status-panel-icon claudian-status-panel-bot-icon';
-      setIcon(botIconEl, 'bot');
+      setIcon(botIconEl, getToolIcon(TOOL_TASK));
       rowEl.appendChild(botIconEl);
 
       // Description text

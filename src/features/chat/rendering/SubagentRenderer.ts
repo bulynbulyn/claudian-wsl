@@ -6,6 +6,8 @@
 
 import { setIcon } from 'obsidian';
 
+import { getToolIcon } from '../../../core/tools/toolIcons';
+import { TOOL_TASK } from '../../../core/tools/toolNames';
 import type { SubagentInfo, ToolCallInfo } from '../../../core/types';
 import { setupCollapsible } from './collapsible';
 import { getToolLabel } from './ToolCallRenderer';
@@ -88,7 +90,7 @@ export function createSubagentBlock(
   // Robot icon (decorative)
   const iconEl = headerEl.createDiv({ cls: 'claudian-subagent-icon' });
   iconEl.setAttribute('aria-hidden', 'true');
-  setIcon(iconEl, 'bot');
+  setIcon(iconEl, getToolIcon(TOOL_TASK));
 
   // Label (description only)
   const labelEl = headerEl.createDiv({ cls: 'claudian-subagent-label' });
@@ -254,7 +256,7 @@ export function renderStoredSubagent(
 
   const iconEl = headerEl.createDiv({ cls: 'claudian-subagent-icon' });
   iconEl.setAttribute('aria-hidden', 'true');
-  setIcon(iconEl, 'bot');
+  setIcon(iconEl, getToolIcon(TOOL_TASK));
 
   const labelEl = headerEl.createDiv({ cls: 'claudian-subagent-label' });
   labelEl.setText(truncateDescription(subagent.description));
@@ -407,7 +409,7 @@ export function createAsyncSubagentBlock(
   // Robot icon (decorative)
   const iconEl = headerEl.createDiv({ cls: 'claudian-subagent-icon' });
   iconEl.setAttribute('aria-hidden', 'true');
-  setIcon(iconEl, 'bot');
+  setIcon(iconEl, getToolIcon(TOOL_TASK));
 
   // Label (description) - show immediately for visibility
   const labelEl = headerEl.createDiv({ cls: 'claudian-subagent-label' });
@@ -562,7 +564,7 @@ export function renderStoredAsyncSubagent(
 
   const iconEl = headerEl.createDiv({ cls: 'claudian-subagent-icon' });
   iconEl.setAttribute('aria-hidden', 'true');
-  setIcon(iconEl, 'bot');
+  setIcon(iconEl, getToolIcon(TOOL_TASK));
 
   const labelEl = headerEl.createDiv({ cls: 'claudian-subagent-label' });
   // Always show description for visibility

@@ -9,7 +9,7 @@
 
 import { setIcon } from 'obsidian';
 
-import { TOOL_EDIT } from '../../../core/tools/toolNames';
+import { getToolIcon } from '../../../core/tools/toolIcons';
 import type { ToolCallInfo, ToolDiffData } from '../../../core/types';
 import { setupCollapsible } from './collapsible';
 import type {
@@ -78,7 +78,7 @@ export function createWriteEditBlock(
   // File icon
   const iconEl = headerEl.createDiv({ cls: 'claudian-write-edit-icon' });
   iconEl.setAttribute('aria-hidden', 'true');
-  setIcon(iconEl, toolName === TOOL_EDIT ? 'file-pen' : 'file-plus');
+  setIcon(iconEl, getToolIcon(toolName));
 
   // Label: "Write: filename.md" or "Edit: filename.md"
   const labelEl = headerEl.createDiv({ cls: 'claudian-write-edit-label' });
@@ -226,7 +226,7 @@ export function renderStoredWriteEdit(parentEl: HTMLElement, toolCall: ToolCallI
   // File icon
   const iconEl = headerEl.createDiv({ cls: 'claudian-write-edit-icon' });
   iconEl.setAttribute('aria-hidden', 'true');
-  setIcon(iconEl, toolName === TOOL_EDIT ? 'file-pen' : 'file-plus');
+  setIcon(iconEl, getToolIcon(toolName));
 
   // Label
   const labelEl = headerEl.createDiv({ cls: 'claudian-write-edit-label' });

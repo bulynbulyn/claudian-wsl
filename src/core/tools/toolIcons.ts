@@ -28,9 +28,9 @@ import {
 
 const TOOL_ICONS: Record<string, string> = {
   [TOOL_READ]: 'file-text',
-  [TOOL_WRITE]: 'edit-3',
-  [TOOL_EDIT]: 'edit',
-  [TOOL_NOTEBOOK_EDIT]: 'edit',
+  [TOOL_WRITE]: 'file-plus',
+  [TOOL_EDIT]: 'file-pen',
+  [TOOL_NOTEBOOK_EDIT]: 'file-pen',
   [TOOL_BASH]: 'terminal',
   [TOOL_BASH_OUTPUT]: 'terminal',
   [TOOL_KILL_SHELL]: 'terminal',
@@ -38,7 +38,7 @@ const TOOL_ICONS: Record<string, string> = {
   [TOOL_GREP]: 'search',
   [TOOL_LS]: 'list',
   [TOOL_TODO_WRITE]: 'list-checks',
-  [TOOL_TASK]: 'list-checks',
+  [TOOL_TASK]: 'bot',
   [TOOL_LIST_MCP_RESOURCES]: 'list',
   [TOOL_READ_MCP_RESOURCE]: 'file-text',
   [TOOL_MCP]: 'wrench',

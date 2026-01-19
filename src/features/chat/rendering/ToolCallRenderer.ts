@@ -8,13 +8,23 @@ import { setIcon } from 'obsidian';
 
 import type { TodoItem } from '../../../core/tools';
 import { getToolIcon, MCP_ICON_MARKER } from '../../../core/tools/toolIcons';
+import {
+  TOOL_BASH,
+  TOOL_EDIT,
+  TOOL_GLOB,
+  TOOL_GREP,
+  TOOL_LS,
+  TOOL_READ,
+  TOOL_SKILL,
+  TOOL_TODO_WRITE,
+  TOOL_WEB_FETCH,
+  TOOL_WEB_SEARCH,
+  TOOL_WRITE,
+} from '../../../core/tools/toolNames';
 import type { ToolCallInfo } from '../../../core/types';
 import { MCP_ICON_SVG } from '../../../shared/icons';
 import { setupCollapsible } from './collapsible';
 import { renderTodoItems } from './todoUtils';
-
-// Note: getToolIcon is now exported from src/core/tools/index.ts
-// This module uses it internally but does not re-export it.
 
 /** Set the tool icon on an element. */
 export function setToolIcon(el: HTMLElement, name: string) {
@@ -29,31 +39,31 @@ export function setToolIcon(el: HTMLElement, name: string) {
 /** Generate a human-readable label for a tool call. */
 export function getToolLabel(name: string, input: Record<string, unknown>): string {
   switch (name) {
-    case 'Read':
+    case TOOL_READ:
       return `Read: ${shortenPath(input.file_path as string) || 'file'}`;
-    case 'Write':
+    case TOOL_WRITE:
       return `Write: ${shortenPath(input.file_path as string) || 'file'}`;
-    case 'Edit':
+    case TOOL_EDIT:
       return `Edit: ${shortenPath(input.file_path as string) || 'file'}`;
-    case 'Bash': {
+    case TOOL_BASH: {
       const cmd = (input.command as string) || 'command';
       return `Bash: ${cmd.length > 40 ? cmd.substring(0, 40) + '...' : cmd}`;
     }
-    case 'Glob':
+    case TOOL_GLOB:
       return `Glob: ${input.pattern || 'files'}`;
-    case 'Grep':
+    case TOOL_GREP:
       return `Grep: ${input.pattern || 'pattern'}`;
-    case 'WebSearch': {
+    case TOOL_WEB_SEARCH: {
       const query = (input.query as string) || 'search';
       return `WebSearch: ${query.length > 40 ? query.substring(0, 40) + '...' : query}`;
     }
-    case 'WebFetch': {
+    case TOOL_WEB_FETCH: {
       const url = (input.url as string) || 'url';
       return `WebFetch: ${url.length > 40 ? url.substring(0, 40) + '...' : url}`;
     }
-    case 'LS':
+    case TOOL_LS:
       return `LS: ${shortenPath(input.path as string) || '.'}`;
-    case 'TodoWrite': {
+    case TOOL_TODO_WRITE: {
       const todos = input.todos as Array<{ status: string }> | undefined;
       if (todos && Array.isArray(todos)) {
         const completed = todos.filter(t => t.status === 'completed').length;
@@ -61,7 +71,7 @@ export function getToolLabel(name: string, input: Record<string, unknown>): stri
       }
       return 'Tasks';
     }
-    case 'Skill': {
+    case TOOL_SKILL: {
       const skillName = (input.skill as string) || 'skill';
       return `Skill: ${skillName}`;
     }
@@ -83,18 +93,18 @@ function shortenPath(filePath: string | undefined): string {
 /** Format tool input for display. */
 export function formatToolInput(name: string, input: Record<string, unknown>): string {
   switch (name) {
-    case 'Read':
-    case 'Write':
-    case 'Edit':
+    case TOOL_READ:
+    case TOOL_WRITE:
+    case TOOL_EDIT:
       return input.file_path as string || JSON.stringify(input, null, 2);
-    case 'Bash':
+    case TOOL_BASH:
       return (input.command as string) || JSON.stringify(input, null, 2);
-    case 'Glob':
-    case 'Grep':
+    case TOOL_GLOB:
+    case TOOL_GREP:
       return (input.pattern as string) || JSON.stringify(input, null, 2);
-    case 'WebSearch':
+    case TOOL_WEB_SEARCH:
       return (input.query as string) || JSON.stringify(input, null, 2);
-    case 'WebFetch':
+    case TOOL_WEB_FETCH:
       return (input.url as string) || JSON.stringify(input, null, 2);
     default:
       return JSON.stringify(input, null, 2);
@@ -210,11 +220,11 @@ function renderToolResultContent(
     container.setText('No result');
     return;
   }
-  if (toolName === 'WebSearch') {
+  if (toolName === TOOL_WEB_SEARCH) {
     if (!renderWebSearchResult(container, result, 3)) {
       renderResultLines(container, result, 3);
     }
-  } else if (toolName === 'Read') {
+  } else if (toolName === TOOL_READ) {
     renderReadResult(container, result);
   } else {
     renderResultLines(container, result, 3);
@@ -348,7 +358,7 @@ function createToolElementStructure(
   labelEl.setText(getToolLabel(toolCall.name, toolCall.input));
 
   // Current task preview (TodoWrite only, shown when collapsed)
-  const currentTaskEl = toolCall.name === 'TodoWrite'
+  const currentTaskEl = toolCall.name === TOOL_TODO_WRITE
     ? createCurrentTaskPreview(header, toolCall.input)
     : null;
 
@@ -367,7 +377,7 @@ function renderToolContent(
   toolCall: ToolCallInfo,
   initialText?: string
 ): void {
-  if (toolCall.name === 'TodoWrite') {
+  if (toolCall.name === TOOL_TODO_WRITE) {
     content.addClass('claudian-tool-content-todo');
     renderTodoWriteResult(content, toolCall.input);
   } else {
@@ -404,7 +414,7 @@ export function renderToolCall(
   // Setup collapsible behavior and sync state to toolCall
   const state = { isExpanded: false };
   toolCall.isExpanded = false;
-  const todoStatusEl = toolCall.name === 'TodoWrite' ? statusEl : null;
+  const todoStatusEl = toolCall.name === TOOL_TODO_WRITE ? statusEl : null;
   setupCollapsible(toolEl, header, content, state, {
     initiallyExpanded: false,
     onToggle: createTodoToggleHandler(currentTaskEl, todoStatusEl, (expanded) => {
@@ -426,7 +436,7 @@ export function updateToolCallResult(
   if (!toolEl) return;
 
   // TodoWrite: special handling for status based on todo completion
-  if (toolCall.name === 'TodoWrite') {
+  if (toolCall.name === TOOL_TODO_WRITE) {
     const statusEl = toolEl.querySelector('.claudian-tool-status') as HTMLElement;
     if (statusEl) {
       setTodoWriteStatus(statusEl, toolCall.input);
@@ -471,7 +481,7 @@ export function renderStoredToolCall(
     createToolElementStructure(parentEl, toolCall);
 
   // Set status (stored - already has final status)
-  if (toolCall.name === 'TodoWrite') {
+  if (toolCall.name === TOOL_TODO_WRITE) {
     setTodoWriteStatus(statusEl, toolCall.input);
   } else {
     setToolStatus(statusEl, toolCall.status);
@@ -482,7 +492,7 @@ export function renderStoredToolCall(
 
   // Setup collapsible behavior (handles click, keyboard, ARIA, CSS)
   const state = { isExpanded: false };
-  const todoStatusEl = toolCall.name === 'TodoWrite' ? statusEl : null;
+  const todoStatusEl = toolCall.name === TOOL_TODO_WRITE ? statusEl : null;
   setupCollapsible(toolEl, header, content, state, {
     initiallyExpanded: false,
     onToggle: createTodoToggleHandler(currentTaskEl, todoStatusEl),
