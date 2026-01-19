@@ -12,7 +12,7 @@
   justify-content: center;
   gap: 6px;
   background: var(--background-secondary) !important;
-  border: 1px solid var(--background-modifier-border) !important;
+  border: 0.5px solid var(--background-modifier-border) !important;
   border-radius: 6px;
   cursor: pointer;
   color: var(--text-muted);
@@ -30,9 +30,10 @@
 }
 
 .claudian-scroll-to-bottom:hover {
-  background: var(--background-modifier-hover) !important;
+  background: var(--background-secondary-alt) !important;
   color: var(--text-normal);
   border-color: var(--background-modifier-border-hover) !important;
+  opacity: 1;
 }
 
 .claudian-scroll-to-bottom:focus-visible {
