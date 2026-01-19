@@ -994,6 +994,120 @@ describe('McpTester', () => {
     expect(requestSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('should auto-detect SSE response format from http server (streamable-http)', async () => {
+    // Streamable HTTP servers may respond with SSE format (data: {...})
+    mockHttpRequests([
+      {
+        statusCode: 200,
+        body: 'data: ' + JSON.stringify({ result: { serverInfo: { name: 'streamable-srv', version: '1.0.0' } } }),
+      },
+      { statusCode: 200, body: '{}' },
+      {
+        statusCode: 200,
+        body: 'data: ' + JSON.stringify({ result: { tools: [{ name: 'stream-tool' }] } }),
+      },
+    ]);
+    const server: ClaudianMcpServer = {
+      name: 'streamable',
+      config: { type: 'http', url: 'http://localhost:3000/mcp' },
+      enabled: true,
+      contextSaving: false,
+    };
+
+    const result = await testMcpServer(server);
+
+    expect(result.success).toBe(true);
+    expect(result.serverName).toBe('streamable-srv');
+    expect(result.serverVersion).toBe('1.0.0');
+    expect(result.tools).toMatchObject([{ name: 'stream-tool' }]);
+  });
+
+  it('should fail with invalid response when neither JSON nor SSE format', async () => {
+    mockHttpRequests([
+      {
+        statusCode: 200,
+        body: 'not json and not sse format',
+      },
+    ]);
+    const server: ClaudianMcpServer = {
+      name: 'invalid-format',
+      config: { type: 'http', url: 'http://localhost:3000/mcp' },
+      enabled: true,
+      contextSaving: false,
+    };
+
+    const result = await testMcpServer(server);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Invalid response');
+  });
+
+  it('should fail when SSE data line contains invalid JSON', async () => {
+    mockHttpRequests([
+      {
+        statusCode: 200,
+        body: 'data: {not valid json}',
+      },
+    ]);
+    const server: ClaudianMcpServer = {
+      name: 'malformed-sse',
+      config: { type: 'http', url: 'http://localhost:3000/mcp' },
+      enabled: true,
+      contextSaving: false,
+    };
+
+    const result = await testMcpServer(server);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Invalid response');
+  });
+
+  it('should fail with empty response from http server', async () => {
+    mockHttpRequests([
+      {
+        statusCode: 200,
+        body: '',
+      },
+    ]);
+    const server: ClaudianMcpServer = {
+      name: 'empty-response',
+      config: { type: 'http', url: 'http://localhost:3000/mcp' },
+      enabled: true,
+      contextSaving: false,
+    };
+
+    const result = await testMcpServer(server);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Invalid response');
+  });
+
+  it('should return partial success when tools response is unparseable', async () => {
+    mockHttpRequests([
+      {
+        statusCode: 200,
+        body: JSON.stringify({ result: { serverInfo: { name: 'srv', version: '1.0' } } }),
+      },
+      { statusCode: 200, body: '{}' },
+      {
+        statusCode: 200,
+        body: 'unparseable garbage',
+      },
+    ]);
+    const server: ClaudianMcpServer = {
+      name: 'partial',
+      config: { type: 'http', url: 'http://localhost:3000/mcp' },
+      enabled: true,
+      contextSaving: false,
+    };
+
+    const result = await testMcpServer(server);
+
+    expect(result.success).toBe(true);
+    expect(result.serverName).toBe('srv');
+    expect(result.tools).toEqual([]);
+  });
+
   it('should test sse server and return tools', async () => {
     const originalFetch = globalThis.fetch;
     const postRequests: Array<{ url: string; body: string }> = [];
