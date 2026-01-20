@@ -1662,22 +1662,6 @@ describe('Tab - Controller Configuration', () => {
       expect(config.getTitleGenerationService()).toBe(tab.services.titleGenerationService);
     });
 
-    it('should wire resetContextMeter to update with null', () => {
-      const { InputController } = jest.requireMock('@/features/chat/controllers');
-      const options = createMockOptions();
-      const tab = createTab(options);
-      const mockComponent = {} as any;
-
-      initializeTabUI(tab, options.plugin);
-      initializeTabControllers(tab, options.plugin, mockComponent, options.mcpManager);
-
-      const constructorCall = InputController.mock.calls[0];
-      const config = constructorCall[0];
-
-      config.resetContextMeter();
-
-      expect(mockContextUsageMeter.update).toHaveBeenCalledWith(null);
-    });
   });
 
   describe('StreamController configuration', () => {

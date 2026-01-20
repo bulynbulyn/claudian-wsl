@@ -15,7 +15,7 @@ import { ClaudianService } from '../../../core/agent';
 import { SlashCommandManager } from '../../../core/commands';
 import type { McpServerManager } from '../../../core/mcp';
 import type { ClaudeModel, Conversation, ThinkingBudget } from '../../../core/types';
-import { DEFAULT_CLAUDE_MODELS, DEFAULT_THINKING_BUDGET } from '../../../core/types';
+import { DEFAULT_CLAUDE_MODELS, DEFAULT_THINKING_BUDGET, getContextWindowSize } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
 import { SlashCommandDropdown } from '../../../shared/components/SlashCommandDropdown';
 import { getVaultPath } from '../../../utils/path';
@@ -435,6 +435,19 @@ function initializeInputToolbar(tab: TabData, plugin: ClaudianPlugin): void {
       tab.ui.thinkingBudgetSelector?.updateDisplay();
       tab.ui.modelSelector?.updateDisplay();
       tab.ui.modelSelector?.renderOptions();
+
+      // Recalculate context usage percentage for the new model's context window
+      const currentUsage = tab.state.usage;
+      if (currentUsage) {
+        const newContextWindow = getContextWindowSize(model, plugin.settings.show1MModel);
+        const newPercentage = Math.min(100, Math.max(0, Math.round((currentUsage.contextTokens / newContextWindow) * 100)));
+        tab.state.usage = {
+          ...currentUsage,
+          model,
+          contextWindow: newContextWindow,
+          percentage: newPercentage,
+        };
+      }
     },
     onThinkingBudgetChange: async (budget: ThinkingBudget) => {
       plugin.settings.thinkingBudget = budget;
@@ -635,7 +648,6 @@ export function initializeTabControllers(
     getTitleGenerationService: () => services.titleGenerationService,
     getStatusPanel: () => ui.statusPanel,
     generateId,
-    resetContextMeter: () => ui.contextUsageMeter?.update(null),
     resetInputHeight: () => {
       // Per-tab input height is managed by CSS, no dynamic adjustment needed
     },

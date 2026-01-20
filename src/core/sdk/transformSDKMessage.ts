@@ -14,13 +14,15 @@
  */
 
 import type { SDKMessage, UsageInfo } from '../types';
-import { selectModelUsage } from './selectModelUsage';
+import { getContextWindowSize } from '../types';
 import type { TransformEvent } from './types';
 
 /** Options for transformSDKMessage. */
 export interface TransformOptions {
-  /** The intended model from settings/query (used as fallback for usage selection). */
+  /** The intended model from settings/query (used for context window size). */
   intendedModel?: string;
+  /** Whether 1M context window is enabled (affects context window size for sonnet). */
+  is1MEnabled?: boolean;
 }
 
 /**
@@ -51,7 +53,7 @@ export function* transformSDKMessage(
       // Don't yield system messages to the UI
       break;
 
-    case 'assistant':
+    case 'assistant': {
       // Extract ALL content blocks - text, tool_use, and thinking
       if (message.message?.content && Array.isArray(message.message.content)) {
         for (const block of message.message.content) {
@@ -70,7 +72,39 @@ export function* transformSDKMessage(
           }
         }
       }
+
+      // Extract usage from main agent assistant messages only (not subagent)
+      // This gives accurate per-turn context usage without subagent token pollution
+      const apiMessage = message.message as { usage?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        cache_creation_input_tokens?: number;
+        cache_read_input_tokens?: number;
+      } };
+      if (parentToolUseId === null && apiMessage?.usage) {
+        const usage = apiMessage.usage;
+        const inputTokens = usage.input_tokens ?? 0;
+        const cacheCreationInputTokens = usage.cache_creation_input_tokens ?? 0;
+        const cacheReadInputTokens = usage.cache_read_input_tokens ?? 0;
+        const contextTokens = inputTokens + cacheCreationInputTokens + cacheReadInputTokens;
+
+        const model = options?.intendedModel ?? 'sonnet';
+        const contextWindow = getContextWindowSize(model, options?.is1MEnabled ?? false);
+        const percentage = Math.min(100, Math.max(0, Math.round((contextTokens / contextWindow) * 100)));
+
+        const usageInfo: UsageInfo = {
+          model,
+          inputTokens,
+          cacheCreationInputTokens,
+          cacheReadInputTokens,
+          contextWindow,
+          contextTokens,
+          percentage,
+        };
+        yield { type: 'usage', usage: usageInfo };
+      }
       break;
+    }
 
     case 'user':
       // Check for blocked tool calls (from hook denials)
@@ -140,37 +174,10 @@ export function* transformSDKMessage(
       break;
     }
 
-    case 'result': {
-      if (parentToolUseId) {
-        break;
-      }
-
-      // Extract usage info from result message
-      const usageByModel = message.modelUsage;
-      if (usageByModel) {
-        const selected = selectModelUsage(usageByModel, message.model, options?.intendedModel);
-        if (selected && selected.usage.contextWindow && selected.usage.contextWindow > 0) {
-          const { modelName, usage } = selected;
-          const inputTokens = usage.inputTokens ?? 0;
-          const cacheCreationInputTokens = usage.cacheCreationInputTokens ?? 0;
-          const cacheReadInputTokens = usage.cacheReadInputTokens ?? 0;
-          const contextTokens = inputTokens + cacheCreationInputTokens + cacheReadInputTokens;
-          const percentage = Math.min(100, Math.max(0, Math.round((contextTokens / usage.contextWindow!) * 100)));
-
-          const usageInfo: UsageInfo = {
-            model: modelName,
-            inputTokens,
-            cacheCreationInputTokens,
-            cacheReadInputTokens,
-            contextWindow: usage.contextWindow!,
-            contextTokens,
-            percentage,
-          };
-          yield { type: 'usage', usage: usageInfo };
-        }
-      }
+    case 'result':
+      // Usage is now extracted from assistant messages for accuracy (excludes subagent tokens)
+      // Result message usage is aggregated across main + subagents, causing inaccurate spikes
       break;
-    }
 
     case 'error':
       if (message.error) {

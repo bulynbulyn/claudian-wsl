@@ -70,3 +70,22 @@ export const DEFAULT_THINKING_BUDGET: Record<string, ThinkingBudget> = {
   'sonnet': 'low',
   'opus': 'medium',
 };
+
+/** Context window sizes in tokens. */
+export const CONTEXT_WINDOW_STANDARD = 200_000;
+export const CONTEXT_WINDOW_1M = 1_000_000;
+
+/**
+ * Get the context window size for a model.
+ *
+ * @param model - The model identifier
+ * @param is1MEnabled - Whether 1M context window is enabled
+ * @returns Context window size in tokens
+ */
+export function getContextWindowSize(model: string, is1MEnabled = false): number {
+  // 1M context only applies to sonnet
+  if (is1MEnabled && model.includes('sonnet')) {
+    return CONTEXT_WINDOW_1M;
+  }
+  return CONTEXT_WINDOW_STANDARD;
+}

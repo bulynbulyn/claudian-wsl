@@ -620,7 +620,8 @@ export class ClaudianService {
 
     // Transform SDK message to StreamChunks
     const selectedModel = this.plugin.settings.model;
-    for (const event of transformSDKMessage(message, { intendedModel: selectedModel })) {
+    const is1MEnabled = this.plugin.settings.show1MModel ?? false;
+    for (const event of transformSDKMessage(message, { intendedModel: selectedModel, is1MEnabled })) {
       if (isSessionInitEvent(event)) {
         this.sessionManager.captureSession(event.sessionId);
         this.messageChannel?.setSessionId(event.sessionId);
@@ -1277,7 +1278,8 @@ export class ClaudianService {
           break;
         }
 
-        for (const event of transformSDKMessage(message, { intendedModel: selectedModel })) {
+        const is1MEnabled = this.plugin.settings.show1MModel ?? false;
+        for (const event of transformSDKMessage(message, { intendedModel: selectedModel, is1MEnabled })) {
           if (isSessionInitEvent(event)) {
             this.sessionManager.captureSession(event.sessionId);
             streamSessionId = event.sessionId;

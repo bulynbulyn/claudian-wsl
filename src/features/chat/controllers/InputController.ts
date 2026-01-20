@@ -56,7 +56,6 @@ export interface InputControllerDeps {
   getTitleGenerationService: () => TitleGenerationService | null;
   getStatusPanel: () => StatusPanel | null;
   generateId: () => string;
-  resetContextMeter: () => void;
   resetInputHeight: () => void;
   /** Get the agent service from the tab. */
   getAgentService?: () => ClaudianService | null;

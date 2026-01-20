@@ -37,7 +37,6 @@ export interface ModelUsageInfo {
   inputTokens?: number;
   cacheCreationInputTokens?: number;
   cacheReadInputTokens?: number;
-  contextWindow?: number;
 }
 
 /** SDK message structure from the Claude Agent SDK (non-result messages). */

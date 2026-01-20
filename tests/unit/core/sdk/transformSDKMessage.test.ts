@@ -599,7 +599,9 @@ describe('transformSDKMessage', () => {
   });
 
   describe('result messages', () => {
-    it('yields usage info from result with modelUsage', () => {
+    it('yields nothing for result messages (usage extracted from assistant messages now)', () => {
+      // Usage is now extracted from assistant messages for accuracy.
+      // Result message usage is aggregated across main + subagents, causing inaccurate spikes.
       const message: SDKMessage = {
         type: 'result',
         model: 'claude-sonnet-4-5-20250514',
@@ -608,141 +610,131 @@ describe('transformSDKMessage', () => {
             inputTokens: 1000,
             cacheCreationInputTokens: 500,
             cacheReadInputTokens: 200,
-            contextWindow: 200000,
           },
         },
       };
 
       const results = [...transformSDKMessage(message)];
 
-      expect(results).toHaveLength(1);
-      expect(results[0].type).toBe('usage');
-      const usage = (results[0] as any).usage;
-      expect(usage.model).toBe('claude-sonnet-4-5-20250514');
+      expect(results).toEqual([]);
+    });
+  });
+
+  describe('assistant message usage extraction', () => {
+    it('yields usage info from main agent assistant message', () => {
+      const message: SDKMessage = {
+        type: 'assistant',
+        parent_tool_use_id: null, // Main agent
+        message: {
+          content: [{ type: 'text', text: 'Hello' }],
+          usage: {
+            input_tokens: 1000,
+            output_tokens: 500,
+            cache_creation_input_tokens: 300,
+            cache_read_input_tokens: 200,
+          },
+        } as any,
+      };
+
+      const results = [...transformSDKMessage(message, { intendedModel: 'sonnet' })];
+
+      // Should have text chunk + usage chunk
+      const usageResults = results.filter(r => r.type === 'usage');
+      expect(usageResults).toHaveLength(1);
+
+      const usage = (usageResults[0] as any).usage;
       expect(usage.inputTokens).toBe(1000);
-      expect(usage.cacheCreationInputTokens).toBe(500);
+      expect(usage.cacheCreationInputTokens).toBe(300);
       expect(usage.cacheReadInputTokens).toBe(200);
-      expect(usage.contextWindow).toBe(200000);
-      expect(usage.contextTokens).toBe(1700); // 1000 + 500 + 200
-      expect(usage.percentage).toBe(1); // 1700 / 200000 * 100 rounded
+      expect(usage.contextTokens).toBe(1500); // 1000 + 300 + 200
+      expect(usage.contextWindow).toBe(200000); // Standard context window
+      expect(usage.percentage).toBe(1); // 1500 / 200000 * 100 rounded
     });
 
-    it('uses intendedModel option for usage selection', () => {
+    it('skips usage extraction for subagent messages', () => {
       const message: SDKMessage = {
-        type: 'result',
-        modelUsage: {
-          'claude-haiku-4-5': {
-            inputTokens: 100,
-            contextWindow: 200000,
+        type: 'assistant',
+        parent_tool_use_id: 'subagent-task-123', // Subagent
+        message: {
+          content: [{ type: 'text', text: 'Subagent response' }],
+          usage: {
+            input_tokens: 5000,
+            output_tokens: 1000,
+            cache_creation_input_tokens: 500,
+            cache_read_input_tokens: 100,
           },
-          'claude-opus-4-5': {
-            inputTokens: 5000,
-            contextWindow: 200000,
-          },
-        },
-      };
-
-      const results = [...transformSDKMessage(message, { intendedModel: 'claude-opus-4-5' })];
-
-      expect(results).toHaveLength(1);
-      expect((results[0] as any).usage.model).toBe('claude-opus-4-5');
-    });
-
-    it('yields nothing for result with zero contextWindow', () => {
-      const message: SDKMessage = {
-        type: 'result',
-        model: 'test-model',
-        modelUsage: {
-          'test-model': {
-            inputTokens: 1000,
-            contextWindow: 0,
-          },
-        },
+        } as any,
       };
 
       const results = [...transformSDKMessage(message)];
 
-      expect(results).toEqual([]);
+      // Should only have text chunk, no usage (subagent messages filtered)
+      const usageResults = results.filter(r => r.type === 'usage');
+      expect(usageResults).toHaveLength(0);
     });
 
-    it('yields nothing for result without modelUsage', () => {
+    it('uses 1M context window when is1MEnabled is true for sonnet', () => {
       const message: SDKMessage = {
-        type: 'result',
-      };
-
-      const results = [...transformSDKMessage(message)];
-
-      expect(results).toEqual([]);
-    });
-
-    it('yields nothing for result with empty modelUsage', () => {
-      const message: SDKMessage = {
-        type: 'result',
-        modelUsage: {},
-      };
-
-      const results = [...transformSDKMessage(message)];
-
-      expect(results).toEqual([]);
-    });
-
-    it('clamps percentage between 0 and 100', () => {
-      const message: SDKMessage = {
-        type: 'result',
-        model: 'test-model',
-        modelUsage: {
-          'test-model': {
-            inputTokens: 250000,
-            contextWindow: 200000,
+        type: 'assistant',
+        parent_tool_use_id: null,
+        message: {
+          content: [{ type: 'text', text: 'Hello' }],
+          usage: {
+            input_tokens: 50000,
+            output_tokens: 10000,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: 0,
           },
+        } as any,
+      };
+
+      const results = [...transformSDKMessage(message, { intendedModel: 'sonnet', is1MEnabled: true })];
+
+      const usageResults = results.filter(r => r.type === 'usage');
+      expect(usageResults).toHaveLength(1);
+
+      const usage = (usageResults[0] as any).usage;
+      expect(usage.contextWindow).toBe(1000000); // 1M context window
+      expect(usage.percentage).toBe(5); // 50000 / 1000000 * 100 = 5%
+    });
+
+    it('handles missing usage field gracefully', () => {
+      const message: SDKMessage = {
+        type: 'assistant',
+        parent_tool_use_id: null,
+        message: {
+          content: [{ type: 'text', text: 'Hello' }],
         },
       };
 
       const results = [...transformSDKMessage(message)];
 
-      expect((results[0] as any).usage.percentage).toBe(100);
+      // Should only have text chunk, no usage
+      const usageResults = results.filter(r => r.type === 'usage');
+      expect(usageResults).toHaveLength(0);
     });
 
     it('handles missing token fields with defaults', () => {
       const message: SDKMessage = {
-        type: 'result',
-        model: 'test-model',
-        modelUsage: {
-          'test-model': {
-            contextWindow: 200000,
-          },
-        },
+        type: 'assistant',
+        parent_tool_use_id: null,
+        message: {
+          content: [{ type: 'text', text: 'Hello' }],
+          usage: {}, // Empty usage object
+        } as any,
       };
 
-      const results = [...transformSDKMessage(message)];
+      const results = [...transformSDKMessage(message, { intendedModel: 'sonnet' })];
 
-      expect(results).toHaveLength(1);
-      expect((results[0] as any).usage.inputTokens).toBe(0);
-      expect((results[0] as any).usage.cacheCreationInputTokens).toBe(0);
-      expect((results[0] as any).usage.cacheReadInputTokens).toBe(0);
-      expect((results[0] as any).usage.contextTokens).toBe(0);
+      const usageResults = results.filter(r => r.type === 'usage');
+      expect(usageResults).toHaveLength(1);
+
+      const usage = (usageResults[0] as any).usage;
+      expect(usage.inputTokens).toBe(0);
+      expect(usage.cacheCreationInputTokens).toBe(0);
+      expect(usage.cacheReadInputTokens).toBe(0);
+      expect(usage.contextTokens).toBe(0);
     });
-
-    it('ignores result messages with parent_tool_use_id (subagent results)', () => {
-      // Note: Result messages don't have parent_tool_use_id according to types,
-      // but the transformer checks for it to skip subagent results.
-      // parentToolUseId is always null for result messages.
-      const message: SDKMessage = {
-        type: 'result',
-        model: 'test-model',
-        modelUsage: {
-          'test-model': {
-            inputTokens: 1000,
-            contextWindow: 200000,
-          },
-        },
-      };
-
-      const results = [...transformSDKMessage(message)];
-
-      expect(results).toHaveLength(1);
-    });
-
   });
 
   describe('error messages', () => {

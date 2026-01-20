@@ -912,9 +912,7 @@ export function createInputToolbar(
 } {
   const modelSelector = new ModelSelector(parentEl, callbacks);
   const thinkingBudgetSelector = new ThinkingBudgetSelector(parentEl, callbacks);
-  // TODO: Context usage meter temporarily hidden
-  // const contextUsageMeter = new ContextUsageMeter(parentEl);
-  const contextUsageMeter = null;
+  const contextUsageMeter = new ContextUsageMeter(parentEl);
   const externalContextSelector = new ExternalContextSelector(parentEl, callbacks);
   const mcpServerSelector = new McpServerSelector(parentEl);
   const permissionToggle = new PermissionToggle(parentEl, callbacks);
