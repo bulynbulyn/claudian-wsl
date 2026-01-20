@@ -409,3 +409,84 @@ export function getCurrentModelFromEnvironment(envVars: Record<string, string>):
 export function getHostnameKey(): string {
   return os.hostname();
 }
+
+/** Environment variable keys that can specify custom models. */
+const CUSTOM_MODEL_ENV_KEYS = [
+  'ANTHROPIC_MODEL',
+  'ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'ANTHROPIC_DEFAULT_SONNET_MODEL',
+  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+] as const;
+
+/** Minimum context limit in tokens (1k). */
+export const MIN_CONTEXT_LIMIT = 1_000;
+
+/** Maximum context limit in tokens (10M). */
+export const MAX_CONTEXT_LIMIT = 10_000_000;
+
+/**
+ * Extracts unique custom model IDs from environment variables.
+ * De-duplicates when multiple env vars point to the same model.
+ *
+ * @param envVars - Parsed environment variables
+ * @returns Set of unique model IDs
+ */
+export function getCustomModelIds(envVars: Record<string, string>): Set<string> {
+  const modelIds = new Set<string>();
+  for (const envKey of CUSTOM_MODEL_ENV_KEYS) {
+    const modelId = envVars[envKey];
+    if (modelId) {
+      modelIds.add(modelId);
+    }
+  }
+  return modelIds;
+}
+
+/**
+ * Parse a context limit string into a number of tokens.
+ * Supports formats: "256k", "1m", "1.5m", or exact token count ("1000000").
+ * Input is case-insensitive ("256K" is treated as "256k").
+ *
+ * @param input - User input string (e.g., "256k", "1M", "1000000")
+ * @returns Number of tokens in range [1000, 10000000], or null if invalid
+ */
+export function parseContextLimit(input: string): number | null {
+  const trimmed = input.trim().toLowerCase();
+  if (!trimmed) return null;
+
+  // Match number with optional suffix (k, m)
+  const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*(k|m)?$/);
+  if (!match) return null;
+
+  const value = parseFloat(match[1]);
+  const suffix = match[2];
+
+  if (isNaN(value) || value <= 0) return null;
+
+  let multiplier = 1;
+  if (suffix === 'k') multiplier = 1000;
+  else if (suffix === 'm') multiplier = 1000000;
+
+  const result = Math.round(value * multiplier);
+
+  // Validate reasonable range (1k to 10M tokens)
+  if (result < MIN_CONTEXT_LIMIT || result > MAX_CONTEXT_LIMIT) return null;
+
+  return result;
+}
+
+/**
+ * Format a token count for display.
+ * - Exact millions: "1m", "2m"
+ * - Exact thousands: "256k", "200k"
+ * - Non-round numbers: locale-formatted (e.g., "256,500")
+ */
+export function formatContextLimit(tokens: number): string {
+  if (tokens >= 1_000_000 && tokens % 1_000_000 === 0) {
+    return `${tokens / 1_000_000}m`;
+  }
+  if (tokens >= 1000 && tokens % 1000 === 0) {
+    return `${tokens / 1000}k`;
+  }
+  return tokens.toLocaleString();
+}

@@ -23,6 +23,8 @@ export interface TransformOptions {
   intendedModel?: string;
   /** Whether 1M context window is enabled (affects context window size for sonnet). */
   is1MEnabled?: boolean;
+  /** Custom context limits from settings (model ID → tokens). */
+  customContextLimits?: Record<string, number>;
 }
 
 /**
@@ -31,7 +33,7 @@ export interface TransformOptions {
  * (e.g., assistant message with both text and tool_use blocks).
  *
  * @param message - The SDK message to transform
- * @param options - Optional transform options (intendedModel for usage selection)
+ * @param options - Optional transform options for context window calculations
  * @yields StreamChunk events for UI rendering, or SessionInitEvent for session tracking
  */
 export function* transformSDKMessage(
@@ -89,7 +91,7 @@ export function* transformSDKMessage(
         const contextTokens = inputTokens + cacheCreationInputTokens + cacheReadInputTokens;
 
         const model = options?.intendedModel ?? 'sonnet';
-        const contextWindow = getContextWindowSize(model, options?.is1MEnabled ?? false);
+        const contextWindow = getContextWindowSize(model, options?.is1MEnabled ?? false, options?.customContextLimits);
         const percentage = Math.min(100, Math.max(0, Math.round((contextTokens / contextWindow) * 100)));
 
         const usageInfo: UsageInfo = {

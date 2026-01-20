@@ -80,9 +80,25 @@ export const CONTEXT_WINDOW_1M = 1_000_000;
  *
  * @param model - The model identifier
  * @param is1MEnabled - Whether 1M context window is enabled
+ * @param customLimits - Optional custom context limits (model ID → tokens).
+ *                       Values must be positive numbers; invalid values fall through to defaults.
  * @returns Context window size in tokens
  */
-export function getContextWindowSize(model: string, is1MEnabled = false): number {
+export function getContextWindowSize(
+  model: string,
+  is1MEnabled = false,
+  customLimits?: Record<string, number>
+): number {
+  // Check custom limits first (highest priority)
+  // Defensive validation: ensure the value is a valid positive number
+  if (customLimits && model in customLimits) {
+    const limit = customLimits[model];
+    if (typeof limit === 'number' && limit > 0 && !isNaN(limit) && isFinite(limit)) {
+      return limit;
+    }
+    // Invalid value falls through to defaults
+  }
+
   // 1M context only applies to sonnet
   if (is1MEnabled && model.includes('sonnet')) {
     return CONTEXT_WINDOW_1M;

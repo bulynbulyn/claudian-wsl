@@ -8,7 +8,9 @@ import type { App } from 'obsidian';
 import { Modal, Notice, setIcon, Setting } from 'obsidian';
 
 import type { EnvSnippet } from '../../../core/types';
+import { t } from '../../../i18n';
 import type ClaudianPlugin from '../../../main';
+import { formatContextLimit, getCustomModelIds, parseContextLimit, parseEnvironmentVariables } from '../../../utils/env';
 import type { ClaudianView } from '../../chat/ClaudianView';
 
 /** Modal for creating/editing environment variable snippets. */
@@ -34,6 +36,8 @@ export class EnvSnippetModal extends Modal {
     let nameEl: HTMLInputElement;
     let descEl: HTMLInputElement;
     let envVarsEl: HTMLTextAreaElement;
+    const contextLimitInputs: Map<string, HTMLInputElement> = new Map();
+    let contextLimitsContainer: HTMLElement | null = null;
 
     // Add keyboard shortcuts for name/description fields
     // Check !e.isComposing for IME support (Chinese, Japanese, Korean, etc.)
@@ -54,15 +58,72 @@ export class EnvSnippetModal extends Modal {
         return;
       }
 
+      // Collect context limits from inputs
+      const contextLimits: Record<string, number> = {};
+      for (const [modelId, input] of contextLimitInputs) {
+        const value = input.value.trim();
+        if (value) {
+          const parsed = parseContextLimit(value);
+          if (parsed !== null) {
+            contextLimits[modelId] = parsed;
+          }
+        }
+      }
+
       const snippet: EnvSnippet = {
         id: this.snippet?.id || `snippet-${Date.now()}`,
         name,
         description: descEl.value.trim(),
         envVars: envVarsEl.value,
+        contextLimits: Object.keys(contextLimits).length > 0 ? contextLimits : undefined,
       };
 
       this.onSave(snippet);
       this.close();
+    };
+
+    // Function to render context limit fields based on env vars
+    const renderContextLimitFields = () => {
+      if (!contextLimitsContainer) return;
+      contextLimitsContainer.empty();
+      contextLimitInputs.clear();
+
+      // Parse env vars to detect custom models
+      const envVars = parseEnvironmentVariables(envVarsEl.value);
+      const uniqueModelIds = getCustomModelIds(envVars);
+
+      if (uniqueModelIds.size === 0) {
+        contextLimitsContainer.style.display = 'none';
+        return;
+      }
+
+      contextLimitsContainer.style.display = 'block';
+
+      // Get existing context limits (from snippet or current settings)
+      const existingLimits = this.snippet?.contextLimits ?? this.plugin.settings.customContextLimits ?? {};
+
+      contextLimitsContainer.createEl('div', {
+        text: t('settings.customContextLimits.name'),
+        cls: 'setting-item-name',
+      });
+      contextLimitsContainer.createEl('div', {
+        text: t('settings.customContextLimits.desc'),
+        cls: 'setting-item-description',
+      });
+
+      for (const modelId of uniqueModelIds) {
+        const row = contextLimitsContainer.createDiv({ cls: 'claudian-snippet-limit-row' });
+        row.createSpan({ text: modelId, cls: 'claudian-snippet-limit-model' });
+        row.createSpan({ cls: 'claudian-snippet-limit-spacer' });
+
+        const input = row.createEl('input', {
+          type: 'text',
+          placeholder: '200k',
+          cls: 'claudian-snippet-limit-input',
+        });
+        input.value = existingLimits[modelId] ? formatContextLimit(existingLimits[modelId]) : '';
+        contextLimitInputs.set(modelId, input);
+      }
     };
 
     new Setting(contentEl)
@@ -92,10 +153,16 @@ export class EnvSnippetModal extends Modal {
         const envVarsToShow = this.snippet?.envVars ?? this.plugin.settings.environmentVariables;
         text.setValue(envVarsToShow);
         text.inputEl.rows = 8;
+        // Refresh context limit fields when env vars change
+        text.inputEl.addEventListener('blur', () => renderContextLimitFields());
       });
     // Make textarea full width under the label
     envVarsSetting.settingEl.addClass('claudian-env-snippet-setting');
     envVarsSetting.controlEl.addClass('claudian-env-snippet-control');
+
+    // Editable context limits section
+    contextLimitsContainer = contentEl.createDiv({ cls: 'claudian-snippet-context-limits' });
+    renderContextLimitFields();
 
     // Compact button container
     const buttonContainer = contentEl.createDiv({ cls: 'claudian-snippet-buttons' });
@@ -126,10 +193,12 @@ export class EnvSnippetModal extends Modal {
 export class EnvSnippetManager {
   private containerEl: HTMLElement;
   private plugin: ClaudianPlugin;
+  private onContextLimitsChange?: () => void;
 
-  constructor(containerEl: HTMLElement, plugin: ClaudianPlugin) {
+  constructor(containerEl: HTMLElement, plugin: ClaudianPlugin, onContextLimitsChange?: () => void) {
     this.containerEl = containerEl;
     this.plugin = plugin;
+    this.onContextLimitsChange = onContextLimitsChange;
     this.render();
   }
 
@@ -223,6 +292,7 @@ export class EnvSnippetManager {
       this.plugin,
       null,
       async (snippet) => {
+        // Context limits are now handled by the modal itself
         this.plugin.settings.envSnippets.push(snippet);
         await this.plugin.saveSettings();
         this.render();
@@ -233,30 +303,25 @@ export class EnvSnippetManager {
   }
 
   private async insertSnippet(snippet: EnvSnippet) {
-    // Insert the snippet's environment variables into the input field
+    const snippetContent = snippet.envVars.trim();
+
+    // Update textarea if found, otherwise re-render the snippet list
     const envTextarea = document.querySelector('.claudian-settings-env-textarea') as HTMLTextAreaElement;
     if (envTextarea) {
-      // Always clear and replace with snippet content
-      const snippetContent = snippet.envVars.trim();
       envTextarea.value = snippetContent;
-
-      // Update settings with model reconciliation
-      await this.plugin.applyEnvironmentVariables(snippetContent);
-
-      // Trigger model selector refresh if it exists
-      const view = this.plugin.app.workspace.getLeavesOfType('claudian-view')[0]?.view as ClaudianView | undefined;
-      view?.refreshModelSelector();
-
     } else {
-      // Fallback: directly replace in settings if textarea not found
-      await this.plugin.applyEnvironmentVariables(snippet.envVars);
       this.render();
-
-      // Trigger model selector refresh if it exists
-      const view = this.plugin.app.workspace.getLeavesOfType('claudian-view')[0]?.view as ClaudianView | undefined;
-      view?.refreshModelSelector();
-
     }
+
+    // Apply environment variables and context limits
+    await this.plugin.applyEnvironmentVariables(snippetContent);
+    this.plugin.settings.customContextLimits = snippet.contextLimits ? { ...snippet.contextLimits } : {};
+    await this.plugin.saveSettings();
+
+    // Refresh UI components
+    this.onContextLimitsChange?.();
+    const view = this.plugin.app.workspace.getLeavesOfType('claudian-view')[0]?.view as ClaudianView | undefined;
+    view?.refreshModelSelector();
   }
 
   private editSnippet(snippet: EnvSnippet) {

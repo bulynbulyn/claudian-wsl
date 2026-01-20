@@ -197,6 +197,7 @@ export interface EnvSnippet {
   name: string;
   description: string;
   envVars: string;
+  contextLimits?: Record<string, number>;  // Optional: context limits for custom models
 }
 
 /** Slash command configuration with Claude Code compatibility. */
@@ -247,6 +248,13 @@ export interface ClaudianSettings {
   // Environment (string format, CC uses object format in settings.json)
   environmentVariables: string;
   envSnippets: EnvSnippet[];
+  /**
+   * Custom context window limits for models configured via environment variables.
+   * Keys are model IDs (from ANTHROPIC_MODEL, ANTHROPIC_DEFAULT_*_MODEL env vars).
+   * Values are token counts in range [1000, 10000000].
+   * Empty object means all models use default context limits (200k or 1M for Sonnet).
+   */
+  customContextLimits: Record<string, number>;
 
   // UI settings
   keyboardNavigation: KeyboardNavigationSettings;
@@ -303,6 +311,7 @@ export const DEFAULT_SETTINGS: ClaudianSettings = {
   // Environment
   environmentVariables: '',
   envSnippets: [],
+  customContextLimits: {},
 
   // UI settings
   keyboardNavigation: {
