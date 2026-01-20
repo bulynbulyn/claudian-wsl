@@ -312,7 +312,13 @@ export class EnvSnippetManager {
 
     // Apply environment variables and context limits
     await this.plugin.applyEnvironmentVariables(snippetContent);
-    this.plugin.settings.customContextLimits = snippet.contextLimits ? { ...snippet.contextLimits } : {};
+    // Merge snippet limits into existing (legacy snippets without contextLimits don't modify limits)
+    if (snippet.contextLimits) {
+      this.plugin.settings.customContextLimits = {
+        ...this.plugin.settings.customContextLimits,
+        ...snippet.contextLimits,
+      };
+    }
     await this.plugin.saveSettings();
 
     // Refresh UI components

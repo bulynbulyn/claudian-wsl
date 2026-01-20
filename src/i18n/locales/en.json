@@ -139,7 +139,7 @@
         "description": "Description",
         "descPlaceholder": "Optional description",
         "envVars": "Environment variables",
-        "envVarsPlaceholder": "KEY=VALUE format, one per line",
+        "envVarsPlaceholder": "KEY=VALUE format, one per line (export prefix supported)",
         "save": "Save",
         "update": "Update",
         "cancel": "Cancel"

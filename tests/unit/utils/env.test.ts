@@ -43,6 +43,16 @@ describe('parseEnvironmentVariables', () => {
     const input = '  FOO  =  bar  ';
     expect(parseEnvironmentVariables(input)).toEqual({ FOO: 'bar' });
   });
+
+  it('strips export prefix from shell snippets', () => {
+    const input = 'export FOO=bar\nexport BAZ="hello world"';
+    expect(parseEnvironmentVariables(input)).toEqual({ FOO: 'bar', BAZ: 'hello world' });
+  });
+
+  it('handles mixed export and non-export lines', () => {
+    const input = 'FOO=bar\nexport BAZ=qux\nQUX=123';
+    expect(parseEnvironmentVariables(input)).toEqual({ FOO: 'bar', BAZ: 'qux', QUX: '123' });
+  });
 });
 
 describe('getEnhancedPath', () => {
@@ -653,6 +663,31 @@ describe('formatContextLimit', () => {
 
   it('should format small numbers with toLocaleString', () => {
     expect(formatContextLimit(500)).toBe('500');
+  });
+
+  it('should round-trip through parseContextLimit for all formats', () => {
+    // Round numbers (k/m suffix)
+    expect(parseContextLimit(formatContextLimit(256000))).toBe(256000);
+    expect(parseContextLimit(formatContextLimit(1000000))).toBe(1000000);
+    expect(parseContextLimit(formatContextLimit(2000000))).toBe(2000000);
+
+    // Non-round numbers (locale-formatted with commas)
+    expect(parseContextLimit(formatContextLimit(256500))).toBe(256500);
+    expect(parseContextLimit(formatContextLimit(1234567))).toBe(1234567);
+  });
+});
+
+describe('parseContextLimit with comma-formatted input', () => {
+  it('should parse "256,500" to 256500', () => {
+    expect(parseContextLimit('256,500')).toBe(256500);
+  });
+
+  it('should parse "1,000,000" to 1000000', () => {
+    expect(parseContextLimit('1,000,000')).toBe(1000000);
+  });
+
+  it('should parse "1,234,567" to 1234567', () => {
+    expect(parseContextLimit('1,234,567')).toBe(1234567);
   });
 });
 

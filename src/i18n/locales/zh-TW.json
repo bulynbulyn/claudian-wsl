@@ -139,7 +139,7 @@
         "description": "描述",
         "descPlaceholder": "可選描述",
         "envVars": "環境變數",
-        "envVarsPlaceholder": "KEY=VALUE 格式，每行一個",
+        "envVarsPlaceholder": "KEY=VALUE 格式，每行一個（支援 export 前綴）",
         "save": "保存",
         "update": "更新",
         "cancel": "取消"

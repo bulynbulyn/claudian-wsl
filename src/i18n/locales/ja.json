@@ -139,7 +139,7 @@
         "description": "説明",
         "descPlaceholder": "任意の説明",
         "envVars": "環境変数",
-        "envVarsPlaceholder": "KEY=VALUE形式、1行に1つ",
+        "envVarsPlaceholder": "KEY=VALUE形式、1行に1つ（exportプレフィックス対応）",
         "save": "保存",
         "update": "更新",
         "cancel": "キャンセル"

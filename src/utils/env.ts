@@ -331,10 +331,12 @@ export function parseEnvironmentVariables(input: string): Record<string, string>
   for (const line of input.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
-    const eqIndex = trimmed.indexOf('=');
+    // Strip 'export ' prefix if present (common in shell snippets)
+    const normalized = trimmed.startsWith('export ') ? trimmed.slice(7) : trimmed;
+    const eqIndex = normalized.indexOf('=');
     if (eqIndex > 0) {
-      const key = trimmed.substring(0, eqIndex).trim();
-      let value = trimmed.substring(eqIndex + 1).trim();
+      const key = normalized.substring(0, eqIndex).trim();
+      let value = normalized.substring(eqIndex + 1).trim();
       // Strip surrounding quotes (single or double)
       if ((value.startsWith('"') && value.endsWith('"')) ||
           (value.startsWith("'") && value.endsWith("'"))) {
@@ -452,7 +454,8 @@ export function getCustomModelIds(envVars: Record<string, string>): Set<string> 
  * @returns Number of tokens in range [1000, 10000000], or null if invalid
  */
 export function parseContextLimit(input: string): number | null {
-  const trimmed = input.trim().toLowerCase();
+  // Strip commas (from locale formatting like "256,500") before parsing
+  const trimmed = input.trim().toLowerCase().replace(/,/g, '');
   if (!trimmed) return null;
 
   // Match number with optional suffix (k, m)

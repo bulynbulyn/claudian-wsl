@@ -139,7 +139,7 @@
         "description": "설명",
         "descPlaceholder": "선택적 설명",
         "envVars": "환경 변수",
-        "envVarsPlaceholder": "KEY=VALUE 형식, 한 줄에 하나",
+        "envVarsPlaceholder": "KEY=VALUE 형식, 한 줄에 하나 (export 접두사 지원)",
         "save": "저장",
         "update": "업데이트",
         "cancel": "취소"

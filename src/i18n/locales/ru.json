@@ -139,7 +139,7 @@
         "description": "Описание",
         "descPlaceholder": "Опциональное описание",
         "envVars": "Переменные окружения",
-        "envVarsPlaceholder": "Формат KEY=VALUE, по одной в строке",
+        "envVarsPlaceholder": "Формат KEY=VALUE, по одной в строке (префикс export поддерживается)",
         "save": "Сохранить",
         "update": "Обновить",
         "cancel": "Отмена"

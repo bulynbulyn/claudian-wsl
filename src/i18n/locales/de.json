@@ -139,7 +139,7 @@
         "description": "Beschreibung",
         "descPlaceholder": "Optionale Beschreibung",
         "envVars": "Umgebungsvariablen",
-        "envVarsPlaceholder": "KEY=VALUE-Format, eine pro Zeile",
+        "envVarsPlaceholder": "KEY=VALUE-Format, eine pro Zeile (export-Präfix unterstützt)",
         "save": "Speichern",
         "update": "Aktualisieren",
         "cancel": "Abbrechen"
