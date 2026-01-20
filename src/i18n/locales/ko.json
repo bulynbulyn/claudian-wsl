@@ -121,7 +121,7 @@
     "environment": "환경",
     "customVariables": {
       "name": "커스텀 변수",
-      "desc": "Claude SDK 환경 변수 (KEY=VALUE 형식, 한 줄에 하나)"
+      "desc": "Claude SDK 환경 변수 (KEY=VALUE 형식, 한 줄에 하나). export 접두사 지원."
     },
     "envSnippets": {
       "name": "스니펫",

@@ -121,7 +121,7 @@
     "environment": "Entorno",
     "customVariables": {
       "name": "Variables personalizadas",
-      "desc": "Variables de entorno para Claude SDK (formato KEY=VALUE, una por línea)"
+      "desc": "Variables de entorno para Claude SDK (formato KEY=VALUE, una por línea). Prefijo export soportado."
     },
     "envSnippets": {
       "name": "Snippets",

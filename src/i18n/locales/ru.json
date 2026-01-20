@@ -121,7 +121,7 @@
     "environment": "Окружение",
     "customVariables": {
       "name": "Пользовательские переменные",
-      "desc": "Переменные окружения для Claude SDK (формат KEY=VALUE, по одной в строке)"
+      "desc": "Переменные окружения для Claude SDK (формат KEY=VALUE, по одной в строке). Префикс export поддерживается."
     },
     "envSnippets": {
       "name": "Сниппеты",

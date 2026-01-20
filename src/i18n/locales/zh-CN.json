@@ -121,7 +121,7 @@
     "environment": "环境",
     "customVariables": {
       "name": "自定义变量",
-      "desc": "Claude SDK 的环境变量（KEY=VALUE 格式，每行一个）"
+      "desc": "Claude SDK 的环境变量（KEY=VALUE 格式，每行一个）。支持 export 前缀。"
     },
     "envSnippets": {
       "name": "片段",
