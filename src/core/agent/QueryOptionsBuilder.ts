@@ -26,6 +26,7 @@ import { resolveModelWithBetas, THINKING_BUDGETS } from '../types';
 import type { AgentDefinition } from '../types/agent';
 import {
   computeSystemPromptKey,
+  DISABLED_BUILTIN_SUBAGENTS,
   type PersistentQueryConfig,
   UNSUPPORTED_SDK_TOOLS,
 } from './types';
@@ -241,10 +242,11 @@ export class QueryOptionsBuilder {
       options.betas = resolved.betas;
     }
 
-    // Pre-register all disabled MCP tools and hide unsupported SDK tools
+    // Pre-register all disabled MCP tools, unsupported SDK tools, and disabled subagents
     const allDisallowedTools = [
       ...ctx.mcpManager.getAllDisallowedMcpTools(),
       ...UNSUPPORTED_SDK_TOOLS,
+      ...DISABLED_BUILTIN_SUBAGENTS,
     ];
     options.disallowedTools = allDisallowedTools;
 
@@ -341,11 +343,12 @@ export class QueryOptionsBuilder {
       options.mcpServers = mcpServers;
     }
 
-    // Disallow MCP tools from inactive servers and unsupported SDK tools
+    // Disallow MCP tools from inactive servers, unsupported SDK tools, and disabled subagents
     const disallowedMcpTools = ctx.mcpManager.getDisallowedMcpTools(combinedMentions);
     options.disallowedTools = [
       ...disallowedMcpTools,
       ...UNSUPPORTED_SDK_TOOLS,
+      ...DISABLED_BUILTIN_SUBAGENTS,
     ];
 
     // Add plugins

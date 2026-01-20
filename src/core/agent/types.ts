@@ -179,6 +179,11 @@ export const UNSUPPORTED_SDK_TOOLS = [
   'ExitPlanMode',
 ] as const;
 
+/** Built-in subagents that don't apply to Obsidian context. */
+export const DISABLED_BUILTIN_SUBAGENTS = [
+  'Task(statusline-setup)',
+] as const;
+
 // ============================================
 // Helper Functions
 // ============================================
