@@ -106,14 +106,8 @@ export class InputController {
     const hasImages = imageContextManager?.hasImages() ?? false;
     if (!content && !hasImages) return;
 
-    // Clear todo panel if all tasks are done (agent can recreate if needed)
-    if (state.currentTodos && state.currentTodos.every(t => t.status === 'completed')) {
-      state.currentTodos = null;
-    }
-
-    // Clear completed/error async subagents from status panel and messages
+    // Clear completed/error/orphaned subagents from previous responses
     this.deps.getStatusPanel()?.clearTerminalSubagents();
-    this.deps.conversationController.clearTerminalSubagentsFromMessages();
 
     // Check for built-in commands first (e.g., /clear, /new, /add-dir)
     const builtInCmd = detectBuiltInCommand(content);
@@ -400,6 +394,16 @@ export class InputController {
         streamController.finalizeCurrentThinkingBlock(assistantMsg);
         streamController.finalizeCurrentTextBlock(assistantMsg);
         state.activeSubagents.clear();
+
+        // Auto-hide completed status panels on response end
+        // Panels reappear only when new TodoWrite/Task tool is called
+        if (state.currentTodos && state.currentTodos.every(t => t.status === 'completed')) {
+          state.currentTodos = null;
+        }
+        const statusPanel = this.deps.getStatusPanel();
+        if (statusPanel?.areAllSubagentsCompleted()) {
+          statusPanel.clearTerminalSubagents();
+        }
 
         await conversationController.save(true);
 
