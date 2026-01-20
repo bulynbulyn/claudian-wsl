@@ -3,6 +3,8 @@
  */
 
 import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 import { ExternalContextSelector } from '@/features/chat/ui/InputToolbar';
 
@@ -213,6 +215,165 @@ describe('ExternalContextSelector', () => {
     });
   });
 
+  describe('addExternalContext', () => {
+    it('should reject empty input', () => {
+      const onChange = jest.fn();
+      selector.setOnChange(onChange);
+
+      const result = selector.addExternalContext('');
+
+      expect(result).toEqual({
+        success: false,
+        error: 'No path provided. Usage: /add-dir /absolute/path',
+      });
+      expect(selector.getExternalContexts()).toEqual([]);
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('should reject whitespace-only input', () => {
+      const onChange = jest.fn();
+      selector.setOnChange(onChange);
+
+      const result = selector.addExternalContext('   ');
+
+      expect(result).toEqual({
+        success: false,
+        error: 'No path provided. Usage: /add-dir /absolute/path',
+      });
+      expect(selector.getExternalContexts()).toEqual([]);
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('should reject relative paths', () => {
+      const onChange = jest.fn();
+      selector.setOnChange(onChange);
+
+      const result = selector.addExternalContext('relative/path');
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Path must be absolute. Usage: /add-dir /absolute/path',
+      });
+      expect(selector.getExternalContexts()).toEqual([]);
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('should add absolute paths and call onChange', () => {
+      const onChange = jest.fn();
+      selector.setOnChange(onChange);
+      const absolutePath = path.resolve('external', 'ctx');
+
+      const result = selector.addExternalContext(absolutePath);
+
+      expect(result).toEqual({ success: true, normalizedPath: absolutePath });
+      expect(selector.getExternalContexts()).toEqual([absolutePath]);
+      expect(onChange).toHaveBeenCalledWith([absolutePath]);
+    });
+
+    it('should reject non-existent paths with specific error', () => {
+      (fs.statSync as jest.Mock).mockImplementation(() => {
+        const error = new Error('ENOENT') as NodeJS.ErrnoException;
+        error.code = 'ENOENT';
+        throw error;
+      });
+
+      const absolutePath = path.resolve('non', 'existent');
+      const result = selector.addExternalContext(absolutePath);
+
+      expect(result.success).toBe(false);
+      expect(result).toMatchObject({ error: expect.stringContaining('Path does not exist') });
+    });
+
+    it('should reject paths with permission denied error', () => {
+      (fs.statSync as jest.Mock).mockImplementation(() => {
+        const error = new Error('EACCES') as NodeJS.ErrnoException;
+        error.code = 'EACCES';
+        throw error;
+      });
+
+      const absolutePath = path.resolve('no', 'access');
+      const result = selector.addExternalContext(absolutePath);
+
+      expect(result.success).toBe(false);
+      expect(result).toMatchObject({ error: expect.stringContaining('Permission denied') });
+    });
+
+    it('should reject paths that exist but are not directories', () => {
+      (fs.statSync as jest.Mock).mockReturnValue({ isDirectory: () => false });
+
+      const absolutePath = path.resolve('some', 'file.txt');
+      const result = selector.addExternalContext(absolutePath);
+
+      expect(result.success).toBe(false);
+      expect(result).toMatchObject({ error: expect.stringContaining('Path exists but is not a directory') });
+    });
+
+    it('should accept double-quoted absolute paths', () => {
+      const absolutePath = path.resolve('external', 'dir with spaces');
+
+      const result = selector.addExternalContext(`"${absolutePath}"`);
+
+      expect(result.success).toBe(true);
+      expect(selector.getExternalContexts()).toEqual([absolutePath]);
+    });
+
+    it('should accept single-quoted absolute paths', () => {
+      const absolutePath = path.resolve('external', 'dir with spaces');
+
+      const result = selector.addExternalContext(`'${absolutePath}'`);
+
+      expect(result.success).toBe(true);
+      expect(selector.getExternalContexts()).toEqual([absolutePath]);
+    });
+
+    it('should expand home paths', () => {
+      const homeDir = os.homedir();
+
+      const result = selector.addExternalContext('~');
+
+      expect(result).toEqual({ success: true, normalizedPath: homeDir });
+      expect(selector.getExternalContexts()).toEqual([homeDir]);
+    });
+
+    it('should reject duplicate paths', () => {
+      const absolutePath = path.resolve('external', 'ctx');
+
+      selector.addExternalContext(absolutePath);
+      const result = selector.addExternalContext(absolutePath);
+
+      expect(result).toEqual({
+        success: false,
+        error: 'This folder is already added as an external context.',
+      });
+      expect(selector.getExternalContexts()).toEqual([absolutePath]);
+    });
+
+    it('should reject nested paths (child inside parent)', () => {
+      const parentPath = path.resolve('external');
+      const childPath = path.join(parentPath, 'child');
+
+      selector.addExternalContext(parentPath);
+      const result = selector.addExternalContext(childPath);
+
+      expect(result.success).toBe(false);
+      expect(result).toMatchObject({ error: expect.stringContaining('inside existing path') });
+      expect(selector.getExternalContexts()).toEqual([parentPath]);
+    });
+
+    it('should reject parent paths that would contain existing child', () => {
+      const parentPath = path.resolve('external');
+      const childPath = path.join(parentPath, 'child');
+
+      // Add child first, then try to add parent
+      selector.addExternalContext(childPath);
+      const result = selector.addExternalContext(parentPath);
+
+      expect(result.success).toBe(false);
+      expect(result).toMatchObject({ error: expect.stringContaining('contains existing path') });
+      expect(selector.getExternalContexts()).toEqual([childPath]);
+    });
+  });
+
   describe('Callbacks', () => {
     it('should call onChange when paths are removed via removePath', () => {
       const onChange = jest.fn();
@@ -329,6 +490,29 @@ describe('ExternalContextSelector', () => {
 
       // Persistent paths should remain unchanged
       expect(selector.getPersistentPaths()).toEqual(['/persistent/path']);
+    });
+  });
+
+  describe('shortenPath', () => {
+    it('should not shorten paths outside home directory', () => {
+      const homeDir = os.homedir();
+      const outsidePath = path.join(path.parse(homeDir).root, 'tmp');
+
+      const result = (selector as any).shortenPath(outsidePath);
+
+      expect(result).toBe(outsidePath);
+    });
+
+    it('should shorten paths inside home directory', () => {
+      const homeDir = os.homedir();
+      const insidePath = path.join(homeDir, 'project');
+
+      const result = (selector as any).shortenPath(insidePath);
+
+      const normalizedHome = homeDir.replace(/\\/g, '/');
+      const normalizedInside = insidePath.replace(/\\/g, '/');
+      const expected = '~' + normalizedInside.slice(normalizedHome.length);
+      expect(result).toBe(expected);
     });
   });
 
