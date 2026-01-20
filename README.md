@@ -250,6 +250,10 @@ src/
 
 Licensed under the [MIT License](LICENSE).
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=YishenTu/claudian&type=date&legend=top-left)](https://www.star-history.com/#YishenTu/claudian&type=date&legend=top-left)
+
 ## Acknowledgments
 
 - [Obsidian](https://obsidian.md) for the plugin API
