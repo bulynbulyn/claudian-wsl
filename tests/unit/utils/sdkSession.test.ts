@@ -635,6 +635,46 @@ describe('sdkSession', () => {
       expect(result.messages[1].role).toBe('assistant');
     });
 
+    it('skips skill prompt injection messages (sourceToolUseID)', async () => {
+      mockExistsSync.mockReturnValue(true);
+      mockFsPromises.readFile.mockResolvedValue([
+        '{"type":"user","uuid":"u1","timestamp":"2024-01-15T10:00:00Z","message":{"content":"/commit"}}',
+        '{"type":"assistant","uuid":"a1","timestamp":"2024-01-15T10:01:00Z","message":{"content":[{"type":"tool_use","id":"t1","name":"Skill","input":{"skill":"commit"}}]}}',
+        '{"type":"user","uuid":"u2","timestamp":"2024-01-15T10:02:00Z","toolUseResult":{},"message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"Launching skill: commit"}]}}',
+        '{"type":"user","uuid":"u3","timestamp":"2024-01-15T10:02:01Z","sourceToolUseID":"t1","isMeta":true,"message":{"content":[{"type":"text","text":"## Your task\\n\\nCommit the changes..."}]}}',
+        '{"type":"assistant","uuid":"a2","timestamp":"2024-01-15T10:03:00Z","message":{"content":[{"type":"text","text":"Committing the changes now."}]}}',
+      ].join('\n'));
+
+      const result = await loadSDKSessionMessages('/Users/test/vault', 'session-skip-skill');
+
+      // Should have 2 messages: user query, merged assistant (tool_use + text merged together)
+      // Skill prompt injection (u3) and tool result (u2) should be skipped
+      // Consecutive assistant messages are merged
+      expect(result.messages).toHaveLength(2);
+      expect(result.messages[0].role).toBe('user');
+      expect(result.messages[0].content).toBe('/commit');
+      expect(result.messages[1].role).toBe('assistant');
+      expect(result.messages[1].toolCalls?.[0].name).toBe('Skill');
+      expect(result.messages[1].content).toContain('Committing');
+    });
+
+    it('skips meta messages without sourceToolUseID', async () => {
+      mockExistsSync.mockReturnValue(true);
+      mockFsPromises.readFile.mockResolvedValue([
+        '{"type":"user","uuid":"u1","timestamp":"2024-01-15T10:00:00Z","message":{"content":"Hello"}}',
+        '{"type":"user","uuid":"u2","timestamp":"2024-01-15T10:00:01Z","isMeta":true,"message":{"content":"System context injection"}}',
+        '{"type":"assistant","uuid":"a1","timestamp":"2024-01-15T10:01:00Z","message":{"content":[{"type":"text","text":"Hi there!"}]}}',
+      ].join('\n'));
+
+      const result = await loadSDKSessionMessages('/Users/test/vault', 'session-skip-meta');
+
+      // Should have 2 messages (meta message u2 skipped)
+      expect(result.messages).toHaveLength(2);
+      expect(result.messages[0].role).toBe('user');
+      expect(result.messages[0].content).toBe('Hello');
+      expect(result.messages[1].role).toBe('assistant');
+    });
+
     it('handles tool_result with error flag', async () => {
       mockExistsSync.mockReturnValue(true);
       mockFsPromises.readFile.mockResolvedValue([

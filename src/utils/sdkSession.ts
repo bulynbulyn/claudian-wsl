@@ -46,6 +46,10 @@ export interface SDKNativeMessage {
   toolUseResult?: unknown;
   /** UUID of the assistant message that initiated this tool call. */
   sourceToolAssistantUUID?: string;
+  /** Tool use ID for injected content (e.g., skill prompt expansion). */
+  sourceToolUseID?: string;
+  /** Meta messages are system-injected, not actual user input. */
+  isMeta?: boolean;
 }
 
 /**
@@ -449,12 +453,18 @@ function collectToolResults(sdkMessages: SDKNativeMessage[]): Map<string, { cont
 }
 
 /**
- * Checks if a user message is a tool result (not actual user input).
- * Tool result messages have the `toolUseResult` field set by the SDK.
- * Such messages should be skipped as they're just result delivery.
+ * Checks if a user message is system-injected (not actual user input).
+ * These include:
+ * - Tool result messages (`toolUseResult` field)
+ * - Skill prompt injections (`sourceToolUseID` field)
+ * - Meta messages (`isMeta` field)
+ * Such messages should be skipped as they're internal SDK communication.
  */
-function isToolResultMessage(sdkMsg: SDKNativeMessage): boolean {
-  return sdkMsg.type === 'user' && 'toolUseResult' in sdkMsg;
+function isSystemInjectedMessage(sdkMsg: SDKNativeMessage): boolean {
+  if (sdkMsg.type !== 'user') return false;
+  return 'toolUseResult' in sdkMsg ||
+         'sourceToolUseID' in sdkMsg ||
+         sdkMsg.isMeta === true;
 }
 
 /** Result of loading SDK session messages. */
@@ -519,8 +529,8 @@ export async function loadSDKSessionMessages(vaultPath: string, sessionId: strin
   // Second pass: convert messages, merging consecutive assistant messages
   // Assistant messages are merged until an actual user message (not tool_result) appears
   for (const sdkMsg of result.messages) {
-    // Skip tool result messages (don't break assistant merge)
-    if (isToolResultMessage(sdkMsg)) continue;
+    // Skip system-injected messages (tool results, skill prompts, meta messages)
+    if (isSystemInjectedMessage(sdkMsg)) continue;
 
     const chatMsg = parseSDKMessageToChat(sdkMsg, toolResults);
     if (!chatMsg) continue;
