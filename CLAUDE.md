@@ -224,6 +224,8 @@ interface ClaudianSettings {
   enabledPlugins: string[];          // IDs of enabled Claude Code plugins (per vault)
   maxTabs: number;                   // Maximum concurrent tabs (3-10, default: 3)
   show1MModel: boolean;              // Show 1M context model in selector (default: false)
+  tabBarPosition: 'input' | 'header'; // Tab bar location (default: 'input')
+  customContextLimits: Record<string, number>; // Context limits for custom models (tokens)
 }
 
 // Per-conversation state (session-only, not global settings)
@@ -287,6 +289,8 @@ vault/.claude/
 
 Custom models via env vars: `ANTHROPIC_MODEL`, `ANTHROPIC_DEFAULT_*_MODEL`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`
 
+**Custom Context Limits**: Set custom context window sizes for models via `customContextLimits` setting. Format: `{ "model-id": 256000 }`. Supports `256k`, `1m` notation in UI. Default is 200k tokens.
+
 ## Features
 
 ### Multi-Tab Support
@@ -294,6 +298,7 @@ Run multiple concurrent chat sessions in the sidebar.
 - **Independent streaming**: Each tab has its own ClaudianService instance
 - **Lazy initialization**: Services only start when tab is first used (on first query)
 - **Tab limit**: Configurable 3-10 tabs via settings (`maxTabs`)
+- **Tab bar position**: Configurable via `tabBarPosition` - above input (default) or in header
 - **Persistence**: Tab state saved to `data.json` and restored on reload
 - **Tab bar**: Badges show tab index, streaming status, and attention indicators
 - **Hotkeys**: `Cmd/Ctrl+1-9` to switch tabs, `Cmd/Ctrl+W` to close
@@ -304,6 +309,11 @@ Intelligent scroll behavior during streaming responses.
 - **User override**: Scrolling up disables auto-scroll; scrolling back to bottom re-enables it
 - **Scroll-to-bottom button**: Sticky button appears when scrolled up, click to jump to bottom and re-enable auto-scroll
 - **Reset on query**: Auto-scroll resets to enabled when sending a new message
+
+### Status Panels
+Todo and subagent panels display task progress and background agent activity.
+- **Auto-hide**: Panels automatically hide when all tasks complete (no pending/in-progress items)
+- **Persistent during activity**: Panels remain visible while work is ongoing
 
 ### Image Support
 - Drag/drop or paste images into the chat input
