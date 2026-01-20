@@ -10,7 +10,14 @@ import { type ExternalContextFile, externalContextScanner } from '../../utils/ex
 import { extractMcpMentions } from '../../utils/mcp';
 import { SelectableDropdown } from '../components/SelectableDropdown';
 import { MCP_ICON_SVG } from '../icons';
-import { createExternalContextEntry, type ExternalContextEntry, type MentionItem } from './types';
+import {
+  type AgentMentionProvider,
+  createExternalContextEntry,
+  type ExternalContextEntry,
+  type MentionItem,
+} from './types';
+
+export type { AgentMentionProvider };
 
 export interface MentionDropdownOptions {
   fixed?: boolean;
@@ -21,6 +28,8 @@ export interface MentionDropdownCallbacks {
   /** Attach context file with display name to absolute path mapping. */
   onAttachContextFile?: (displayName: string, absolutePath: string) => void;
   onMcpMentionChange?: (servers: Set<string>) => void;
+  /** Called when an agent is selected from the dropdown. */
+  onAgentMentionSelect?: (agentId: string) => void;
   getMentionedMcpServers: () => Set<string>;
   setMentionedMcpServers: (mentions: Set<string>) => boolean;
   addMentionedMcpServer: (name: string) => void;
@@ -43,7 +52,9 @@ export class MentionDropdownController {
   private filteredMentionItems: MentionItem[] = [];
   private filteredContextFiles: ExternalContextFile[] = [];
   private activeContextFilter: { folderName: string; contextRoot: string } | null = null;
+  private activeAgentFilter = false;
   private mcpService: McpMentionProvider | null = null;
+  private agentService: AgentMentionProvider | null = null;
   private fixed: boolean;
 
   constructor(
@@ -68,6 +79,10 @@ export class MentionDropdownController {
 
   setMcpService(service: McpMentionProvider | null): void {
     this.mcpService = service;
+  }
+
+  setAgentService(service: AgentMentionProvider | null): void {
+    this.agentService = service;
   }
 
   preScanExternalContexts(): void {
@@ -222,6 +237,30 @@ export class MentionDropdownController {
     const isFilterSearch = searchText.includes('/');
     let fileSearchText = searchLower;
 
+    // Check for @Agents/ filter
+    if (isFilterSearch && searchLower.startsWith('agents/')) {
+      this.activeAgentFilter = true;
+      this.activeContextFilter = null;
+      const agentSearchText = searchText.substring('agents/'.length).toLowerCase();
+
+      if (this.agentService) {
+        const matchingAgents = this.agentService.searchAgents(agentSearchText).slice(0, 10);
+        for (const agent of matchingAgents) {
+          this.filteredMentionItems.push({
+            type: 'agent',
+            id: agent.id,
+            name: agent.name,
+            description: agent.description,
+            source: agent.source,
+          });
+        }
+      }
+
+      this.selectedMentionIndex = 0;
+      this.renderMentionDropdown();
+      return;
+    }
+
     if (isFilterSearch) {
       const matchingContext = contextEntries
         .filter(entry => searchLower.startsWith(`${entry.displayNameLower}/`))
@@ -274,6 +313,7 @@ export class MentionDropdownController {
     }
 
     this.activeContextFilter = null;
+    this.activeAgentFilter = false;
 
     if (this.mcpService) {
       const mcpServers = this.mcpService.getContextSavingServers();
@@ -285,6 +325,17 @@ export class MentionDropdownController {
             name: server.name,
           });
         }
+      }
+    }
+
+    // Add @Agents folder entry if there are any agents and it matches the search
+    if (this.agentService) {
+      const hasAgents = this.agentService.searchAgents('').length > 0;
+      if (hasAgents && 'agents'.includes(searchLower)) {
+        this.filteredMentionItems.push({
+          type: 'agent-folder',
+          name: 'Agents',
+        });
       }
     }
 
@@ -350,6 +401,8 @@ export class MentionDropdownController {
       emptyText: 'No matches',
       getItemClass: (item) => {
         if (item.type === 'mcp-server') return 'mcp-server';
+        if (item.type === 'agent') return 'agent';
+        if (item.type === 'agent-folder') return 'agent-folder';
         if (item.type === 'context-file') return 'context-file';
         if (item.type === 'context-folder') return 'context-folder';
         return undefined;
@@ -358,6 +411,8 @@ export class MentionDropdownController {
         const iconEl = itemEl.createSpan({ cls: 'claudian-mention-icon' });
         if (item.type === 'mcp-server') {
           iconEl.innerHTML = MCP_ICON_SVG;
+        } else if (item.type === 'agent' || item.type === 'agent-folder') {
+          setIcon(iconEl, 'bot');
         } else if (item.type === 'context-file') {
           setIcon(iconEl, 'folder-open');
         } else if (item.type === 'context-folder') {
@@ -371,6 +426,19 @@ export class MentionDropdownController {
         if (item.type === 'mcp-server') {
           const nameEl = textEl.createSpan({ cls: 'claudian-mention-name' });
           nameEl.setText(`@${item.name}`);
+        } else if (item.type === 'agent-folder') {
+          const nameEl = textEl.createSpan({
+            cls: 'claudian-mention-name claudian-mention-name-agent-folder',
+          });
+          nameEl.setText(`@${item.name}/`);
+        } else if (item.type === 'agent') {
+          const nameEl = textEl.createSpan({ cls: 'claudian-mention-name claudian-mention-name-agent' });
+          // Show ID (which is namespaced for plugin agents) for consistency with inserted text
+          nameEl.setText(`@${item.id}`);
+          if (item.description) {
+            const descEl = textEl.createSpan({ cls: 'claudian-mention-agent-desc' });
+            descEl.setText(item.description);
+          }
         } else if (item.type === 'context-folder') {
           const nameEl = textEl.createSpan({
             cls: 'claudian-mention-name claudian-mention-name-folder',
@@ -433,13 +501,26 @@ export class MentionDropdownController {
 
       this.callbacks.addMentionedMcpServer(selectedItem.name);
       this.callbacks.onMcpMentionChange?.(this.callbacks.getMentionedMcpServers());
-    } else if (selectedItem.type === 'context-folder') {
-      const replacement = `@${selectedItem.name}/`;
+    } else if (selectedItem.type === 'agent-folder') {
+      // Don't modify input text - just show agents submenu
+      this.activeAgentFilter = true;
+      this.showMentionDropdown('Agents/');
+      return;
+    } else if (selectedItem.type === 'agent') {
+      // Insert agent mention with (agent) suffix
+      const replacement = `@${selectedItem.id} (agent) `;
       this.inputEl.value = beforeAt + replacement + afterCursor;
       this.inputEl.selectionStart = this.inputEl.selectionEnd = beforeAt.length + replacement.length;
-      this.inputEl.focus();
 
-      this.handleInputChange();
+      // Notify callback with agent ID
+      this.callbacks.onAgentMentionSelect?.(selectedItem.id);
+    } else if (selectedItem.type === 'context-folder') {
+      // Don't modify input text - just show files submenu
+      this.activeContextFilter = {
+        folderName: selectedItem.name,
+        contextRoot: selectedItem.contextRoot,
+      };
+      this.showMentionDropdown(`${selectedItem.name}/`);
       return;
     } else if (selectedItem.type === 'context-file') {
       // Display friendly name, but store mapping for later transformation to absolute path

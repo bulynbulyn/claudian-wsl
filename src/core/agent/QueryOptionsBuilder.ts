@@ -11,16 +11,19 @@
  */
 
 import type {
+  AgentDefinition as SdkAgentDefinition,
   CanUseTool,
   McpServerConfig,
   Options,
 } from '@anthropic-ai/claude-agent-sdk';
 
+import type { AgentManager } from '../agents';
 import type { McpServerManager } from '../mcp';
 import type { PluginManager } from '../plugins';
 import { buildSystemPrompt, type SystemPromptSettings } from '../prompts/mainAgent';
 import type { ClaudianSettings, PermissionMode } from '../types';
 import { resolveModelWithBetas, THINKING_BUDGETS } from '../types';
+import type { AgentDefinition } from '../types/agent';
 import {
   computeSystemPromptKey,
   type PersistentQueryConfig,
@@ -50,6 +53,8 @@ export interface QueryOptionsContext {
   mcpManager: McpServerManager;
   /** Plugin manager for Claude Code plugins. */
   pluginManager: PluginManager;
+  /** Agent manager for custom subagent definitions. */
+  agentManager?: AgentManager;
 }
 
 /**
@@ -133,14 +138,14 @@ export class QueryOptionsBuilder {
     if (currentConfig.show1MModel !== newConfig.show1MModel) return true;
 
     // Export paths affect system prompt
-    const oldExport = [...(currentConfig.allowedExportPaths || [])].sort().join('|');
-    const newExport = [...(newConfig.allowedExportPaths || [])].sort().join('|');
-    if (oldExport !== newExport) return true;
+    if (QueryOptionsBuilder.pathsChanged(currentConfig.allowedExportPaths, newConfig.allowedExportPaths)) {
+      return true;
+    }
 
     // External context paths require restart (additionalDirectories can't be updated dynamically)
-    const oldExternal = [...(currentConfig.externalContextPaths || [])].sort().join('|');
-    const newExternal = [...(newConfig.externalContextPaths || [])].sort().join('|');
-    if (oldExternal !== newExternal) return true;
+    if (QueryOptionsBuilder.pathsChanged(currentConfig.externalContextPaths, newConfig.externalContextPaths)) {
+      return true;
+    }
 
     return false;
   }
@@ -158,6 +163,7 @@ export class QueryOptionsBuilder {
     ctx: QueryOptionsContext,
     externalContextPaths?: string[]
   ): PersistentQueryConfig {
+    // System prompt settings (agents are passed via Options.agents, not system prompt)
     const systemPromptSettings: SystemPromptSettings = {
       mediaFolder: ctx.settings.mediaFolder,
       customPrompt: ctx.settings.systemPrompt,
@@ -205,7 +211,7 @@ export class QueryOptionsBuilder {
     // If show1MModel is enabled, always include 1M beta to allow model switching without restart
     const resolved = resolveModelWithBetas(ctx.settings.model, ctx.settings.show1MModel);
 
-    // Build system prompt
+    // Build system prompt (agents are passed via Options.agents, not system prompt)
     const systemPrompt = buildSystemPrompt({
       mediaFolder: ctx.settings.mediaFolder,
       customPrompt: ctx.settings.systemPrompt,
@@ -248,6 +254,9 @@ export class QueryOptionsBuilder {
       options.plugins = pluginConfigs;
     }
 
+    // Add custom agents via SDK native support
+    QueryOptionsBuilder.applyAgents(options, ctx.agentManager);
+
     // Set permission mode
     QueryOptionsBuilder.applyPermissionMode(options, permissionMode, ctx.canUseTool);
 
@@ -288,7 +297,7 @@ export class QueryOptionsBuilder {
     const selectedModel = ctx.modelOverride ?? ctx.settings.model;
     const resolved = resolveModelWithBetas(selectedModel, ctx.settings.show1MModel);
 
-    // Build system prompt with settings
+    // Build system prompt (agents are passed via Options.agents, not system prompt)
     const systemPrompt = buildSystemPrompt({
       mediaFolder: ctx.settings.mediaFolder,
       customPrompt: ctx.settings.systemPrompt,
@@ -344,6 +353,9 @@ export class QueryOptionsBuilder {
     if (pluginConfigs.length > 0) {
       options.plugins = pluginConfigs;
     }
+
+    // Add custom agents via SDK native support
+    QueryOptionsBuilder.applyAgents(options, ctx.agentManager);
 
     // Set permission mode
     QueryOptionsBuilder.applyPermissionMode(options, permissionMode, ctx.canUseTool);
@@ -431,5 +443,47 @@ export class QueryOptionsBuilder {
     if (budgetConfig && budgetConfig.tokens > 0) {
       options.maxThinkingTokens = budgetConfig.tokens;
     }
+  }
+
+  /**
+   * Compares two path arrays for equality (order-independent).
+   */
+  private static pathsChanged(a?: string[], b?: string[]): boolean {
+    const aKey = [...(a || [])].sort().join('|');
+    const bKey = [...(b || [])].sort().join('|');
+    return aKey !== bKey;
+  }
+
+  /**
+   * Applies custom agents to options (filters out built-ins managed by SDK).
+   */
+  private static applyAgents(options: Options, agentManager?: AgentManager): void {
+    const agents = agentManager?.getAvailableAgents().filter(a => a.source !== 'builtin') ?? [];
+    if (agents.length > 0) {
+      options.agents = QueryOptionsBuilder.buildSdkAgentsRecord(agents);
+    }
+  }
+
+  /**
+   * Converts Claudian agent definitions to SDK format.
+   *
+   * @param agents - Array of Claudian agent definitions
+   * @returns Record of agent ID to SDK agent definition
+   */
+  private static buildSdkAgentsRecord(
+    agents: AgentDefinition[]
+  ): Record<string, SdkAgentDefinition> {
+    const record: Record<string, SdkAgentDefinition> = {};
+    for (const agent of agents) {
+      record[agent.id] = {
+        description: agent.description,
+        prompt: agent.prompt,
+        tools: agent.tools,
+        disallowedTools: agent.disallowedTools,
+        // SDK expects undefined for 'inherit', not the string
+        model: agent.model === 'inherit' ? undefined : agent.model,
+      };
+    }
+    return record;
   }
 }

@@ -27,11 +27,40 @@ export interface ContextFolderMentionItem {
   folderName: string;
 }
 
+export interface AgentMentionItem {
+  type: 'agent';
+  /** Display name */
+  name: string;
+  /** Full ID (namespaced for plugins) */
+  id: string;
+  /** Brief description */
+  description?: string;
+  /** Source of the agent */
+  source: 'plugin' | 'vault' | 'global' | 'builtin';
+}
+
+export interface AgentFolderMentionItem {
+  type: 'agent-folder';
+  name: string;
+}
+
+/** Provider interface for agent mentions in the dropdown. */
+export interface AgentMentionProvider {
+  searchAgents: (query: string) => Array<{
+    id: string;
+    name: string;
+    description?: string;
+    source: 'plugin' | 'vault' | 'global' | 'builtin';
+  }>;
+}
+
 export type MentionItem =
   | FileMentionItem
   | McpServerMentionItem
   | ContextFileMentionItem
-  | ContextFolderMentionItem;
+  | ContextFolderMentionItem
+  | AgentMentionItem
+  | AgentFolderMentionItem;
 
 export interface ExternalContextEntry {
   contextRoot: string;

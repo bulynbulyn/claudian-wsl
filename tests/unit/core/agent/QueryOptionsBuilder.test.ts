@@ -34,6 +34,32 @@ function createMockPluginManager() {
   } as any;
 }
 
+// Create a mock agent manager
+function createMockAgentManager(agents: Array<{
+  id: string;
+  name: string;
+  description: string;
+  prompt: string;
+  source: 'plugin' | 'vault' | 'global' | 'builtin';
+  model?: 'sonnet' | 'opus' | 'haiku' | 'inherit';
+  tools?: string[];
+  disallowedTools?: string[];
+}> = []) {
+  return {
+    loadAgents: jest.fn().mockResolvedValue(undefined),
+    getAvailableAgents: jest.fn().mockReturnValue(agents),
+    getAgentById: jest.fn((id: string) => agents.find(a => a.id === id)),
+    searchAgents: jest.fn((query: string) => {
+      if (!query) return agents;
+      const q = query.toLowerCase();
+      return agents.filter(a =>
+        a.name.toLowerCase().includes(q) ||
+        a.id.toLowerCase().includes(q)
+      );
+    }),
+  } as any;
+}
+
 // Create a mock settings object
 function createMockSettings(overrides: Partial<ClaudianSettings> = {}): ClaudianSettings {
   return {
@@ -627,6 +653,88 @@ describe('QueryOptionsBuilder', () => {
 
       expect(options.additionalDirectories).toBeUndefined();
     });
+
+    it('includes custom agents in cold-start options', () => {
+      const agentManager = createMockAgentManager([
+        {
+          id: 'cold-agent',
+          name: 'Cold Agent',
+          description: 'Agent for cold start',
+          prompt: 'Cold prompt',
+          source: 'vault',
+          model: 'sonnet',
+        },
+      ]);
+
+      const ctx = {
+        ...createMockContext(),
+        abortController: new AbortController(),
+        hooks: {},
+        hasEditorContext: false,
+        agentManager,
+      };
+      const options = QueryOptionsBuilder.buildColdStartQueryOptions(ctx);
+
+      expect(options.agents).toBeDefined();
+      expect(options.agents?.['cold-agent']).toBeDefined();
+      expect(options.agents?.['cold-agent'].model).toBe('sonnet');
+    });
+
+    it('filters out built-in agents from cold-start options', () => {
+      const agentManager = createMockAgentManager([
+        {
+          id: 'Explore',
+          name: 'Explore',
+          description: 'Built-in explore',
+          prompt: '',
+          source: 'builtin',
+        },
+        {
+          id: 'custom-cold',
+          name: 'Custom Cold',
+          description: 'Custom agent',
+          prompt: 'Custom prompt',
+          source: 'global',
+        },
+      ]);
+
+      const ctx = {
+        ...createMockContext(),
+        abortController: new AbortController(),
+        hooks: {},
+        hasEditorContext: false,
+        agentManager,
+      };
+      const options = QueryOptionsBuilder.buildColdStartQueryOptions(ctx);
+
+      expect(options.agents?.['Explore']).toBeUndefined();
+      expect(options.agents?.['custom-cold']).toBeDefined();
+    });
+
+    it('converts inherit model to undefined in cold-start agents', () => {
+      const agentManager = createMockAgentManager([
+        {
+          id: 'inherit-agent',
+          name: 'Inherit Agent',
+          description: 'Uses inherit',
+          prompt: 'Inherit prompt',
+          source: 'vault',
+          model: 'inherit',
+        },
+      ]);
+
+      const ctx = {
+        ...createMockContext(),
+        abortController: new AbortController(),
+        hooks: {},
+        hasEditorContext: false,
+        agentManager,
+      };
+      const options = QueryOptionsBuilder.buildColdStartQueryOptions(ctx);
+
+      expect(options.agents?.['inherit-agent']).toBeDefined();
+      expect(options.agents?.['inherit-agent'].model).toBeUndefined();
+    });
   });
 
   describe('getMcpServersConfig', () => {
@@ -654,6 +762,131 @@ describe('QueryOptionsBuilder', () => {
       expect(mcpManager.getActiveServers).toHaveBeenCalledWith(
         new Set(['server1', 'server2'])
       );
+    });
+  });
+
+  describe('buildSdkAgentsRecord model conversion', () => {
+    it('converts inherit model to undefined in SDK agents', () => {
+      const agentManager = createMockAgentManager([
+        {
+          id: 'test-agent',
+          name: 'Test Agent',
+          description: 'A test agent',
+          prompt: 'Test prompt',
+          source: 'vault',
+          model: 'inherit',
+        },
+      ]);
+
+      const ctx = {
+        ...createMockContext(),
+        abortController: new AbortController(),
+        hooks: {},
+        agentManager,
+      };
+      const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
+
+      expect(options.agents).toBeDefined();
+      expect(options.agents?.['test-agent']).toBeDefined();
+      expect(options.agents?.['test-agent'].model).toBeUndefined();
+    });
+
+    it('passes through explicit model values to SDK agents', () => {
+      const agentManager = createMockAgentManager([
+        {
+          id: 'sonnet-agent',
+          name: 'Sonnet Agent',
+          description: 'Uses sonnet',
+          prompt: 'Sonnet prompt',
+          source: 'vault',
+          model: 'sonnet',
+        },
+        {
+          id: 'opus-agent',
+          name: 'Opus Agent',
+          description: 'Uses opus',
+          prompt: 'Opus prompt',
+          source: 'global',
+          model: 'opus',
+        },
+        {
+          id: 'haiku-agent',
+          name: 'Haiku Agent',
+          description: 'Uses haiku',
+          prompt: 'Haiku prompt',
+          source: 'vault',
+          model: 'haiku',
+        },
+      ]);
+
+      const ctx = {
+        ...createMockContext(),
+        abortController: new AbortController(),
+        hooks: {},
+        agentManager,
+      };
+      const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
+
+      expect(options.agents?.['sonnet-agent'].model).toBe('sonnet');
+      expect(options.agents?.['opus-agent'].model).toBe('opus');
+      expect(options.agents?.['haiku-agent'].model).toBe('haiku');
+    });
+
+    it('filters out built-in agents from SDK options', () => {
+      const agentManager = createMockAgentManager([
+        {
+          id: 'Explore',
+          name: 'Explore',
+          description: 'Built-in explore',
+          prompt: '',
+          source: 'builtin',
+        },
+        {
+          id: 'custom-agent',
+          name: 'Custom Agent',
+          description: 'Custom agent',
+          prompt: 'Custom prompt',
+          source: 'vault',
+        },
+      ]);
+
+      const ctx = {
+        ...createMockContext(),
+        abortController: new AbortController(),
+        hooks: {},
+        agentManager,
+      };
+      const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
+
+      // Built-in should be filtered out
+      expect(options.agents?.['Explore']).toBeUndefined();
+      // Custom should be included
+      expect(options.agents?.['custom-agent']).toBeDefined();
+    });
+
+    it('includes tools and disallowedTools in SDK agents', () => {
+      const agentManager = createMockAgentManager([
+        {
+          id: 'restricted-agent',
+          name: 'Restricted Agent',
+          description: 'Has tool restrictions',
+          prompt: 'Restricted prompt',
+          source: 'vault',
+          tools: ['Read', 'Grep'],
+          disallowedTools: ['Bash', 'Write'],
+        },
+      ]);
+
+      const ctx = {
+        ...createMockContext(),
+        abortController: new AbortController(),
+        hooks: {},
+        agentManager,
+      };
+      const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
+
+      expect(options.agents?.['restricted-agent'].tools).toEqual(['Read', 'Grep']);
+      expect(options.agents?.['restricted-agent'].disallowedTools).toEqual(['Bash', 'Write']);
     });
   });
 });

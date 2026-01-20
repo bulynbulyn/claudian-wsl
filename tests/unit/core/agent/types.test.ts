@@ -32,6 +32,7 @@ describe('isTurnCompleteMessage', () => {
 
 describe('computeSystemPromptKey', () => {
   it('computes key from all settings', () => {
+    // Note: Agents are passed via Options.agents, not system prompt, so not included in key.
     const settings = {
       mediaFolder: 'attachments',
       customPrompt: 'Be helpful',
@@ -41,7 +42,7 @@ describe('computeSystemPromptKey', () => {
 
     const key = computeSystemPromptKey(settings);
 
-    // Paths should be sorted
+    // Paths are sorted to keep the key stable.
     expect(key).toBe('attachments::Be helpful::/path/a|/path/b::/vault');
   });
 
