@@ -124,21 +124,24 @@
       "desc": "Environment variables for Claude SDK (KEY=VALUE format, one per line)"
     },
     "envSnippets": {
-      "name": "Environment Snippets",
+      "name": "Snippets",
       "addBtn": "Add snippet",
       "editBtn": "Edit",
       "deleteBtn": "Delete",
       "useBtn": "Use",
-      "noSnippets": "No environment snippets saved yet.",
+      "noSnippets": "No saved environment snippets yet. Click + to save your current environment configuration.",
+      "nameRequired": "Please enter a name for the snippet",
       "modal": {
-        "title": "Environment Snippet",
+        "titleEdit": "Edit snippet",
+        "titleSave": "Save snippet",
         "name": "Name",
-        "namePlaceholder": "e.g., Production API",
+        "namePlaceholder": "A descriptive name for this environment configuration",
         "description": "Description",
         "descPlaceholder": "Optional description",
-        "envVars": "Environment Variables",
-        "envVarsPlaceholder": "ANTHROPIC_API_KEY=your-key\nANTHROPIC_BASE_URL=https://api.example.com",
+        "envVars": "Environment variables",
+        "envVarsPlaceholder": "KEY=VALUE format, one per line",
         "save": "Save",
+        "update": "Update",
         "cancel": "Cancel"
       }
     },

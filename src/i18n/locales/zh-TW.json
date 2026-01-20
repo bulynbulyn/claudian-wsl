@@ -124,21 +124,24 @@
       "desc": "Claude SDK 的環境變數（KEY=VALUE 格式，每行一個）"
     },
     "envSnippets": {
-      "name": "環境變數片段",
+      "name": "片段",
       "addBtn": "新增片段",
       "editBtn": "編輯",
       "deleteBtn": "刪除",
       "useBtn": "使用",
-      "noSnippets": "尚無保存的環境變數片段。",
+      "noSnippets": "尚無保存的環境變數片段。點擊 + 保存當前配置。",
+      "nameRequired": "請輸入片段名稱",
       "modal": {
-        "title": "環境變數片段",
+        "titleEdit": "編輯片段",
+        "titleSave": "保存片段",
         "name": "名稱",
-        "namePlaceholder": "例如：生產環境 API",
+        "namePlaceholder": "此配置的描述性名稱",
         "description": "描述",
         "descPlaceholder": "可選描述",
         "envVars": "環境變數",
-        "envVarsPlaceholder": "ANTHROPIC_API_KEY=your-key\nANTHROPIC_BASE_URL=https://api.example.com",
+        "envVarsPlaceholder": "KEY=VALUE 格式，每行一個",
         "save": "保存",
+        "update": "更新",
         "cancel": "取消"
       }
     },

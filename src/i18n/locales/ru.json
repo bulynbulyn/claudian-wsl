@@ -124,21 +124,24 @@
       "desc": "Переменные окружения для Claude SDK (формат KEY=VALUE, по одной в строке)"
     },
     "envSnippets": {
-      "name": "Сниппеты окружения",
+      "name": "Сниппеты",
       "addBtn": "Добавить сниппет",
       "editBtn": "Редактировать",
       "deleteBtn": "Удалить",
       "useBtn": "Использовать",
-      "noSnippets": "Нет сохраненных сниппетов окружения.",
+      "noSnippets": "Нет сохраненных сниппетов окружения. Нажмите +, чтобы сохранить текущую конфигурацию.",
+      "nameRequired": "Пожалуйста, введите название сниппета",
       "modal": {
-        "title": "Сниппет окружения",
+        "titleEdit": "Редактировать сниппет",
+        "titleSave": "Сохранить сниппет",
         "name": "Имя",
-        "namePlaceholder": "например: Production API",
+        "namePlaceholder": "Описательное название для этой конфигурации",
         "description": "Описание",
         "descPlaceholder": "Опциональное описание",
         "envVars": "Переменные окружения",
-        "envVarsPlaceholder": "ANTHROPIC_API_KEY=your-key\nANTHROPIC_BASE_URL=https://api.example.com",
+        "envVarsPlaceholder": "Формат KEY=VALUE, по одной в строке",
         "save": "Сохранить",
+        "update": "Обновить",
         "cancel": "Отмена"
       }
     },

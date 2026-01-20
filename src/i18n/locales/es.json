@@ -124,21 +124,24 @@
       "desc": "Variables de entorno para Claude SDK (formato KEY=VALUE, una por línea)"
     },
     "envSnippets": {
-      "name": "Fragmentos de entorno",
+      "name": "Snippets",
       "addBtn": "Añadir fragmento",
       "editBtn": "Editar",
       "deleteBtn": "Eliminar",
       "useBtn": "Usar",
-      "noSnippets": "No hay fragmentos de entorno guardados.",
+      "noSnippets": "No hay fragmentos de entorno guardados. Haga clic en + para guardar su configuración actual.",
+      "nameRequired": "Por favor ingrese un nombre para el fragmento",
       "modal": {
-        "title": "Fragmento de entorno",
+        "titleEdit": "Editar fragmento",
+        "titleSave": "Guardar fragmento",
         "name": "Nombre",
-        "namePlaceholder": "ej: API de producción",
+        "namePlaceholder": "Un nombre descriptivo para esta configuración",
         "description": "Descripción",
         "descPlaceholder": "Descripción opcional",
         "envVars": "Variables de entorno",
-        "envVarsPlaceholder": "ANTHROPIC_API_KEY=your-key\nANTHROPIC_BASE_URL=https://api.example.com",
+        "envVarsPlaceholder": "Formato KEY=VALUE, una por línea",
         "save": "Guardar",
+        "update": "Actualizar",
         "cancel": "Cancelar"
       }
     },

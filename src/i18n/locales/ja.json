@@ -124,21 +124,24 @@
       "desc": "Claude SDKの環境変数（KEY=VALUE形式、1行に1つ）"
     },
     "envSnippets": {
-      "name": "環境変数スニペット",
+      "name": "スニペット",
       "addBtn": "スニペットを追加",
       "editBtn": "編集",
       "deleteBtn": "削除",
       "useBtn": "使用",
-      "noSnippets": "保存された環境変数スニペットはありません。",
+      "noSnippets": "保存された環境変数スニペットはありません。+をクリックして現在の設定を保存してください。",
+      "nameRequired": "スニペットの名前を入力してください",
       "modal": {
-        "title": "環境変数スニペット",
+        "titleEdit": "スニペットを編集",
+        "titleSave": "スニペットを保存",
         "name": "名前",
-        "namePlaceholder": "例：本番API",
+        "namePlaceholder": "この設定のわかりやすい名前",
         "description": "説明",
         "descPlaceholder": "任意の説明",
         "envVars": "環境変数",
-        "envVarsPlaceholder": "ANTHROPIC_API_KEY=your-key\nANTHROPIC_BASE_URL=https://api.example.com",
+        "envVarsPlaceholder": "KEY=VALUE形式、1行に1つ",
         "save": "保存",
+        "update": "更新",
         "cancel": "キャンセル"
       }
     },

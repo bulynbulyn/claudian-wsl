@@ -28,7 +28,7 @@ export class EnvSnippetModal extends Modal {
 
   onOpen() {
     const { contentEl } = this;
-    this.setTitle(this.snippet ? 'Edit snippet' : 'Save snippet');
+    this.setTitle(this.snippet ? t('settings.envSnippets.modal.titleEdit') : t('settings.envSnippets.modal.titleSave'));
 
     // Make modal more compact
     this.modalEl.addClass('claudian-env-snippet-modal');
@@ -54,7 +54,7 @@ export class EnvSnippetModal extends Modal {
     const saveSnippet = () => {
       const name = nameEl.value.trim();
       if (!name) {
-        new Notice('Please enter a name for the snippet');
+        new Notice(t('settings.envSnippets.nameRequired'));
         return;
       }
 
@@ -127,8 +127,8 @@ export class EnvSnippetModal extends Modal {
     };
 
     new Setting(contentEl)
-      .setName('Name')
-      .setDesc('A descriptive name for this environment configuration')
+      .setName(t('settings.envSnippets.modal.name'))
+      .setDesc(t('settings.envSnippets.modal.namePlaceholder'))
       .addText((text) => {
         nameEl = text.inputEl;
         text.setValue(this.snippet?.name || '');
@@ -136,8 +136,8 @@ export class EnvSnippetModal extends Modal {
       });
 
     new Setting(contentEl)
-      .setName('Description')
-      .setDesc('Optional description')
+      .setName(t('settings.envSnippets.modal.description'))
+      .setDesc(t('settings.envSnippets.modal.descPlaceholder'))
       .addText((text) => {
         descEl = text.inputEl;
         text.setValue(this.snippet?.description || '');
@@ -146,8 +146,8 @@ export class EnvSnippetModal extends Modal {
 
     // Editable environment variables - full width layout
     const envVarsSetting = new Setting(contentEl)
-      .setName('Environment variables')
-      .setDesc('KEY=VALUE format, one per line')
+      .setName(t('settings.envSnippets.modal.envVars'))
+      .setDesc(t('settings.envSnippets.modal.envVarsPlaceholder'))
       .addTextArea((text) => {
         envVarsEl = text.inputEl;
         const envVarsToShow = this.snippet?.envVars ?? this.plugin.settings.environmentVariables;
@@ -168,13 +168,13 @@ export class EnvSnippetModal extends Modal {
     const buttonContainer = contentEl.createDiv({ cls: 'claudian-snippet-buttons' });
 
     const cancelBtn = buttonContainer.createEl('button', {
-      text: 'Cancel',
+      text: t('settings.envSnippets.modal.cancel'),
       cls: 'claudian-cancel-btn'
     });
     cancelBtn.addEventListener('click', () => this.close());
 
     const saveBtn = buttonContainer.createEl('button', {
-      text: this.snippet ? 'Update' : 'Save',
+      text: this.snippet ? t('settings.envSnippets.modal.update') : t('settings.envSnippets.modal.save'),
       cls: 'claudian-save-btn'
     });
     saveBtn.addEventListener('click', () => saveSnippet());
@@ -207,11 +207,11 @@ export class EnvSnippetManager {
 
     // Header with save button
     const headerEl = this.containerEl.createDiv({ cls: 'claudian-snippet-header' });
-    headerEl.createSpan({ text: 'Snippets', cls: 'claudian-snippet-label' });
+    headerEl.createSpan({ text: t('settings.envSnippets.name'), cls: 'claudian-snippet-label' });
 
     const saveBtn = headerEl.createEl('button', {
       cls: 'claudian-settings-action-btn',
-      attr: { 'aria-label': 'Save current' },
+      attr: { 'aria-label': t('settings.envSnippets.addBtn') },
     });
     setIcon(saveBtn, 'plus');
     saveBtn.addEventListener('click', () => this.saveCurrentEnv());
@@ -220,16 +220,13 @@ export class EnvSnippetManager {
 
     if (snippets.length === 0) {
       const emptyEl = this.containerEl.createDiv({ cls: 'claudian-snippet-empty' });
-      emptyEl.setText('No saved environment snippets yet. Click "Save Current" to save your current environment configuration.');
+      emptyEl.setText(t('settings.envSnippets.noSnippets'));
       return;
     }
 
-    // Use snippets as-is (maintain creation order)
-    const sortedSnippets = snippets;
-
     const listEl = this.containerEl.createDiv({ cls: 'claudian-snippet-list' });
 
-    for (const snippet of sortedSnippets) {
+    for (const snippet of snippets) {
       const itemEl = listEl.createDiv({ cls: 'claudian-snippet-item' });
 
       const infoEl = itemEl.createDiv({ cls: 'claudian-snippet-info' });

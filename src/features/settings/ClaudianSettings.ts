@@ -95,7 +95,6 @@ function addHotkeySettingRow(
 /** Plugin settings tab displayed in Obsidian's settings pane. */
 export class ClaudianSettingTab extends PluginSettingTab {
   plugin: ClaudianPlugin;
-  private envSnippetManager: EnvSnippetManager | null = null;
   private contextLimitsContainer: HTMLElement | null = null;
 
   constructor(app: App, plugin: ClaudianPlugin) {
@@ -481,7 +480,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
 
     // Environment Snippets subsection
     const envSnippetsContainer = containerEl.createDiv({ cls: 'claudian-env-snippets-container' });
-    this.envSnippetManager = new EnvSnippetManager(envSnippetsContainer, this.plugin, () => {
+    new EnvSnippetManager(envSnippetsContainer, this.plugin, () => {
       // Callback to refresh context limits section when snippet is inserted
       this.renderContextLimitsSection();
     });

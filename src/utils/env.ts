@@ -309,6 +309,21 @@ export function getEnhancedPath(additionalPaths?: string, cliPath?: string): str
   return unique.join(PATH_SEPARATOR);
 }
 
+/** Environment variable keys that can specify custom models. */
+const CUSTOM_MODEL_ENV_KEYS = [
+  'ANTHROPIC_MODEL',
+  'ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'ANTHROPIC_DEFAULT_SONNET_MODEL',
+  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+] as const;
+
+/** Derives a model type identifier from an env key. */
+function getModelTypeFromEnvKey(envKey: string): string {
+  if (envKey === 'ANTHROPIC_MODEL') return 'model';
+  const match = envKey.match(/ANTHROPIC_DEFAULT_(\w+)_MODEL/);
+  return match ? match[1].toLowerCase() : envKey;
+}
+
 /** Parses KEY=VALUE environment variables from text. Supports comments (#) and empty lines. */
 export function parseEnvironmentVariables(input: string): Record<string, string> {
   const result: Record<string, string> = {};
@@ -337,14 +352,8 @@ export function parseEnvironmentVariables(input: string): Record<string, string>
 export function getModelsFromEnvironment(envVars: Record<string, string>): { value: string; label: string; description: string }[] {
   const modelMap = new Map<string, { types: string[]; label: string }>();
 
-  const modelEnvEntries: { type: string; envKey: string }[] = [
-    { type: 'model', envKey: 'ANTHROPIC_MODEL' },
-    { type: 'opus', envKey: 'ANTHROPIC_DEFAULT_OPUS_MODEL' },
-    { type: 'sonnet', envKey: 'ANTHROPIC_DEFAULT_SONNET_MODEL' },
-    { type: 'haiku', envKey: 'ANTHROPIC_DEFAULT_HAIKU_MODEL' },
-  ];
-
-  for (const { type, envKey } of modelEnvEntries) {
+  for (const envKey of CUSTOM_MODEL_ENV_KEYS) {
+    const type = getModelTypeFromEnvKey(envKey);
     const modelValue = envVars[envKey];
     if (modelValue) {
       const label = modelValue.includes('/')
@@ -410,14 +419,6 @@ export function getHostnameKey(): string {
   return os.hostname();
 }
 
-/** Environment variable keys that can specify custom models. */
-const CUSTOM_MODEL_ENV_KEYS = [
-  'ANTHROPIC_MODEL',
-  'ANTHROPIC_DEFAULT_OPUS_MODEL',
-  'ANTHROPIC_DEFAULT_SONNET_MODEL',
-  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
-] as const;
-
 /** Minimum context limit in tokens (1k). */
 export const MIN_CONTEXT_LIMIT = 1_000;
 
@@ -463,10 +464,8 @@ export function parseContextLimit(input: string): number | null {
 
   if (isNaN(value) || value <= 0) return null;
 
-  let multiplier = 1;
-  if (suffix === 'k') multiplier = 1000;
-  else if (suffix === 'm') multiplier = 1000000;
-
+  const MULTIPLIERS: Record<string, number> = { k: 1_000, m: 1_000_000 };
+  const multiplier = suffix ? MULTIPLIERS[suffix] ?? 1 : 1;
   const result = Math.round(value * multiplier);
 
   // Validate reasonable range (1k to 10M tokens)

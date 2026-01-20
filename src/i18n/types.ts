@@ -112,7 +112,9 @@ export type TranslationKey =
   | 'settings.envSnippets.deleteBtn'
   | 'settings.envSnippets.useBtn'
   | 'settings.envSnippets.noSnippets'
-  | 'settings.envSnippets.modal.title'
+  | 'settings.envSnippets.nameRequired'
+  | 'settings.envSnippets.modal.titleEdit'
+  | 'settings.envSnippets.modal.titleSave'
   | 'settings.envSnippets.modal.name'
   | 'settings.envSnippets.modal.namePlaceholder'
   | 'settings.envSnippets.modal.description'
@@ -120,6 +122,7 @@ export type TranslationKey =
   | 'settings.envSnippets.modal.envVars'
   | 'settings.envSnippets.modal.envVarsPlaceholder'
   | 'settings.envSnippets.modal.save'
+  | 'settings.envSnippets.modal.update'
   | 'settings.envSnippets.modal.cancel'
 
   // Settings - Custom Context Limits

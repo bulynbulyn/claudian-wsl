@@ -601,6 +601,20 @@ export class ClaudianService {
   }
 
   /**
+   * Gets the transform options for SDK message transformation.
+   * Centralized helper to avoid duplication.
+   *
+   * @param modelOverride - Optional model override for cold-start queries
+   */
+  private getTransformOptions(modelOverride?: string) {
+    return {
+      intendedModel: modelOverride ?? this.plugin.settings.model,
+      is1MEnabled: this.plugin.settings.show1MModel ?? false,
+      customContextLimits: this.plugin.settings.customContextLimits,
+    };
+  }
+
+  /**
    * Routes an SDK message to the active response handler.
    *
    * Design: Only one handler exists at a time because MessageChannel enforces
@@ -619,10 +633,7 @@ export class ClaudianService {
     }
 
     // Transform SDK message to StreamChunks
-    const selectedModel = this.plugin.settings.model;
-    const is1MEnabled = this.plugin.settings.show1MModel ?? false;
-    const customContextLimits = this.plugin.settings.customContextLimits;
-    for (const event of transformSDKMessage(message, { intendedModel: selectedModel, is1MEnabled, customContextLimits })) {
+    for (const event of transformSDKMessage(message, this.getTransformOptions())) {
       if (isSessionInitEvent(event)) {
         this.sessionManager.captureSession(event.sessionId);
         this.messageChannel?.setSessionId(event.sessionId);
@@ -1279,9 +1290,7 @@ export class ClaudianService {
           break;
         }
 
-        const is1MEnabled = this.plugin.settings.show1MModel ?? false;
-        const customContextLimits = this.plugin.settings.customContextLimits;
-        for (const event of transformSDKMessage(message, { intendedModel: selectedModel, is1MEnabled, customContextLimits })) {
+        for (const event of transformSDKMessage(message, this.getTransformOptions(selectedModel))) {
           if (isSessionInitEvent(event)) {
             this.sessionManager.captureSession(event.sessionId);
             streamSessionId = event.sessionId;
