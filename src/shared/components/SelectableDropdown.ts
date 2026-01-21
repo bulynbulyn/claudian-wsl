@@ -18,7 +18,7 @@ export interface SelectableDropdownRenderOptions<T> {
   emptyText: string;
   renderItem: (item: T, itemEl: HTMLElement) => void;
   getItemClass?: (item: T) => string | string[] | undefined;
-  onItemClick?: (item: T, index: number) => void;
+  onItemClick?: (item: T, index: number, e: MouseEvent) => void;
   onItemHover?: (item: T, index: number) => void;
 }
 
@@ -100,10 +100,10 @@ export class SelectableDropdown<T> {
 
         options.renderItem(item, itemEl);
 
-        itemEl.addEventListener('click', () => {
+        itemEl.addEventListener('click', (e) => {
           this.selectedIndex = i;
           this.updateSelection();
-          options.onItemClick?.(item, i);
+          options.onItemClick?.(item, i, e);
         });
 
         itemEl.addEventListener('mouseenter', () => {

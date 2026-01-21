@@ -157,8 +157,7 @@ export class SlashCommandDropdown {
         cmd.name.toLowerCase().includes(searchLower) ||
         cmd.description?.toLowerCase().includes(searchLower)
       )
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .slice(0, 10);
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     if (searchText.length > 0 && this.filteredCommands.length === 0) {
       this.hide();

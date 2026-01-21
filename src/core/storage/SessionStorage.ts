@@ -12,6 +12,7 @@
  * ```
  */
 
+import { hashContent } from '../../utils/session';
 import type {
   ChatMessage,
   Conversation,
@@ -474,14 +475,18 @@ export class SessionStorage {
 
   /**
    * Extracts displayContentMap from messages for persistence.
-   * Collects displayContent from user messages that have it (e.g., slash commands).
+   * Collects displayContent from user messages where it differs from content (e.g., slash commands).
+   * Uses content hash as key - the only reliable match since SDK stores exact content we send.
    */
   private extractDisplayContentMap(messages: ChatMessage[]): Record<string, string> {
     const result: Record<string, string> = {};
 
     for (const msg of messages) {
-      if (msg.role !== 'user' || !msg.displayContent) continue;
-      result[msg.id] = msg.displayContent;
+      // Only save if displayContent differs from content (slash command was expanded)
+      if (msg.role !== 'user' || !msg.displayContent || msg.displayContent === msg.content) continue;
+      // Use content hash as key - guaranteed to match SDK-stored content
+      const key = hashContent(msg.content);
+      result[key] = msg.displayContent;
     }
 
     return result;

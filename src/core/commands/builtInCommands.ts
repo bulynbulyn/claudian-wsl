@@ -16,6 +16,8 @@ export interface BuiltInCommand {
   action: BuiltInCommandAction;
   /** Whether this command accepts arguments. */
   hasArgs?: boolean;
+  /** Hint for arguments shown in dropdown (e.g., "path"). */
+  argumentHint?: string;
 }
 
 /** Result from detecting a built-in command. */
@@ -38,6 +40,7 @@ export const BUILT_IN_COMMANDS: BuiltInCommand[] = [
     description: 'Add external context directory',
     action: 'add-dir',
     hasArgs: true,
+    argumentHint: 'path/to/directory',
   },
 ];
 
@@ -85,11 +88,13 @@ export function getBuiltInCommandsForDropdown(): Array<{
   name: string;
   description: string;
   content: string;
+  argumentHint?: string;
 }> {
   return BUILT_IN_COMMANDS.map((cmd) => ({
     id: `builtin:${cmd.name}`,
     name: cmd.name,
     description: cmd.description,
     content: '', // Built-in commands don't have prompt content
+    argumentHint: cmd.argumentHint,
   }));
 }

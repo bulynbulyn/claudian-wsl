@@ -405,7 +405,10 @@ export function parseSDKMessageToChat(
     : undefined;
 
   // Detect interrupt messages from SDK (stored as user messages with specific content)
-  const isInterrupt = sdkMsg.type === 'user' && textContent === '[Request interrupted by user]';
+  const isInterrupt = sdkMsg.type === 'user' && (
+    textContent === '[Request interrupted by user]' ||
+    textContent === '[Request interrupted by user for tool use]'
+  );
 
   // Detect rebuilt context messages (history sent to SDK when session reset)
   const isRebuiltContext = sdkMsg.type === 'user' && isRebuiltContextContent(textContent);

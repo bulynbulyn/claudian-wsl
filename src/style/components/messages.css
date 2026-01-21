@@ -181,10 +181,9 @@
   background: var(--background-modifier-border-hover);
 }
 
-/* Response duration footer */
+/* Response duration footer - styled as another line of content */
 .claudian-response-footer {
-  margin-top: 12px;
-  padding-top: 8px;
+  margin-top: 8px;
 }
 
 .claudian-baked-duration {

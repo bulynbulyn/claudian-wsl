@@ -183,6 +183,11 @@ export class MentionDropdownController {
     }
     if (e.key === 'Escape' && !e.isComposing) {
       e.preventDefault();
+      // If in secondary menu, return to first level instead of closing
+      if (this.activeContextFilter || this.activeAgentFilter) {
+        this.returnToFirstLevel();
+        return true;
+      }
       this.hide();
       return true;
     }
@@ -244,7 +249,7 @@ export class MentionDropdownController {
       const agentSearchText = searchText.substring('agents/'.length).toLowerCase();
 
       if (this.agentService) {
-        const matchingAgents = this.agentService.searchAgents(agentSearchText).slice(0, 10);
+        const matchingAgents = this.agentService.searchAgents(agentSearchText);
         for (const agent of matchingAgents) {
           this.filteredMentionItems.push({
             type: 'agent',
@@ -293,8 +298,7 @@ export class MentionDropdownController {
           if (aNameMatch && !bNameMatch) return -1;
           if (!aNameMatch && bNameMatch) return 1;
           return b.mtime - a.mtime;
-        })
-        .slice(0, 10);
+        });
 
       for (const file of this.filteredContextFiles) {
         const relativePath = file.relativePath.replace(/\\/g, '/');
@@ -355,34 +359,29 @@ export class MentionDropdownController {
     }
 
     const firstVaultFileIndex = this.filteredMentionItems.length;
-    const remainingSlots = 10 - this.filteredMentionItems.length;
 
-    let vaultFiles: TFile[] = [];
-    if (remainingSlots > 0) {
-      const allFiles = this.callbacks.getCachedMarkdownFiles();
-      vaultFiles = allFiles
-        .filter(file => {
-          const pathLower = file.path.toLowerCase();
-          const nameLower = file.name.toLowerCase();
-          return pathLower.includes(searchLower) || nameLower.includes(searchLower);
-        })
-        .sort((a, b) => {
-          const aNameMatch = a.name.toLowerCase().startsWith(searchLower);
-          const bNameMatch = b.name.toLowerCase().startsWith(searchLower);
-          if (aNameMatch && !bNameMatch) return -1;
-          if (!aNameMatch && bNameMatch) return 1;
-          return b.stat.mtime - a.stat.mtime;
-        })
-        .slice(0, remainingSlots);
+    const allFiles = this.callbacks.getCachedMarkdownFiles();
+    const vaultFiles = allFiles
+      .filter(file => {
+        const pathLower = file.path.toLowerCase();
+        const nameLower = file.name.toLowerCase();
+        return pathLower.includes(searchLower) || nameLower.includes(searchLower);
+      })
+      .sort((a, b) => {
+        const aNameMatch = a.name.toLowerCase().startsWith(searchLower);
+        const bNameMatch = b.name.toLowerCase().startsWith(searchLower);
+        if (aNameMatch && !bNameMatch) return -1;
+        if (!aNameMatch && bNameMatch) return 1;
+        return b.stat.mtime - a.stat.mtime;
+      });
 
-      for (const file of vaultFiles) {
-        this.filteredMentionItems.push({
-          type: 'file',
-          name: file.name,
-          path: file.path,
-          file,
-        });
-      }
+    for (const file of vaultFiles) {
+      this.filteredMentionItems.push({
+        type: 'file',
+        name: file.name,
+        path: file.path,
+        file,
+      });
     }
 
     if (vaultFiles.length > 0) {
@@ -454,7 +453,12 @@ export class MentionDropdownController {
           pathEl.setText(item.path || item.name);
         }
       },
-      onItemClick: (_item, index) => {
+      onItemClick: (item, index, e) => {
+        // Stop propagation for folder items to prevent document click handler
+        // from hiding dropdown (since dropdown is re-rendered with new DOM)
+        if (item.type === 'context-folder' || item.type === 'agent-folder') {
+          e.stopPropagation();
+        }
         this.selectedMentionIndex = index;
         this.selectMentionItem();
       },
@@ -481,6 +485,24 @@ export class MentionDropdownController {
     dropdownEl.style.zIndex = '10001';
   }
 
+  private returnToFirstLevel(): void {
+    // Reset input to just '@'
+    const text = this.inputEl.value;
+    const beforeAt = text.substring(0, this.mentionStartIndex);
+    const cursorPos = this.inputEl.selectionStart || 0;
+    const afterCursor = text.substring(cursorPos);
+
+    this.inputEl.value = beforeAt + '@' + afterCursor;
+    this.inputEl.selectionStart = this.inputEl.selectionEnd = beforeAt.length + 1;
+
+    // Clear filter state
+    this.activeContextFilter = null;
+    this.activeAgentFilter = false;
+
+    // Show first level dropdown
+    this.showMentionDropdown('');
+  }
+
   private selectMentionItem(): void {
     if (this.filteredMentionItems.length === 0) return;
 
@@ -504,6 +526,7 @@ export class MentionDropdownController {
     } else if (selectedItem.type === 'agent-folder') {
       // Don't modify input text - just show agents submenu
       this.activeAgentFilter = true;
+      this.inputEl.focus();
       this.showMentionDropdown('Agents/');
       return;
     } else if (selectedItem.type === 'agent') {

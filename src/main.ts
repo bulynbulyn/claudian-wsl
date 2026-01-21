@@ -38,6 +38,7 @@ import { buildCursorContext } from './utils/editor';
 import { getCurrentModelFromEnvironment, getModelsFromEnvironment, parseEnvironmentVariables } from './utils/env';
 import { getVaultPath } from './utils/path';
 import { deleteSDKSession, loadSDKSessionMessages, sdkSessionExists, type SDKSessionLoadResult } from './utils/sdkSession';
+import { hashContent } from './utils/session';
 
 /**
  * Main plugin class for Claudian.
@@ -763,12 +764,15 @@ export default class ClaudianPlugin extends Plugin {
    * Applies cached displayContentMap to messages.
    * Restores displayContent on user messages so slash commands show "/command" instead of expanded prompt.
    * Takes precedence over SDK-extracted displayContent since metadata stores the original user input.
+   * Uses content hash as key - guaranteed to match SDK-stored content.
    */
   private applyDisplayContentMap(messages: ChatMessage[], displayContentMap: Record<string, string>): void {
     for (const msg of messages) {
       if (msg.role !== 'user') continue;
 
-      const displayContent = displayContentMap[msg.id];
+      // Match by content hash - the only reliable key since SDK stores exact content we send
+      const key = hashContent(msg.content);
+      const displayContent = displayContentMap[key];
       if (displayContent) {
         // Override SDK-extracted displayContent with saved original user input
         msg.displayContent = displayContent;
