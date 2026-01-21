@@ -7,6 +7,11 @@ import { copyFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
+// Skip in CI environments
+if (process.env.CI) {
+  process.exit(0);
+}
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
