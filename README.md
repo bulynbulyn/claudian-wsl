@@ -13,10 +13,10 @@ An Obsidian plugin that embeds Claude Agent (using Claude Agent SDK) as a sideba
 - **Instruction Mode (`#`)**: Add refined custom instructions to your system prompt directly from the chat input, with review/edit in a modal.
 - **Slash Commands**: Create reusable prompt templates triggered by `/command`, with argument placeholders, `@file` references, and optional inline bash substitutions.
 - **Skills**: Extend Claudian with reusable capability modules that are automatically invoked based on context, compatible with Claude Code's skill format.
-- **Custom Agents**: Define custom subagents in markdown files that Claude can invoke via the `Task` tool, with support for tool restrictions and model overrides.
+- **Custom Agents**: Define custom subagents that Claude can invoke, with support for tool restrictions and model overrides.
 - **Claude Code Plugins**: Enable Claude Code plugins installed via the CLI, with automatic discovery from `~/.claude/plugins` and per-vault configuration. Plugin skills, agents, and slash commands integrate seamlessly.
 - **MCP Support**: Connect external tools and data sources via Model Context Protocol servers (stdio, SSE, HTTP) with context-saving mode and `@`-mention activation.
-- **Advanced Model Control**: Select between Haiku, Sonnet, and Opus, configure custom models via environment variables, fine-tune thinking budget, and enable 1M context window (requires Max subscription).
+- **Advanced Model Control**: Select between Haiku, Sonnet, and Opus, configure custom models via environment variables, fine-tune thinking budget, and enable Sonnet with 1M context window (requires Max subscription).
 - **Security**: Permission modes (YOLO/Safe), safety blocklist, and vault confinement with symlink-safe checks.
 - **Multi-Tab Support**: Run multiple concurrent chat sessions with independent streaming, lazy service initialization, and configurable tab limits (3-10 tabs).
 
@@ -83,7 +83,7 @@ npm run dev
 npm run build
 ```
 
-> **Tip**: Create `.env.local` in the root directory with `OBSIDIAN_VAULT=<your vault path>` to auto-copy files to your vault during development.
+> **Tip**: Copy `.env.local.example` to `.env.local` or `npm install` and setup your vault path to auto-copy files during development.
 
 ## Usage
 
@@ -111,7 +111,7 @@ Use it like Claude Code—read, write, edit, search files in your vault.
 - **Instruction Mode**: Type `#` to add refined instructions to system prompt
 - **Slash Commands**: Type `/` for custom prompt templates (Settings → Slash Commands)
 - **Skills**: Add `SKILL.md` files to `~/.claude/skills/` or `{vault}/.claude/skills/`, recommended to use Claude Code to manage skills
-- **Custom Agents**: Add agent `.md` files to `~/.claude/agents/` (global) or `{vault}/.claude/agents/` (vault-specific); select via `@Agents/` in chat
+- **Custom Agents**: Add agent `.md` files to `~/.claude/agents/` (global) or `{vault}/.claude/agents/` (vault-specific); select via `@Agents/` in chat, or prompt Claudian to invoke agents
 - **Claude Code Plugins**: Enable plugins via Settings → Claude Code Plugins, recommended to use Claude Code to manage plugins
 - **MCP**: Add external tools via Settings → MCP Servers; use `@mcp-server` in chat to activate
 
@@ -124,6 +124,7 @@ Use it like Claude Code—read, write, edit, search files in your vault.
 - **Excluded tags**: Tags that prevent notes from auto-loading (e.g., `sensitive`, `private`)
 - **Media folder**: Configure where vault stores attachments for embedded image support (e.g., `attachments`)
 - **Custom system prompt**: Additional instructions appended to the default system prompt (Instruction Mode `#` saves here)
+- **Enable auto-scroll**: Toggle automatic scrolling to bottom during streaming (default: on)
 - **Auto-generate conversation titles**: Toggle AI-powered title generation after the first user message is sent
 - **Title generation model**: Model used for auto-generating conversation titles (default: Auto/Haiku)
 - **Vim-style navigation mappings**: Configure key bindings with lines like `map w scrollUp`, `map s scrollDown`, `map i focusInput`
@@ -149,7 +150,7 @@ Use it like Claude Code—read, write, edit, search files in your vault.
 - **Allowed export paths**: Paths outside the vault where files can be exported (default: `~/Desktop`, `~/Downloads`). Supports `~`, `$VAR`, `${VAR}`, and `%VAR%` (Windows).
 
 **Environment**
-- **Custom variables**: Environment variables for Claude SDK (KEY=VALUE format)
+- **Custom variables**: Environment variables for Claude SDK (KEY=VALUE format, supports `export ` prefix)
 - **Environment snippets**: Save and restore environment variable configurations
 
 **Advanced**
@@ -243,6 +244,7 @@ src/
 
 - [x] Claude Code Plugin support
 - [x] Custom agent (subagent) support
+- [ ] `/compact` command
 - [ ] Hooks and other advanced features
 - [ ] More to come!
 

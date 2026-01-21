@@ -208,10 +208,12 @@ interface ClaudianSettings {
   enableBlocklist: boolean;
   blockedCommands: { unix: string[], windows: string[] };  // Platform-keyed blocklist
   permissions: Permission[];         // Tool approvals (like Claude Code)
+  userName: string;                  // User's name for personalized collaboration
   excludedTags: string[];            // Tags to exclude from auto-context
   mediaFolder: string;               // Attachment folder for ![[images]]
-  environmentVariables: string;      // KEY=VALUE format
+  environmentVariables: string;      // KEY=VALUE format (supports 'export ' prefix)
   envSnippets: EnvSnippet[];
+  enableAutoScroll: boolean;         // Auto-scroll during streaming (default: true)
   systemPrompt: string;
   allowedExportPaths: string[];      // Write-only paths outside vault
   slashCommands: SlashCommand[];     // Loaded from .claude/commands/*.md + enabled plugins
@@ -305,10 +307,10 @@ Run multiple concurrent chat sessions in the sidebar.
 
 ### Smart Scrolling
 Intelligent scroll behavior during streaming responses.
-- **Auto-scroll**: Automatically scrolls to bottom during streaming
+- **Auto-scroll**: Automatically scrolls to bottom during streaming (toggle via `enableAutoScroll` setting)
 - **User override**: Scrolling up disables auto-scroll; scrolling back to bottom re-enables it
 - **Scroll-to-bottom button**: Sticky button appears when scrolled up, click to jump to bottom and re-enable auto-scroll
-- **Reset on query**: Auto-scroll resets to enabled when sending a new message
+- **Reset on query**: Auto-scroll resets to the `enableAutoScroll` setting value when sending a new message
 
 ### Status Panels
 Todo and subagent panels display task progress and background agent activity.
