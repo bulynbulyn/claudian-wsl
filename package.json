@@ -18,9 +18,17 @@
   },
   "keywords": [
     "obsidian",
+    "obsidian-plugin",
     "claude",
-    "ai",
-    "agent"
+    "claude-code",
+    "anthropic",
+    "ai-agent",
+    "ai-assistant",
+    "ide",
+    "llm",
+    "mcp",
+    "productivity",
+    "skills"
   ],
   "author": "Yishen Tu",
   "license": "MIT",

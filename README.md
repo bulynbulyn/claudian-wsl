@@ -1,8 +1,12 @@
 # Claudian
 
+![GitHub stars](https://img.shields.io/github/stars/YishenTu/claudian?style=social)
+![GitHub release](https://img.shields.io/github/v/release/YishenTu/claudian)
+![License](https://img.shields.io/github/license/YishenTu/claudian)
+
 ![Preview](Preview.png)
 
-An Obsidian plugin that embeds Claude Agent (using Claude Agent SDK) as a sidebar chat interface. Your vault becomes Claude's working directory, giving it full agentic capabilities: file read/write, search, bash commands, and multi-step workflows.
+An Obsidian plugin that embeds Claude Code as an AI collaborator in your vault. Your vault becomes Claude's working directory, giving it full agentic capabilities: file read/write, search, bash commands, and multi-step workflows.
 
 ## Features
 
