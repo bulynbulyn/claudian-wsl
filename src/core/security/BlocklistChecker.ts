@@ -31,26 +31,3 @@ export function isCommandBlocked(
     }
   });
 }
-
-/**
- * Validate a blocklist pattern.
- *
- * @param pattern - The pattern to validate
- * @returns Object with isValid flag and optional error message
- */
-export function validateBlocklistPattern(pattern: string): { isValid: boolean; error?: string } {
-  if (!pattern.trim()) {
-    return { isValid: false, error: 'Pattern cannot be empty' };
-  }
-
-  try {
-    new RegExp(pattern, 'i');
-    return { isValid: true };
-  } catch (e) {
-    // Pattern is invalid as regex but will work as substring match
-    return {
-      isValid: true,
-      error: `Invalid regex, will use substring match: ${e instanceof Error ? e.message : 'unknown error'}`,
-    };
-  }
-}

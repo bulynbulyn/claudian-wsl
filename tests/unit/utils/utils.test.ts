@@ -9,7 +9,6 @@ import {
   findClaudeCLIPath,
   getPathAccessType,
   getVaultPath,
-  isPathInAllowedContextPaths,
   isPathInAllowedExportPaths,
   isPathWithinVault,
   normalizePathForFilesystem,
@@ -894,16 +893,6 @@ describe('utils.ts', () => {
         isPathInAllowedExportPaths(
           'C:\\Users\\test\\export\\out.md',
           ['C:\\Users\\test\\export'],
-          'C:\\Users\\test\\vault'
-        )
-      ).toBe(true);
-    });
-
-    it('allows context paths after slash normalization', () => {
-      expect(
-        isPathInAllowedContextPaths(
-          'C:\\Users\\test\\context\\in.md',
-          ['C:\\Users\\test\\context'],
           'C:\\Users\\test\\vault'
         )
       ).toBe(true);

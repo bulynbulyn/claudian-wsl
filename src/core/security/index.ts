@@ -29,5 +29,4 @@ export {
 } from './BashPathValidator';
 export {
   isCommandBlocked,
-  validateBlocklistPattern,
 } from './BlocklistChecker';

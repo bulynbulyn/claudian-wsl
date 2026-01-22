@@ -626,44 +626,6 @@ export function isPathInAllowedExportPaths(
   return false;
 }
 
-/** Checks whether a candidate path is within any of the allowed context paths. */
-export function isPathInAllowedContextPaths(
-  candidatePath: string,
-  allowedContextPaths: string[],
-  vaultPath: string
-): boolean {
-  if (!allowedContextPaths || allowedContextPaths.length === 0) {
-    return false;
-  }
-
-  // Normalize before resolution to handle MSYS paths on Windows
-  const normalizedCandidate = normalizePathBeforeResolution(candidatePath);
-
-  const absCandidate = path.isAbsolute(normalizedCandidate)
-    ? normalizedCandidate
-    : path.resolve(vaultPath, normalizedCandidate);
-
-  const resolvedCandidate = normalizePathForComparison(resolveRealPath(absCandidate));
-
-  // Check if candidate is within any allowed context path
-  for (const contextPath of allowedContextPaths) {
-    const normalizedContext = normalizePathBeforeResolution(contextPath);
-
-    const resolvedContext = normalizePathForComparison(resolveRealPath(normalizedContext));
-
-    // Check if candidate equals or is within the context path
-    // Use '/' since normalizePathForComparison converts all paths to forward slashes
-    if (
-      resolvedCandidate === resolvedContext ||
-      resolvedCandidate.startsWith(resolvedContext + '/')
-    ) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 export type PathAccessType = 'vault' | 'readwrite' | 'context' | 'export' | 'none';
 
 /**
