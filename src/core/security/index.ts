@@ -15,7 +15,6 @@ export {
 export {
   checkBashPathAccess,
   cleanPathToken,
-  extractPathCandidates,
   findBashCommandPathViolation,
   findBashPathViolationInSegment,
   getBashSegmentCommandName,

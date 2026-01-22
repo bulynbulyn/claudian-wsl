@@ -14,7 +14,7 @@ export interface SelectionHighlighter {
   hide: (editorView: EditorView) => void;
 }
 
-export function createSelectionHighlighter(): SelectionHighlighter {
+function createSelectionHighlighter(): SelectionHighlighter {
   const showHighlight = StateEffect.define<{ from: number; to: number }>();
   const hideHighlight = StateEffect.define<null>();
 

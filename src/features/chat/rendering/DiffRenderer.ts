@@ -149,15 +149,6 @@ export function splitIntoHunks(diffLines: DiffLine[], contextLines = 3): DiffHun
   return hunks;
 }
 
-/** Escape HTML special characters. */
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 /** Render diff content to a container element. */
 export function renderDiffContent(
   containerEl: HTMLElement,
@@ -200,37 +191,4 @@ export function renderDiffContent(
   });
 }
 
-/** Convert diff lines to HTML string. */
-export function diffLinesToHtml(diffLines: DiffLine[], contextLines = 3): string {
-  const hunks = splitIntoHunks(diffLines, contextLines);
-
-  if (hunks.length === 0) {
-    return '<div class="claudian-diff-no-changes">No changes</div>';
-  }
-
-  const parts: string[] = [];
-
-  hunks.forEach((hunk, hunkIndex) => {
-    if (hunkIndex > 0) {
-      parts.push('<div class="claudian-diff-separator">...</div>');
-    }
-
-    parts.push('<div class="claudian-diff-hunk">');
-
-    for (const line of hunk.lines) {
-      const prefix = line.type === 'insert' ? '+' : line.type === 'delete' ? '-' : ' ';
-      const escapedText = escapeHtml(line.text || ' ');
-      parts.push(
-        `<div class="claudian-diff-line claudian-diff-${line.type}">` +
-          `<span class="claudian-diff-prefix">${prefix}</span>` +
-          `<span class="claudian-diff-text">${escapedText}</span>` +
-          `</div>`
-      );
-    }
-
-    parts.push('</div>');
-  });
-
-  return parts.join('');
-}
 

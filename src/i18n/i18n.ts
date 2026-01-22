@@ -155,9 +155,3 @@ export function getLocaleDisplayName(locale: Locale): string {
   return names[locale] || locale;
 }
 
-/**
- * Check if a locale exists
- */
-export function isValidLocale(locale: string): locale is Locale {
-  return (translations as Record<string, any>)[locale] !== undefined;
-}

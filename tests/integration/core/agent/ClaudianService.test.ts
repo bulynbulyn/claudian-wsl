@@ -28,7 +28,6 @@ import { clearDiffState, createFileHashPostHook, createFileHashPreHook, getDiffD
 import { createVaultRestrictionHook } from '@/core/hooks/SecurityHooks';
 import { transformSDKMessage } from '@/core/sdk';
 import { getActionDescription, getActionPattern } from '@/core/security/ApprovalManager';
-import { extractPathCandidates } from '@/core/security/BashPathValidator';
 import { getPathFromToolInput } from '@/core/tools/toolInput';
 import { resolveClaudeCliPath } from '@/utils/claudeCli';
 import {
@@ -1584,10 +1583,6 @@ describe('ClaudianService', () => {
       expect(blockedChunk?.content).toContain('outside the vault');
     });
 
-    it('should extract quoted and relative paths from bash commands', () => {
-      const candidates = extractPathCandidates('cat "../secret.txt" ./notes/file.md ~/vault/config');
-      expect(candidates).toEqual(expect.arrayContaining(['../secret.txt', './notes/file.md', '~/vault/config']));
-    });
   });
 
   describe('extended thinking', () => {

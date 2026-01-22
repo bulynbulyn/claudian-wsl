@@ -26,14 +26,6 @@ export function getVaultPath(app: App): string | null {
 // Home Path Expansion
 // ============================================
 
-/**
- * Checks if a path starts with home directory notation (~/path or ~\path).
- * Supports both Unix-style (~/) and Windows-style (~\) home directory notation.
- */
-export function startsWithHomePath(p: string): boolean {
-  return p.startsWith('~/') || p.startsWith('~\\') || p === '~';
-}
-
 function getEnvValue(key: string): string | undefined {
   const hasKey = (name: string) => Object.prototype.hasOwnProperty.call(process.env, name);
 

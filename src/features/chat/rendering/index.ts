@@ -7,7 +7,6 @@ export {
   countLineChanges,
   type DiffHunk,
   type DiffLine,
-  diffLinesToHtml,
   type DiffStats,
   renderDiffContent,
   splitIntoHunks,

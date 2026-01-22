@@ -8,7 +8,6 @@ export {
   type SelectableDropdownRenderOptions,
 } from './components/SelectableDropdown';
 export {
-  createSelectionHighlighter,
   hideSelectionHighlight,
   type SelectionHighlighter,
   showSelectionHighlight,

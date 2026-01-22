@@ -13,7 +13,6 @@ export {
   getAvailableLocales,
   getLocale,
   getLocaleDisplayName,
-  isValidLocale,
   setLocale,
   t,
 } from './i18n';

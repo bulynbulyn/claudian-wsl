@@ -6,7 +6,6 @@ import type { DiffLine } from '@/features/chat/rendering/DiffRenderer';
 import {
   computeLineDiff,
   countLineChanges,
-  diffLinesToHtml,
   splitIntoHunks,
 } from '@/features/chat/rendering/DiffRenderer';
 
@@ -307,85 +306,6 @@ describe('DiffRenderer', () => {
       expect(hunks).toHaveLength(1);
       expect(hunks[0].oldStart).toBe(2); // Context starts at line 2
       expect(hunks[0].newStart).toBe(2);
-    });
-  });
-
-  describe('diffLinesToHtml', () => {
-    it('should return no-changes message for identical texts', () => {
-      const diffLines: DiffLine[] = [
-        { type: 'equal', text: 'line1', oldLineNum: 1, newLineNum: 1 },
-      ];
-      const html = diffLinesToHtml(diffLines);
-      expect(html).toContain('claudian-diff-no-changes');
-      expect(html).toContain('No changes');
-    });
-
-    it('should render inserted line with + prefix', () => {
-      const diffLines: DiffLine[] = [
-        { type: 'insert', text: 'new line', newLineNum: 1 },
-      ];
-      const html = diffLinesToHtml(diffLines);
-      expect(html).toContain('claudian-diff-insert');
-      expect(html).toContain('+');
-      expect(html).toContain('new line');
-    });
-
-    it('should render deleted line with - prefix', () => {
-      const diffLines: DiffLine[] = [
-        { type: 'delete', text: 'old line', oldLineNum: 1 },
-      ];
-      const html = diffLinesToHtml(diffLines);
-      expect(html).toContain('claudian-diff-delete');
-      expect(html).toContain('-');
-      expect(html).toContain('old line');
-    });
-
-    it('should render equal line with space prefix', () => {
-      const diffLines: DiffLine[] = [
-        { type: 'equal', text: 'same', oldLineNum: 1, newLineNum: 1 },
-        { type: 'insert', text: 'new', newLineNum: 2 },
-      ];
-      const html = diffLinesToHtml(diffLines);
-      expect(html).toContain('claudian-diff-equal');
-    });
-
-    it('should escape HTML special characters', () => {
-      const diffLines: DiffLine[] = [
-        { type: 'insert', text: '<script>alert("xss")</script>', newLineNum: 1 },
-      ];
-      const html = diffLinesToHtml(diffLines);
-      expect(html).toContain('&lt;script&gt;');
-      expect(html).toContain('&quot;xss&quot;');
-      expect(html).not.toContain('<script>');
-    });
-
-    it('should add separator between distant hunks', () => {
-      // Create diff with two distant changes
-      const lines: DiffLine[] = [];
-      for (let i = 1; i <= 5; i++) {
-        lines.push({ type: 'equal', text: `line${i}`, oldLineNum: i, newLineNum: i });
-      }
-      lines.push({ type: 'insert', text: 'change1', newLineNum: 6 });
-      for (let i = 6; i <= 15; i++) {
-        lines.push({ type: 'equal', text: `line${i}`, oldLineNum: i, newLineNum: i + 1 });
-      }
-      lines.push({ type: 'insert', text: 'change2', newLineNum: 17 });
-      for (let i = 16; i <= 20; i++) {
-        lines.push({ type: 'equal', text: `line${i}`, oldLineNum: i, newLineNum: i + 2 });
-      }
-
-      const html = diffLinesToHtml(lines, 3);
-      expect(html).toContain('claudian-diff-separator');
-      expect(html).toContain('...');
-    });
-
-    it('should handle empty line text', () => {
-      const diffLines: DiffLine[] = [
-        { type: 'insert', text: '', newLineNum: 1 },
-      ];
-      const html = diffLinesToHtml(diffLines);
-      // Should render space for empty line
-      expect(html).toContain('claudian-diff-text');
     });
   });
 

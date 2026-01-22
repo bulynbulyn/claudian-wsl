@@ -353,20 +353,3 @@ export function findBashCommandPathViolation(
   return null;
 }
 
-/**
- * Extract path-like candidates from a bash command.
- * Useful for analysis/debugging.
- */
-export function extractPathCandidates(command: string): string[] {
-  const candidates: string[] = [];
-  const seen = new Set<string>();
-
-  for (const token of tokenizeBashCommand(command)) {
-    if (!isPathLikeToken(token)) continue;
-    if (seen.has(token)) continue;
-    seen.add(token);
-    candidates.push(token);
-  }
-
-  return candidates;
-}

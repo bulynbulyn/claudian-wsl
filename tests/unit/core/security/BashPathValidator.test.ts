@@ -1,7 +1,6 @@
 import {
   checkBashPathAccess,
   cleanPathToken,
-  extractPathCandidates,
   findBashCommandPathViolation,
   findBashPathViolationInSegment,
   getBashSegmentCommandName,
@@ -321,38 +320,6 @@ describe('BashPathValidator', () => {
       // Mismatched quotes are not stripped - token passes through
       expect(cleanPathToken("\"path'")).toBe("\"path'");
       expect(cleanPathToken("'path\"")).toBe("'path\"");
-    });
-  });
-
-  describe('extractPathCandidates', () => {
-    it('extracts path tokens from command', () => {
-      const candidates = extractPathCandidates('cat /home/user/file.txt && echo done');
-      expect(candidates).toEqual(['/home/user/file.txt']);
-    });
-
-    it('removes quoted strings', () => {
-      const candidates = extractPathCandidates('cat "/tmp/file.txt" && echo done');
-      expect(candidates).toEqual(['/tmp/file.txt']);
-    });
-
-    it('handles multiple paths', () => {
-      const candidates = extractPathCandidates('cat /home/file1.txt /home/file2.txt && echo done');
-      expect(candidates).toEqual(['/home/file1.txt', '/home/file2.txt']);
-    });
-
-    it('deduplicates paths', () => {
-      const candidates = extractPathCandidates('cat /home/file.txt && cat /home/file.txt && echo done');
-      expect(candidates).toEqual(['/home/file.txt']);
-    });
-
-    it('filters non-path tokens', () => {
-      const candidates = extractPathCandidates('echo hello && ls -la && echo world');
-      expect(candidates).toEqual([]);
-    });
-
-    it('extracts redirect target paths', () => {
-      const candidates = extractPathCandidates('echo hello > /tmp/output.txt');
-      expect(candidates).toEqual(['/tmp/output.txt']);
     });
   });
 

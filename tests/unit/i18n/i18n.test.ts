@@ -6,7 +6,6 @@ import {
   getAvailableLocales,
   getLocale,
   getLocaleDisplayName,
-  isValidLocale,
   setLocale,
   t,
 } from '@/i18n/i18n';
@@ -185,28 +184,6 @@ describe('i18n', () => {
 
     it('returns locale code for unknown locale', () => {
       expect(getLocaleDisplayName('xx' as Locale)).toBe('xx');
-    });
-  });
-
-  describe('isValidLocale', () => {
-    it('returns true for valid locales', () => {
-      expect(isValidLocale('en')).toBe(true);
-      expect(isValidLocale('zh-CN')).toBe(true);
-      expect(isValidLocale('zh-TW')).toBe(true);
-      expect(isValidLocale('ja')).toBe(true);
-      expect(isValidLocale('ko')).toBe(true);
-      expect(isValidLocale('de')).toBe(true);
-      expect(isValidLocale('fr')).toBe(true);
-      expect(isValidLocale('es')).toBe(true);
-      expect(isValidLocale('ru')).toBe(true);
-      expect(isValidLocale('pt')).toBe(true);
-    });
-
-    it('returns false for invalid locales', () => {
-      expect(isValidLocale('xx')).toBe(false);
-      expect(isValidLocale('invalid')).toBe(false);
-      expect(isValidLocale('')).toBe(false);
-      expect(isValidLocale('en-US')).toBe(false); // Not a supported variant
     });
   });
 
