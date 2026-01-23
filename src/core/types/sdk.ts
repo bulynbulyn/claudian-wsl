@@ -53,7 +53,7 @@ export interface SDKNonResultMessage {
   tool_name?: string;
   elapsed_time_seconds?: number;
   isAuthenticating?: boolean;
-  output?: string[];
+  output?: string | string[];
   /** Usage info by model name. */
   modelUsage?: Record<string, ModelUsageInfo>;
   /** Model name for the message. */
