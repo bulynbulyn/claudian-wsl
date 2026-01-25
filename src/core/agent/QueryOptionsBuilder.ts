@@ -24,6 +24,7 @@ import { buildSystemPrompt, type SystemPromptSettings } from '../prompts/mainAge
 import type { ClaudianSettings, PermissionMode } from '../types';
 import { resolveModelWithBetas, THINKING_BUDGETS } from '../types';
 import type { AgentDefinition } from '../types/agent';
+import { createCustomSpawnFunction } from './customSpawn';
 import {
   computeSystemPromptKey,
   DISABLED_BUILTIN_SUBAGENTS,
@@ -280,6 +281,9 @@ export class QueryOptionsBuilder {
       options.additionalDirectories = ctx.externalContextPaths;
     }
 
+    // Use custom spawn function to resolve full node path (fixes GUI app PATH issues)
+    options.spawnClaudeCodeProcess = createCustomSpawnFunction(ctx.enhancedPath);
+
     return options;
   }
 
@@ -386,6 +390,9 @@ export class QueryOptionsBuilder {
     if (ctx.externalContextPaths && ctx.externalContextPaths.length > 0) {
       options.additionalDirectories = ctx.externalContextPaths;
     }
+
+    // Use custom spawn function to resolve full node path (fixes GUI app PATH issues)
+    options.spawnClaudeCodeProcess = createCustomSpawnFunction(ctx.enhancedPath);
 
     return options;
   }

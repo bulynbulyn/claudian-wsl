@@ -5,6 +5,28 @@ export interface HookCallbackMatcher {
   hooks: Array<(hookInput: any, toolUseID: string, options: any) => Promise<{ continue: boolean; hookSpecificOutput?: any }>>;
 }
 
+export interface SpawnOptions {
+  command: string;
+  args: string[];
+  cwd?: string;
+  env: {
+    [envVar: string]: string | undefined;
+  };
+  signal: AbortSignal;
+}
+
+export interface SpawnedProcess {
+  stdin: NodeJS.WritableStream;
+  stdout: NodeJS.ReadableStream;
+  stderr?: NodeJS.ReadableStream | null;
+  killed: boolean;
+  exitCode: number | null;
+  kill: (signal?: NodeJS.Signals) => void;
+  on: (event: 'exit' | 'error', listener: (...args: any[]) => void) => void;
+  once: (event: 'exit' | 'error', listener: (...args: any[]) => void) => void;
+  off: (event: 'exit' | 'error', listener: (...args: any[]) => void) => void;
+}
+
 export interface Options {
   cwd?: string;
   permissionMode?: string;
@@ -21,6 +43,7 @@ export interface Options {
   systemPrompt?: string | { content: string; cacheControl?: { type: string } };
   mcpServers?: Record<string, unknown>;
   settingSources?: ('user' | 'project' | 'local')[];
+  spawnClaudeCodeProcess?: (options: SpawnOptions) => SpawnedProcess;
   hooks?: {
     PreToolUse?: HookCallbackMatcher[];
   };

@@ -167,16 +167,21 @@ function getExtraBinaryPaths(): string[] {
 /**
  * Searches for the Node.js executable in common installation locations.
  * Returns the directory containing node, or null if not found.
+ *
+ * @param additionalPaths - Optional additional PATH string to search (e.g., enhanced PATH)
  */
-export function findNodeDirectory(): string | null {
+export function findNodeDirectory(additionalPaths?: string): string | null {
   const searchPaths = getExtraBinaryPaths();
 
   // Also check current PATH
   const currentPath = process.env.PATH || '';
   const pathDirs = parsePathEntries(currentPath);
 
-  // Search in extra paths first (more likely to have node), then current PATH
-  const allPaths = [...searchPaths, ...pathDirs];
+  // If additional paths provided, parse and include them (highest priority)
+  const additionalDirs = additionalPaths ? parsePathEntries(additionalPaths) : [];
+
+  // Search in additional paths first, then extra paths, then current PATH
+  const allPaths = [...additionalDirs, ...searchPaths, ...pathDirs];
 
   for (const dir of allPaths) {
     if (!dir) continue;
@@ -193,6 +198,20 @@ export function findNodeDirectory(): string | null {
     }
   }
 
+  return null;
+}
+
+/**
+ * Finds the full path to the Node.js executable.
+ * Returns the absolute path to node, or null if not found.
+ *
+ * @param additionalPaths - Optional additional PATH string to search (e.g., enhanced PATH)
+ */
+export function findNodeExecutable(additionalPaths?: string): string | null {
+  const nodeDir = findNodeDirectory(additionalPaths);
+  if (nodeDir) {
+    return path.join(nodeDir, NODE_EXECUTABLE);
+  }
   return null;
 }
 

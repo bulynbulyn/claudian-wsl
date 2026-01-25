@@ -8,7 +8,17 @@ import * as path from 'path';
 
 import * as env from '../../../src/utils/env';
 
-const { cliPathRequiresNode, findNodeDirectory, formatContextLimit, getCustomModelIds, getEnhancedPath, getHostnameKey, parseContextLimit, parseEnvironmentVariables } = env;
+const {
+  cliPathRequiresNode,
+  findNodeDirectory,
+  findNodeExecutable,
+  formatContextLimit,
+  getCustomModelIds,
+  getEnhancedPath,
+  getHostnameKey,
+  parseContextLimit,
+  parseEnvironmentVariables,
+} = env;
 
 const isWindows = process.platform === 'win32';
 const SEP = isWindows ? ';' : ':';
@@ -541,6 +551,41 @@ describe('findNodeDirectory', () => {
 
     const result = findNodeDirectory();
     expect(result).toBe(nvmSymlink);
+  });
+
+  it('prefers additionalPaths over process.env.PATH', () => {
+    const nodeExecutable = isWindows ? 'node.exe' : 'node';
+    const preferredDir = isWindows ? 'C:\\custom\\bin' : '/custom/bin';
+    const fallbackDir = isWindows ? 'C:\\fallback\\bin' : '/fallback/bin';
+    const preferredNode = path.join(preferredDir, nodeExecutable);
+    const fallbackNode = path.join(fallbackDir, nodeExecutable);
+
+    jest.spyOn(fs, 'existsSync').mockImplementation(p => {
+      const candidate = String(p);
+      return candidate === preferredNode || candidate === fallbackNode;
+    });
+    jest.spyOn(fs, 'statSync').mockImplementation(
+      () => ({ isFile: () => true }) as fs.Stats
+    );
+
+    process.env.PATH = fallbackDir;
+
+    const result = findNodeDirectory(preferredDir);
+    expect(result).toBe(preferredDir);
+  });
+
+  it('returns full path for findNodeExecutable when available', () => {
+    const nodeExecutable = isWindows ? 'node.exe' : 'node';
+    const preferredDir = isWindows ? 'C:\\custom\\bin' : '/custom/bin';
+    const preferredNode = path.join(preferredDir, nodeExecutable);
+
+    jest.spyOn(fs, 'existsSync').mockImplementation(p => String(p) === preferredNode);
+    jest.spyOn(fs, 'statSync').mockImplementation(
+      () => ({ isFile: () => true }) as fs.Stats
+    );
+
+    const result = findNodeExecutable(preferredDir);
+    expect(result).toBe(preferredNode);
   });
 });
 
