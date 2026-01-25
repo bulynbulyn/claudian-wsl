@@ -17,18 +17,11 @@
     "version": "node scripts/sync-version.js && git add manifest.json"
   },
   "keywords": [
+    "claude-code",
     "obsidian",
     "obsidian-plugin",
-    "claude",
-    "claude-code",
-    "anthropic",
-    "ai-agent",
-    "ai-assistant",
-    "ide",
-    "llm",
-    "mcp",
     "productivity",
-    "skills"
+    "ide"
   ],
   "author": "Yishen Tu",
   "license": "MIT",
