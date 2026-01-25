@@ -14,6 +14,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import type { ChatMessage, ContentBlock, ImageAttachment, ImageMediaType, ToolCallInfo } from '../core/types';
+import { extractContentBeforeXmlContext } from './context';
 
 /** Result of reading an SDK session file. */
 export interface SDKSessionReadResult {
@@ -220,39 +221,12 @@ function isRebuiltContextContent(textContent: string): boolean {
 
 /**
  * Extracts display content from user messages by removing XML context wrappers.
+ * Uses shared extraction logic from context utilities.
  *
- * User messages may contain XML context like:
- * - <current_note>...</current_note>
- * - <editor_selection>...</editor_selection>
- * - <query>actual user input</query>
- *
- * When <query> tags are present, the inner content is the user's actual input.
- * When no <query> tags are present, the full content is the user's input.
+ * Returns undefined if no XML context found (plain user message).
  */
 function extractDisplayContent(textContent: string): string | undefined {
-  if (!textContent) return undefined;
-
-  // Check for <query>...</query> wrapper (multiline, non-greedy)
-  const queryMatch = textContent.match(/<query>\n?([\s\S]*?)\n?<\/query>/);
-  if (queryMatch) {
-    return queryMatch[1].trim();
-  }
-
-  // No <query> tags - check if there are any XML context tags
-  // If so, this is unexpected format; return undefined to use content as-is
-  const hasXmlContext =
-    textContent.includes('<current_note') ||
-    textContent.includes('<editor_selection') ||
-    textContent.includes('<context_files');
-
-  // If there's XML context but no <query> wrapper, content is malformed
-  // Return undefined to fall back to showing full content
-  if (hasXmlContext) {
-    return undefined;
-  }
-
-  // No XML context - plain user message, displayContent equals content
-  return undefined;
+  return extractContentBeforeXmlContext(textContent);
 }
 
 /**

@@ -19,12 +19,13 @@ import type {
   Query,
   SDKMessage,
   SDKUserMessage,
+  SlashCommand as SDKSlashCommand,
 } from '@anthropic-ai/claude-agent-sdk';
 import { query as agentQuery } from '@anthropic-ai/claude-agent-sdk';
 import { Notice } from 'obsidian';
 
 import type ClaudianPlugin from '../../main';
-import { stripCurrentNotePrefix } from '../../utils/context';
+import { stripCurrentNoteContext } from '../../utils/context';
 import { getEnhancedPath, getMissingNodeError, parseEnvironmentVariables } from '../../utils/env';
 import { getPathAccessType, getVaultPath } from '../../utils/path';
 import {
@@ -51,6 +52,7 @@ import type {
   CCPermissions,
   ChatMessage,
   ImageAttachment,
+  SlashCommand,
   StreamChunk,
 } from '../types';
 import { resolveModelWithBetas, THINKING_BUDGETS } from '../types';
@@ -734,7 +736,7 @@ export class ClaudianService {
     // Inject history to restore context without forcing cold-start
     if (this.sessionManager.needsHistoryRebuild() && conversationHistory && conversationHistory.length > 0) {
       const historyContext = buildContextFromHistory(conversationHistory);
-      const actualPrompt = stripCurrentNotePrefix(prompt);
+      const actualPrompt = stripCurrentNoteContext(prompt);
       promptToSend = buildPromptWithHistoryContext(historyContext, prompt, actualPrompt, conversationHistory);
       this.sessionManager.clearHistoryRebuild();
     }
@@ -744,7 +746,7 @@ export class ClaudianService {
 
     if (noSessionButHasHistory) {
       const historyContext = buildContextFromHistory(conversationHistory!);
-      const actualPrompt = stripCurrentNotePrefix(prompt);
+      const actualPrompt = stripCurrentNoteContext(prompt);
       promptToSend = buildPromptWithHistoryContext(historyContext, prompt, actualPrompt, conversationHistory!);
 
       // Note: Do NOT call invalidateSession() here. The cold-start will capture
@@ -854,7 +856,7 @@ export class ClaudianService {
     conversationHistory: ChatMessage[]
   ): { prompt: string; images?: ImageAttachment[] } {
     const historyContext = buildContextFromHistory(conversationHistory);
-    const actualPrompt = stripCurrentNotePrefix(prompt);
+    const actualPrompt = stripCurrentNoteContext(prompt);
     const fullPrompt = buildPromptWithHistoryContext(historyContext, prompt, actualPrompt, conversationHistory);
     const lastUserMessage = getLastUserMessage(conversationHistory);
 
@@ -1372,6 +1374,39 @@ export class ClaudianService {
   /** Consume session invalidation flag for persistence updates. */
   consumeSessionInvalidation(): boolean {
     return this.sessionManager.consumeInvalidation();
+  }
+
+  /**
+   * Check if the service is ready (persistent query is active).
+   * Used to determine if SDK skills are available.
+   */
+  isReady(): boolean {
+    return this.isPersistentQueryActive();
+  }
+
+  /**
+   * Get supported commands (SDK skills) from the persistent query.
+   * Returns an empty array if the query is not ready.
+   */
+  async getSupportedCommands(): Promise<SlashCommand[]> {
+    if (!this.persistentQuery) {
+      return [];
+    }
+
+    try {
+      const sdkCommands: SDKSlashCommand[] = await this.persistentQuery.supportedCommands();
+      return sdkCommands.map((cmd) => ({
+        id: `sdk:${cmd.name}`,
+        name: cmd.name,
+        description: cmd.description,
+        argumentHint: cmd.argumentHint,
+        content: '', // SDK skills don't need content - they're handled by the SDK
+        source: 'sdk' as const,
+      }));
+    } catch {
+      // Silently return empty array on error
+      return [];
+    }
   }
 
   /**
