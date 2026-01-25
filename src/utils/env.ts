@@ -257,6 +257,22 @@ export function cliPathRequiresNode(cliPath: string): boolean {
 }
 
 /**
+ * Returns a user-facing error when CLI needs Node.js but Node is missing.
+ */
+export function getMissingNodeError(cliPath: string, enhancedPath?: string): string | null {
+  if (!cliPathRequiresNode(cliPath)) {
+    return null;
+  }
+
+  const nodePath = findNodeExecutable(enhancedPath);
+  if (nodePath) {
+    return null;
+  }
+
+  return 'Claude Code CLI requires Node.js, but Node was not found on PATH. Install Node.js or use the native Claude Code binary, then restart Obsidian.';
+}
+
+/**
  * Returns an enhanced PATH that includes common binary locations.
  * GUI apps like Obsidian have minimal PATH, so we need to add standard locations
  * where binaries like node, python, etc. are typically installed.

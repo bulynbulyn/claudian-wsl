@@ -10,7 +10,7 @@ import { query as agentQuery } from '@anthropic-ai/claude-agent-sdk';
 
 import { TITLE_GENERATION_SYSTEM_PROMPT } from '../../../core/prompts/titleGeneration';
 import type ClaudianPlugin from '../../../main';
-import { getEnhancedPath, parseEnvironmentVariables } from '../../../utils/env';
+import { getEnhancedPath, getMissingNodeError, parseEnvironmentVariables } from '../../../utils/env';
 import { getVaultPath } from '../../../utils/path';
 
 /** Result of title generation (discriminated union). */
@@ -64,6 +64,15 @@ export class TitleGenerationService {
       });
       return;
     }
+    const enhancedPath = getEnhancedPath(envVars.PATH, resolvedClaudePath);
+    const missingNodeError = getMissingNodeError(resolvedClaudePath, enhancedPath);
+    if (missingNodeError) {
+      await this.safeCallback(callback, conversationId, {
+        success: false,
+        error: missingNodeError,
+      });
+      return;
+    }
 
     // Get the appropriate model with fallback chain:
     // 1. User's titleGenerationModel setting (if set)
@@ -103,7 +112,7 @@ Generate a title for this conversation:`;
       env: {
         ...process.env,
         ...envVars,
-        PATH: getEnhancedPath(envVars.PATH, resolvedClaudePath),
+        PATH: enhancedPath,
       },
       tools: [], // No tools needed for title generation
       permissionMode: 'bypassPermissions',

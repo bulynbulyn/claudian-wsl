@@ -22,7 +22,7 @@ import { THINKING_BUDGETS } from '../../core/types';
 import type ClaudianPlugin from '../../main';
 import { prependContextFiles } from '../../utils/context';
 import { type CursorContext } from '../../utils/editor';
-import { getEnhancedPath, parseEnvironmentVariables } from '../../utils/env';
+import { getEnhancedPath, getMissingNodeError, parseEnvironmentVariables } from '../../utils/env';
 import { getPathAccessType, getVaultPath, type PathAccessType } from '../../utils/path';
 
 export type InlineEditMode = 'selection' | 'cursor';
@@ -105,6 +105,11 @@ export class InlineEditService {
 
     // Parse custom environment variables
     const customEnv = parseEnvironmentVariables(this.plugin.getActiveEnvironmentVariables());
+    const enhancedPath = getEnhancedPath(customEnv.PATH, resolvedClaudePath);
+    const missingNodeError = getMissingNodeError(resolvedClaudePath, enhancedPath);
+    if (missingNodeError) {
+      return { success: false, error: missingNodeError };
+    }
 
     const options: Options = {
       cwd: vaultPath,
@@ -115,7 +120,7 @@ export class InlineEditService {
       env: {
         ...process.env,
         ...customEnv,
-        PATH: getEnhancedPath(customEnv.PATH, resolvedClaudePath),
+        PATH: enhancedPath,
       },
       tools: [...READ_ONLY_TOOLS], // Only read-only tools needed
       permissionMode: 'bypassPermissions',

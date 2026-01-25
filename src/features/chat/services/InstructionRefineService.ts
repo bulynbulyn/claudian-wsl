@@ -11,7 +11,7 @@ import { query as agentQuery } from '@anthropic-ai/claude-agent-sdk';
 import { buildRefineSystemPrompt } from '../../../core/prompts/instructionRefine';
 import { type InstructionRefineResult, THINKING_BUDGETS } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
-import { getEnhancedPath, parseEnvironmentVariables } from '../../../utils/env';
+import { getEnhancedPath, getMissingNodeError, parseEnvironmentVariables } from '../../../utils/env';
 import { getVaultPath } from '../../../utils/path';
 
 /** Callback for streaming progress updates. */
@@ -82,6 +82,11 @@ export class InstructionRefineService {
 
     // Parse custom environment variables
     const customEnv = parseEnvironmentVariables(this.plugin.getActiveEnvironmentVariables());
+    const enhancedPath = getEnhancedPath(customEnv.PATH, resolvedClaudePath);
+    const missingNodeError = getMissingNodeError(resolvedClaudePath, enhancedPath);
+    if (missingNodeError) {
+      return { success: false, error: missingNodeError };
+    }
 
     const options: Options = {
       cwd: vaultPath,
@@ -92,7 +97,7 @@ export class InstructionRefineService {
       env: {
         ...process.env,
         ...customEnv,
-        PATH: getEnhancedPath(customEnv.PATH, resolvedClaudePath),
+        PATH: enhancedPath,
       },
       tools: [], // No tools needed for instruction refinement
       permissionMode: 'bypassPermissions',

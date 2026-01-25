@@ -25,7 +25,7 @@ import { Notice } from 'obsidian';
 
 import type ClaudianPlugin from '../../main';
 import { stripCurrentNotePrefix } from '../../utils/context';
-import { getEnhancedPath, parseEnvironmentVariables } from '../../utils/env';
+import { getEnhancedPath, getMissingNodeError, parseEnvironmentVariables } from '../../utils/env';
 import { getPathAccessType, getVaultPath } from '../../utils/path';
 import {
   buildContextFromHistory,
@@ -709,6 +709,14 @@ export class ClaudianService {
     const resolvedClaudePath = this.plugin.getResolvedClaudeCliPath();
     if (!resolvedClaudePath) {
       yield { type: 'error', content: 'Claude CLI not found. Please install Claude Code CLI.' };
+      return;
+    }
+
+    const customEnv = parseEnvironmentVariables(this.plugin.getActiveEnvironmentVariables());
+    const enhancedPath = getEnhancedPath(customEnv.PATH, resolvedClaudePath);
+    const missingNodeError = getMissingNodeError(resolvedClaudePath, enhancedPath);
+    if (missingNodeError) {
+      yield { type: 'error', content: missingNodeError };
       return;
     }
 
