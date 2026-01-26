@@ -1,9 +1,3 @@
-/**
- * Claudian - Type definitions barrel export.
- *
- * Re-exports all types from modular type files.
- */
-
 // Chat types
 export {
   type ChatMessage,

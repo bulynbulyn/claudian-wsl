@@ -1,12 +1,5 @@
-/**
- * Claudian - Thinking block renderer
- *
- * Renders extended thinking blocks with live timer and expand/collapse.
- */
-
 import { collapseElement, setupCollapsible } from './collapsible';
 
-/** Callback for rendering markdown content. */
 export type RenderContentFn = (el: HTMLElement, markdown: string) => Promise<void>;
 
 /** State for a streaming thinking block. */

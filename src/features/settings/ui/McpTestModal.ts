@@ -1,15 +1,8 @@
-/**
- * Claudian - MCP Test Modal
- *
- * Modal for displaying MCP server connection test results.
- */
-
 import type { App } from 'obsidian';
 import { Modal, Notice, setIcon } from 'obsidian';
 
 import type { McpTestResult, McpTool } from '../../../core/mcp/McpTester';
 
-/** Format error for user-friendly display. */
 function formatToggleError(error: unknown): string {
   if (!(error instanceof Error)) return 'Failed to update tool setting';
 
@@ -26,7 +19,6 @@ function formatToggleError(error: unknown): string {
   return error.message || 'Failed to update tool setting';
 }
 
-/** Modal for displaying MCP test results. */
 export class McpTestModal extends Modal {
   private serverName: string;
   private result: McpTestResult | null = null;
@@ -66,14 +58,12 @@ export class McpTestModal extends Modal {
     this.renderLoading();
   }
 
-  /** Set the test result and update the display. */
   setResult(result: McpTestResult) {
     this.result = result;
     this.loading = false;
     this.render();
   }
 
-  /** Set error state. */
   setError(error: string) {
     this.result = { success: false, tools: [], error };
     this.loading = false;
@@ -103,7 +93,6 @@ export class McpTestModal extends Modal {
       return;
     }
 
-    // Status section
     const statusEl = this.contentEl_.createDiv({ cls: 'claudian-mcp-test-status' });
 
     const iconEl = statusEl.createSpan({ cls: 'claudian-mcp-test-icon' });
@@ -129,13 +118,11 @@ export class McpTestModal extends Modal {
       textEl.setText('Connection failed');
     }
 
-    // Error message
     if (this.result.error) {
       const errorEl = this.contentEl_.createDiv({ cls: 'claudian-mcp-test-error' });
       errorEl.setText(this.result.error);
     }
 
-    // Tools section
     this.toolToggles.clear();
     this.toolElements.clear();
 
@@ -155,10 +142,8 @@ export class McpTestModal extends Modal {
       noToolsEl.setText('No tools information available. Tools will be loaded when used in chat.');
     }
 
-    // Button container
     const buttonContainer = this.contentEl_.createDiv({ cls: 'claudian-mcp-test-buttons' });
 
-    // Toggle all button (only show if there are tools and toggle callback exists)
     if (this.result.tools.length > 0 && this.onToolToggle) {
       this.toggleAllBtn = buttonContainer.createEl('button', {
         cls: 'claudian-mcp-toggle-all-btn',
@@ -167,7 +152,6 @@ export class McpTestModal extends Modal {
       this.toggleAllBtn.addEventListener('click', () => this.handleToggleAll());
     }
 
-    // Close button
     const closeBtn = buttonContainer.createEl('button', {
       text: 'Close',
       cls: 'mod-cta',
@@ -186,7 +170,6 @@ export class McpTestModal extends Modal {
     const nameEl = headerEl.createSpan({ cls: 'claudian-mcp-test-tool-name' });
     nameEl.setText(tool.name);
 
-    // Obsidian-style toggle
     const toggleEl = headerEl.createDiv({ cls: 'claudian-mcp-test-tool-toggle' });
     const toggleContainer = toggleEl.createDiv({ cls: 'checkbox-container' });
     const checkbox = toggleContainer.createEl('input', {
@@ -199,19 +182,17 @@ export class McpTestModal extends Modal {
     toggleContainer.toggleClass('is-enabled', isEnabled);
     this.updateToolState(toolEl, isEnabled);
 
-    // Store references for toggle all
     this.toolToggles.set(tool.name, { checkbox, container: toggleContainer });
     this.toolElements.set(tool.name, toolEl);
 
     if (!this.onToolToggle) {
       checkbox.disabled = true;
     } else {
-      // Handle clicks on the container (more reliable than checkbox change event)
+      // Click on container instead of checkbox change event for cross-browser reliability
       toggleContainer.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
         if (checkbox.disabled) return;
-        // Manually toggle the checkbox and call handler
         checkbox.checked = !checkbox.checked;
         this.handleToolToggle(tool.name, checkbox, toggleContainer);
       });
@@ -289,7 +270,6 @@ export class McpTestModal extends Modal {
     const allEnabled = this.disabledTools.size === 0;
     const previousDisabled = new Set(this.disabledTools);
 
-    // Calculate new disabled set
     const newDisabledTools: string[] = allEnabled
       ? this.result.tools.map((t) => t.name) // Disable all
       : []; // Enable all
@@ -297,12 +277,11 @@ export class McpTestModal extends Modal {
     this.pendingToggle = true;
     if (this.toggleAllBtn) this.toggleAllBtn.disabled = true;
 
-    // Disable all individual toggles
     for (const { checkbox } of this.toolToggles.values()) {
       checkbox.disabled = true;
     }
 
-    // Optimistic update - update all UI at once
+    // Optimistic UI update
     this.disabledTools = new Set(newDisabledTools);
     for (const tool of this.result.tools) {
       const toggle = this.toolToggles.get(tool.name);
@@ -319,7 +298,6 @@ export class McpTestModal extends Modal {
     try {
       await this.onBulkToggle(newDisabledTools);
     } catch (error) {
-      // Rollback all UI
       this.disabledTools = previousDisabled;
       for (const tool of this.result.tools) {
         const toggle = this.toolToggles.get(tool.name);
@@ -335,7 +313,6 @@ export class McpTestModal extends Modal {
       new Notice(formatToggleError(error));
     }
 
-    // Re-enable toggles
     for (const { checkbox } of this.toolToggles.values()) {
       checkbox.disabled = false;
     }

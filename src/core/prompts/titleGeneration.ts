@@ -4,7 +4,6 @@
  * System prompt for generating conversation titles.
  */
 
-/** System prompt for AI-powered conversation title generation. */
 export const TITLE_GENERATION_SYSTEM_PROMPT = `You are a specialist in summarizing user intent.
 
 **Task**: Generate a **concise, descriptive title** (max 50 chars) summarizing the user's task/request.

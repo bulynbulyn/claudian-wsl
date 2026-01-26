@@ -13,7 +13,6 @@ import * as path from 'path';
 // Vault Path
 // ============================================
 
-/** Returns the vault's absolute file path, or null if unavailable. */
 export function getVaultPath(app: App): string | null {
   const adapter = app.vault.adapter;
   if ('basePath' in adapter) {
@@ -170,7 +169,7 @@ function isExistingFile(filePath: string): boolean {
       return stat.isFile();
     }
   } catch {
-    // Ignore inaccessible paths
+    // Inaccessible path
   }
   return false;
 }
@@ -231,20 +230,12 @@ function resolveClaudeFromPathEntries(
   return null;
 }
 
-/**
- * Gets the npm global prefix directory.
- * Returns null if npm is not available or prefix cannot be determined.
- */
 function getNpmGlobalPrefix(): string | null {
-  // Check npm prefix environment variable first (set by some npm configurations)
   if (process.env.npm_config_prefix) {
     return process.env.npm_config_prefix;
   }
 
-  // Check common custom npm prefix locations on Windows
   if (process.platform === 'win32') {
-    // Custom npm global paths are often configured via npm config
-    // Check %APPDATA%\npm first (default Windows npm global)
     const appDataNpm = process.env.APPDATA
       ? path.join(process.env.APPDATA, 'npm')
       : null;
@@ -256,21 +247,16 @@ function getNpmGlobalPrefix(): string | null {
   return null;
 }
 
-/**
- * Builds the list of paths to search for cli.js in npm's node_modules.
- */
 function getNpmCliJsPaths(): string[] {
   const homeDir = os.homedir();
   const isWindows = process.platform === 'win32';
   const cliJsPaths: string[] = [];
 
   if (isWindows) {
-    // Default npm global path on Windows
     cliJsPaths.push(
       path.join(homeDir, 'AppData', 'Roaming', 'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js')
     );
 
-    // npm prefix from environment/config
     const npmPrefix = getNpmGlobalPrefix();
     if (npmPrefix) {
       cliJsPaths.push(
@@ -278,29 +264,24 @@ function getNpmCliJsPaths(): string[] {
       );
     }
 
-    // Common custom npm global directories on Windows
     const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
     const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
 
-    // Check common nodejs installation paths with custom npm global
     cliJsPaths.push(
       path.join(programFiles, 'nodejs', 'node_global', 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js'),
       path.join(programFilesX86, 'nodejs', 'node_global', 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js')
     );
 
-    // Also check D: drive which is commonly used for custom installations
     cliJsPaths.push(
       path.join('D:', 'Program Files', 'nodejs', 'node_global', 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js')
     );
   } else {
-    // Unix/macOS npm global paths
     cliJsPaths.push(
       path.join(homeDir, '.npm-global', 'lib', 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js'),
       '/usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js',
       '/usr/lib/node_modules/@anthropic-ai/claude-code/cli.js'
     );
 
-    // Check npm_config_prefix for custom npm global paths on Unix
     if (process.env.npm_config_prefix) {
       cliJsPaths.push(
         path.join(process.env.npm_config_prefix, 'lib', 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js')
@@ -311,7 +292,6 @@ function getNpmCliJsPaths(): string[] {
   return cliJsPaths;
 }
 
-/** Finds Claude Code CLI executable from PATH or common install locations. */
 export function findClaudeCLIPath(pathValue?: string): string | null {
   const homeDir = os.homedir();
   const isWindows = process.platform === 'win32';
@@ -351,9 +331,7 @@ export function findClaudeCLIPath(pathValue?: string): string | null {
 
   }
 
-  // Platform-specific search paths for native binaries and npm symlinks
   const commonPaths: string[] = [
-    // Native binary paths (preferred)
     path.join(homeDir, '.claude', 'local', 'claude'),
     path.join(homeDir, '.local', 'bin', 'claude'),
     path.join(homeDir, '.volta', 'bin', 'claude'),
@@ -362,11 +340,9 @@ export function findClaudeCLIPath(pathValue?: string): string | null {
     '/usr/local/bin/claude',
     '/opt/homebrew/bin/claude',
     path.join(homeDir, 'bin', 'claude'),
-    // npm global bin symlinks (created by npm install -g)
     path.join(homeDir, '.npm-global', 'bin', 'claude'),
   ];
 
-  // Also check npm prefix bin directory
   const npmPrefix = getNpmGlobalPrefix();
   if (npmPrefix) {
     commonPaths.push(path.join(npmPrefix, 'bin', 'claude'));
@@ -378,7 +354,6 @@ export function findClaudeCLIPath(pathValue?: string): string | null {
     }
   }
 
-  // On Unix, also check for cli.js if binary not found
   if (!isWindows) {
     const cliJsPaths = getNpmCliJsPaths();
     for (const p of cliJsPaths) {
@@ -550,11 +525,9 @@ export function normalizePathForComparison(value: string): string {
 // Path Access Control
 // ============================================
 
-/** Checks whether a candidate path is within the vault. */
 export function isPathWithinVault(candidatePath: string, vaultPath: string): boolean {
   const vaultReal = normalizePathForComparison(resolveRealPath(vaultPath));
 
-  // Normalize before resolution to handle MSYS paths on Windows
   const normalizedPath = normalizePathBeforeResolution(candidatePath);
 
   const absCandidate = path.isAbsolute(normalizedPath)
@@ -563,11 +536,9 @@ export function isPathWithinVault(candidatePath: string, vaultPath: string): boo
 
   const resolvedCandidate = normalizePathForComparison(resolveRealPath(absCandidate));
 
-  // Use '/' since normalizePathForComparison converts all paths to forward slashes
   return resolvedCandidate === vaultReal || resolvedCandidate.startsWith(vaultReal + '/');
 }
 
-/** Normalizes a path to vault-relative with forward slashes when inside the vault. */
 export function normalizePathForVault(
   rawPath: string | undefined | null,
   vaultPath: string | null | undefined
@@ -588,7 +559,6 @@ export function normalizePathForVault(
   return normalizedRaw.replace(/\\/g, '/');
 }
 
-/** Checks whether a candidate path is within any of the allowed export paths. */
 export function isPathInAllowedExportPaths(
   candidatePath: string,
   allowedExportPaths: string[],
@@ -598,7 +568,6 @@ export function isPathInAllowedExportPaths(
     return false;
   }
 
-  // Normalize before resolution to handle MSYS paths on Windows
   const normalizedCandidate = normalizePathBeforeResolution(candidatePath);
 
   const absCandidate = path.isAbsolute(normalizedCandidate)
@@ -607,14 +576,10 @@ export function isPathInAllowedExportPaths(
 
   const resolvedCandidate = normalizePathForComparison(resolveRealPath(absCandidate));
 
-  // Check if candidate is within any allowed export path
   for (const exportPath of allowedExportPaths) {
     const normalizedExport = normalizePathBeforeResolution(exportPath);
-
     const resolvedExport = normalizePathForComparison(resolveRealPath(normalizedExport));
 
-    // Check if candidate equals or is within the export path
-    // Use '/' since normalizePathForComparison converts all paths to forward slashes
     if (
       resolvedCandidate === resolvedExport ||
       resolvedCandidate.startsWith(resolvedExport + '/')
@@ -642,7 +607,6 @@ export function getPathAccessType(
 
   const vaultReal = normalizePathForComparison(resolveRealPath(vaultPath));
 
-  // Normalize before resolution to handle MSYS paths on Windows
   const normalizedCandidate = normalizePathBeforeResolution(candidatePath);
 
   const absCandidate = path.isAbsolute(normalizedCandidate)
@@ -651,7 +615,6 @@ export function getPathAccessType(
 
   const resolvedCandidate = normalizePathForComparison(resolveRealPath(absCandidate));
 
-  // Use '/' since normalizePathForComparison converts all paths to forward slashes
   if (resolvedCandidate === vaultReal || resolvedCandidate.startsWith(vaultReal + '/')) {
     return 'vault';
   }
@@ -667,7 +630,6 @@ export function getPathAccessType(
   const addRoot = (rawPath: string, kind: 'context' | 'export') => {
     const trimmed = rawPath.trim();
     if (!trimmed) return;
-    // Normalize before resolution to handle MSYS paths on Windows
     const normalized = normalizePathBeforeResolution(trimmed);
     const resolved = normalizePathForComparison(resolveRealPath(normalized));
     const existing = roots.get(resolved) ?? { context: false, export: false };
@@ -687,7 +649,6 @@ export function getPathAccessType(
   let bestFlags: { context: boolean; export: boolean } | null = null;
 
   for (const [root, flags] of roots) {
-    // Use '/' since normalizePathForComparison converts all paths to forward slashes
     if (resolvedCandidate === root || resolvedCandidate.startsWith(root + '/')) {
       if (!bestRoot || root.length > bestRoot.length) {
         bestRoot = root;

@@ -73,7 +73,6 @@ export default class ClaudianPlugin extends Plugin {
     this.agentManager = new AgentManager(vaultPath, this.pluginManager);
     await this.agentManager.loadAgents();
 
-    // Load slash commands from enabled plugins and merge with vault commands
     this.loadPluginSlashCommands();
 
     this.registerView(
@@ -102,10 +101,8 @@ export default class ClaudianPlugin extends Plugin {
 
         let editContext: InlineEditContext;
         if (selectedText.trim()) {
-          // Selection mode
           editContext = { mode: 'selection', selectedText };
         } else {
-          // Cursor mode - build cursor context
           const cursor = editor.getCursor();
           const cursorContext = buildCursorContext(
             (line) => editor.getLine(line),
@@ -136,7 +133,6 @@ export default class ClaudianPlugin extends Plugin {
         const tabManager = view.getTabManager();
         if (!tabManager) return false;
 
-        // Only enable command when we can create more tabs
         if (!tabManager.canCreateTab()) return false;
 
         if (!checking) {
@@ -160,7 +156,6 @@ export default class ClaudianPlugin extends Plugin {
         const activeTab = tabManager.getActiveTab();
         if (!activeTab) return false;
 
-        // Don't allow new session while streaming
         if (activeTab.state.isStreaming) return false;
 
         if (!checking) {
@@ -196,8 +191,7 @@ export default class ClaudianPlugin extends Plugin {
   }
 
   async onunload() {
-    // Persist tab state for all views before unloading
-    // This ensures state is saved even if Obsidian quits without calling onClose()
+    // Ensures state is saved even if Obsidian quits without calling onClose()
     for (const view of this.getAllViews()) {
       const tabManager = view.getTabManager();
       if (tabManager) {
@@ -234,10 +228,8 @@ export default class ClaudianPlugin extends Plugin {
     this.storage = new StorageService(this);
     const { claudian } = await this.storage.initialize();
 
-    // Load slash commands from files
     const slashCommands = await this.storage.commands.loadAll();
 
-    // Merge settings with defaults and slashCommands
     this.settings = {
       ...DEFAULT_SETTINGS,
       ...claudian,
@@ -326,7 +318,6 @@ export default class ClaudianPlugin extends Plugin {
         };
       });
 
-    // Merge and sort by lastResponseAt/updatedAt
     this.conversations = [...legacyConversations, ...nativeConversations].sort(
       (a, b) => (b.lastResponseAt ?? b.updatedAt) - (a.lastResponseAt ?? a.updatedAt)
     );
@@ -334,7 +325,6 @@ export default class ClaudianPlugin extends Plugin {
     if (failedCount > 0) {
       new Notice(`Failed to load ${failedCount} conversation${failedCount > 1 ? 's' : ''}`);
     }
-    // Initialize i18n with saved locale
     setLocale(this.settings.locale);
 
     const backfilledConversations = this.backfillConversationResponseTimestamps();
@@ -395,18 +385,15 @@ export default class ClaudianPlugin extends Plugin {
    * Plugin commands are namespaced with the plugin name (e.g., "plugin-name:command").
    */
   loadPluginSlashCommands(): void {
-    // Get vault commands (already loaded in settings)
     const vaultCommands = this.settings.slashCommands.filter(
       cmd => !cmd.id.startsWith('plugin-')
     );
 
-    // Load commands from enabled plugins
     const pluginPaths = this.pluginManager.getPluginCommandPaths();
     const pluginCommands = pluginPaths.flatMap(
       ({ pluginName, commandsPath }) => loadPluginCommands(commandsPath, pluginName)
     );
 
-    // Merge vault commands with plugin commands
     this.settings.slashCommands = [...vaultCommands, ...pluginCommands];
   }
 
@@ -478,7 +465,6 @@ export default class ClaudianPlugin extends Plugin {
       }
     }
 
-    // Update model selector to reflect any new models from env vars
     view?.refreshModelSelector();
 
     const noticeText = changed
@@ -606,7 +592,6 @@ export default class ClaudianPlugin extends Plugin {
     const vaultPath = getVaultPath(this.app);
     if (!vaultPath) return;
 
-    // Collect all SDK session IDs to load from (previous + current)
     const allSessionIds: string[] = [
       ...(conversation.previousSdkSessionIds || []),
       conversation.sdkSessionId ?? conversation.sessionId,
@@ -614,7 +599,6 @@ export default class ClaudianPlugin extends Plugin {
 
     if (allSessionIds.length === 0) return;
 
-    // Load messages from all session files
     const allSdkMessages: ChatMessage[] = [];
     let missingSessionCount = 0;
     let errorCount = 0;
@@ -685,12 +669,10 @@ export default class ClaudianPlugin extends Plugin {
 
       // Apply subagent data to the message
       for (const [subagentId, subagent] of Object.entries(subagentData)) {
-        // Initialize subagents array if needed
         if (!msg.subagents) {
           msg.subagents = [];
         }
 
-        // Check if this subagent belongs to this message by checking contentBlocks
         const hasSubagentBlock = msg.contentBlocks?.some(
           b => (b.type === 'subagent' && b.subagentId === subagentId) ||
                (b.type === 'tool_use' && b.toolId === subagentId)
@@ -698,7 +680,6 @@ export default class ClaudianPlugin extends Plugin {
 
         if (!hasSubagentBlock) continue;
 
-        // Add or update subagent in the message
         const existingIdx = msg.subagents.findIndex(s => s.id === subagentId);
         if (existingIdx === -1) {
           msg.subagents.push(subagent);
@@ -711,14 +692,12 @@ export default class ClaudianPlugin extends Plugin {
           for (let i = 0; i < msg.contentBlocks.length; i++) {
             const block = msg.contentBlocks[i];
             if (block.type === 'tool_use' && block.toolId === subagentId) {
-              // Replace tool_use with subagent block
               msg.contentBlocks[i] = {
                 type: 'subagent',
                 subagentId,
                 mode: subagent.mode,
               };
             } else if (block.type === 'subagent' && block.subagentId === subagentId && !block.mode) {
-              // Update existing subagent block with mode if missing
               block.mode = subagent.mode;
             }
           }
@@ -797,14 +776,12 @@ export default class ClaudianPlugin extends Plugin {
     const conversation = this.conversations[index];
     this.conversations.splice(index, 1);
 
-    // Delete SDK session file if it exists
     const vaultPath = getVaultPath(this.app);
     const sdkSessionId = conversation.sdkSessionId ?? conversation.sessionId;
     if (vaultPath && sdkSessionId) {
       await deleteSDKSession(vaultPath, sdkSessionId);
     }
 
-    // Delete the appropriate storage file
     if (conversation.isNative) {
       // Native session: delete metadata file
       await this.storage.sessions.deleteMetadata(id);
@@ -814,14 +791,12 @@ export default class ClaudianPlugin extends Plugin {
     }
 
     // Notify all views/tabs that have this conversation open
-    // They need to reset to a new conversation
     for (const view of this.getAllViews()) {
       const tabManager = view.getTabManager();
       if (!tabManager) continue;
 
       for (const tab of tabManager.getAllTabs()) {
         if (tab.conversationId === id) {
-          // Reset this tab to a new conversation
           tab.controllers.inputController?.cancelStreaming();
           await tab.controllers.conversationController?.createNew({ force: true });
         }

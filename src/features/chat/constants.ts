@@ -1,8 +1,3 @@
-/**
- * Constants for the chat feature.
- */
-
-/** Claudian logo SVG configuration. */
 export const LOGO_SVG = {
   viewBox: '0 -.01 39.5 39.53',
   width: '18',

@@ -6,7 +6,6 @@
 
 import { getTodayDate } from '../../utils/date';
 
-/** Returns the system prompt for inline text editing (read-only tools). */
 export function getInlineEditSystemPrompt(): string {
     return `Today is ${getTodayDate()}.
 

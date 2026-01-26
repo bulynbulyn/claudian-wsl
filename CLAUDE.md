@@ -56,6 +56,7 @@ Tests mirror `src/` structure in `tests/unit/` and `tests/integration/`.
 ## Development Notes
 
 - **SDK-first**: Proactively use native Claude SDK features over custom implementations. If the SDK provides a capability, use it — do not reinvent it. This ensures compatibility with Claude Code.
+- **Comments**: Only comment WHY, not WHAT. No JSDoc that restates the function name (`/** Get servers. */` on `getServers()`), no narrating inline comments (`// Create the channel` before `new Channel()`), no module-level docs on barrel `index.ts` files. Keep JSDoc only when it adds non-obvious context (edge cases, constraints, surprising behavior).
 - Test Driven Development
 - Run `npm run typecheck && npm run lint && npm run test && npm run build` after editing
 - No `console.*` in production code - use Obsidian's notification system

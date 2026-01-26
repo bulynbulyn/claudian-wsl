@@ -1,7 +1,3 @@
-/**
- * Diff utilities for structured patch conversion and diff extraction.
- */
-
 import type { DiffLine, DiffStats, StructuredPatchHunk } from '../core/types/diff';
 import type { ToolCallInfo, ToolDiffData } from '../core/types/tools';
 
@@ -33,7 +29,6 @@ export function structuredPatchToDiffLines(hunks: StructuredPatchHunk[]): DiffLi
   return result;
 }
 
-/** Count lines added and removed. */
 export function countLineChanges(diffLines: DiffLine[]): DiffStats {
   let added = 0;
   let removed = 0;

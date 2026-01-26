@@ -23,18 +23,10 @@ interface SessionPermission {
   type: 'allow' | 'deny';
 }
 
-/** Callback to add a rule to allow list. */
 export type AddAllowRuleCallback = (rule: PermissionRule) => Promise<void>;
-
-/** Callback to add a rule to deny list. */
 export type AddDenyRuleCallback = (rule: PermissionRule) => Promise<void>;
-
-/** Permission check result. */
 export type PermissionCheckResult = 'allow' | 'deny' | 'ask';
 
-/**
- * Generate a pattern from tool input for matching.
- */
 export function getActionPattern(toolName: string, input: Record<string, unknown>): string {
   switch (toolName) {
     case TOOL_BASH:
@@ -172,10 +164,6 @@ function isPathPrefixMatch(actionPath: string, approvedPath: string): boolean {
   return actionPath.charAt(approvedPath.length) === '/';
 }
 
-/**
- * Check if an action matches any rule in a list.
- * Uses short-circuit evaluation for performance (returns on first match).
- */
 function matchesAnyRule(
   rules: PermissionRule[] | undefined,
   toolName: string,
@@ -183,7 +171,6 @@ function matchesAnyRule(
 ): boolean {
   if (!rules || rules.length === 0) return false;
 
-  // Early return on first match for performance
   return rules.some(rule => {
     const { tool, pattern } = parseCCPermissionRule(rule);
     if (tool !== toolName) return false;
@@ -204,16 +191,10 @@ export class ApprovalManager {
     this.getPermissions = getPermissions;
   }
 
-  /**
-   * Set callback for adding rules to allow list.
-   */
   setAddAllowRuleCallback(callback: AddAllowRuleCallback | null): void {
     this.addAllowRuleCallback = callback;
   }
 
-  /**
-   * Set callback for adding rules to deny list.
-   */
   setAddDenyRuleCallback(callback: AddDenyRuleCallback | null): void {
     this.addDenyRuleCallback = callback;
   }
@@ -274,9 +255,6 @@ export class ApprovalManager {
     return this.checkPermission(toolName, input) === 'allow';
   }
 
-  /**
-   * Check if a session permission matches an action.
-   */
   private matchesSessionPermission(
     rule: PermissionRule,
     toolName: string,
@@ -329,9 +307,6 @@ export class ApprovalManager {
     }
   }
 
-  /**
-   * Clear session-scoped permissions.
-   */
   clearSessionPermissions(): void {
     this.sessionPermissions = [];
   }

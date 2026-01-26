@@ -1,10 +1,3 @@
-/**
- * Claudian - Inline edit service
- *
- * Lightweight Claude query service for inline text editing.
- * Uses read-only tools only and supports multi-turn clarification.
- */
-
 import type { HookCallbackMatcher, Options } from '@anthropic-ai/claude-agent-sdk';
 import { query as agentQuery } from '@anthropic-ai/claude-agent-sdk';
 
@@ -55,7 +48,6 @@ export interface InlineEditResult {
   error?: string;
 }
 
-/** Service for inline text editing with Claude using read-only tools. */
 export class InlineEditService {
   private plugin: ClaudianPlugin;
   private abortController: AbortController | null = null;
@@ -65,24 +57,21 @@ export class InlineEditService {
     this.plugin = plugin;
   }
 
-  /** Resets conversation state for a new edit session. */
   resetConversation(): void {
     this.sessionId = null;
   }
 
-  /** Edits text according to instructions (initial request). */
   async editText(request: InlineEditRequest): Promise<InlineEditResult> {
     this.sessionId = null;
     const prompt = this.buildPrompt(request);
     return this.sendMessage(prompt);
   }
 
-  /** Continues conversation with a follow-up message. */
   async continueConversation(message: string, contextFiles?: string[]): Promise<InlineEditResult> {
     if (!this.sessionId) {
       return { success: false, error: 'No active conversation to continue' };
     }
-    // Append context files if any (user content first for slash command detection)
+    // User content first for slash command detection
     let prompt = message;
     if (contextFiles && contextFiles.length > 0) {
       prompt = appendContextFiles(message, contextFiles);
@@ -103,7 +92,6 @@ export class InlineEditService {
 
     this.abortController = new AbortController();
 
-    // Parse custom environment variables
     const customEnv = parseEnvironmentVariables(this.plugin.getActiveEnvironmentVariables());
     const enhancedPath = getEnhancedPath(customEnv.PATH, resolvedClaudePath);
     const missingNodeError = getMissingNodeError(resolvedClaudePath, enhancedPath);
@@ -122,7 +110,7 @@ export class InlineEditService {
         ...customEnv,
         PATH: enhancedPath,
       },
-      tools: [...READ_ONLY_TOOLS], // Only read-only tools needed
+      tools: [...READ_ONLY_TOOLS],
       permissionMode: 'bypassPermissions',
       allowDangerouslySkipPermissions: true,
       settingSources: this.plugin.settings.loadUserClaudeSettings
@@ -201,7 +189,7 @@ export class InlineEditService {
     if (request.mode === 'cursor') {
       prompt = this.buildCursorPrompt(request);
     } else {
-      // Selection mode - instruction first, then XML context (enables slash command detection)
+      // Instruction first for slash command detection
       const lineAttr = request.startLine && request.lineCount
         ? ` lines="${request.startLine}-${request.startLine + request.lineCount - 1}"`
         : '';
@@ -214,7 +202,7 @@ export class InlineEditService {
       ].join('\n');
     }
 
-    // Append context files if any (user content first for slash command detection)
+    // User content first for slash command detection
     if (request.contextFiles && request.contextFiles.length > 0) {
       prompt = appendContextFiles(prompt, request.contextFiles);
     }
@@ -228,18 +216,15 @@ export class InlineEditService {
 
     let cursorContent: string;
     if (ctx.isInbetween) {
-      // For #inbetween, include surrounding context lines
       const parts = [];
       if (ctx.beforeCursor) parts.push(ctx.beforeCursor);
       parts.push('| #inbetween');
       if (ctx.afterCursor) parts.push(ctx.afterCursor);
       cursorContent = parts.join('\n');
     } else {
-      // For #inline, show the cursor position within the line
       cursorContent = `${ctx.beforeCursor}|${ctx.afterCursor} #inline`;
     }
 
-    // Instruction first, then XML context (enables slash command detection)
     return [
       request.instruction,
       '',
@@ -249,7 +234,6 @@ export class InlineEditService {
     ].join('\n');
   }
 
-  /** Creates PreToolUse hook to enforce read-only mode. */
   private createReadOnlyHook(): HookCallbackMatcher {
     return {
       hooks: [
@@ -277,7 +261,6 @@ export class InlineEditService {
     };
   }
 
-  /** Creates PreToolUse hook to restrict file tools to allowed paths. */
   private createVaultRestrictionHook(vaultPath: string): HookCallbackMatcher {
     const fileTools = [TOOL_READ, TOOL_GLOB, TOOL_GREP, TOOL_LS] as const;
 
@@ -307,8 +290,7 @@ export class InlineEditService {
             };
           }
 
-          // Use getPathAccessType for consistent path access control
-          // This allows vault and ~/.claude/ paths (context/readwrite params are undefined)
+          // Allows vault and ~/.claude/ paths (context/readwrite params are undefined)
           let accessType: PathAccessType;
           try {
             accessType = getPathAccessType(filePath, undefined, undefined, vaultPath);
@@ -363,7 +345,6 @@ export class InlineEditService {
     return null;
   }
 
-  /** Cancels the current edit operation. */
   cancel(): void {
     if (this.abortController) {
       this.abortController.abort();

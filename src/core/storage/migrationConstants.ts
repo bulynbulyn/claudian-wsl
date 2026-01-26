@@ -114,7 +114,6 @@ export function convertEnvObjectToString(env: Record<string, string> | undefined
 export function mergeEnvironmentVariables(existing: string, additional: string): string {
   const envMap = new Map<string, string>();
 
-  // Parse existing
   for (const line of existing.split('\n')) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;

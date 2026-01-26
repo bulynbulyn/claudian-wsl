@@ -1,10 +1,3 @@
-/**
- * Conversation controller for chat session management.
- *
- * Handles conversation lifecycle (create, load, save, switch),
- * history dropdown UI, and greeting/welcome state.
- */
-
 import { setIcon } from 'obsidian';
 
 import type { ClaudianService } from '../../../core/agent';
@@ -17,14 +10,12 @@ import type { TitleGenerationService } from '../services/TitleGenerationService'
 import type { ChatState } from '../state/ChatState';
 import type { ExternalContextSelector, FileContextManager, ImageContextManager, McpServerSelector, StatusPanel } from '../ui';
 
-/** Callbacks for conversation events. */
 export interface ConversationCallbacks {
   onNewConversation?: () => void;
   onConversationLoaded?: () => void;
   onConversationSwitched?: () => void;
 }
 
-/** Dependencies for ConversationController. */
 export interface ConversationControllerDeps {
   plugin: ClaudianPlugin;
   state: ChatState;
@@ -40,7 +31,6 @@ export interface ConversationControllerDeps {
   getMcpServerSelector: () => McpServerSelector | null;
   getExternalContextSelector: () => ExternalContextSelector | null;
   clearQueuedMessage: () => void;
-  /** Get title generation service. */
   getTitleGenerationService: () => TitleGenerationService | null;
   /** Get StatusPanel for remounting after messagesEl.empty(). */
   getStatusPanel: () => StatusPanel | null;
@@ -48,9 +38,6 @@ export interface ConversationControllerDeps {
   getAgentService?: () => ClaudianService | null;
 }
 
-/**
- * ConversationController manages conversation lifecycle.
- */
 export class ConversationController {
   private deps: ConversationControllerDeps;
   private callbacks: ConversationCallbacks;
@@ -60,7 +47,6 @@ export class ConversationController {
     this.callbacks = callbacks;
   }
 
-  /** Gets the agent service from the tab. */
   private getAgentService(): ClaudianService | null {
     return this.deps.getAgentService?.() ?? null;
   }
@@ -448,7 +434,6 @@ export class ConversationController {
   // History Dropdown
   // ============================================
 
-  /** Toggles the history dropdown visibility. */
   toggleHistoryDropdown(): void {
     const dropdown = this.deps.getHistoryDropdown();
     if (!dropdown) return;
@@ -462,7 +447,6 @@ export class ConversationController {
     }
   }
 
-  /** Updates the history dropdown content. */
   updateHistoryDropdown(): void {
     const dropdown = this.deps.getHistoryDropdown();
     if (!dropdown) return;

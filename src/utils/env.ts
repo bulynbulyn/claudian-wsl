@@ -15,17 +15,11 @@ const isWindows = process.platform === 'win32';
 const PATH_SEPARATOR = isWindows ? ';' : ':';
 const NODE_EXECUTABLE = isWindows ? 'node.exe' : 'node';
 
-/**
- * Get the user's home directory, handling both Unix and Windows.
- */
 function getHomeDir(): string {
   return process.env.HOME || process.env.USERPROFILE || '';
 }
 
-/**
- * Get platform-specific extra binary paths for GUI apps.
- * GUI apps like Obsidian have minimal PATH, so we add common locations.
- */
+/** GUI apps like Obsidian have minimal PATH, so we add common binary locations. */
 function getExtraBinaryPaths(): string[] {
   const home = getHomeDir();
 
@@ -164,23 +158,12 @@ function getExtraBinaryPaths(): string[] {
   }
 }
 
-/**
- * Searches for the Node.js executable in common installation locations.
- * Returns the directory containing node, or null if not found.
- *
- * @param additionalPaths - Optional additional PATH string to search (e.g., enhanced PATH)
- */
 export function findNodeDirectory(additionalPaths?: string): string | null {
   const searchPaths = getExtraBinaryPaths();
 
-  // Also check current PATH
   const currentPath = process.env.PATH || '';
   const pathDirs = parsePathEntries(currentPath);
-
-  // If additional paths provided, parse and include them (highest priority)
   const additionalDirs = additionalPaths ? parsePathEntries(additionalPaths) : [];
-
-  // Search in additional paths first, then extra paths, then current PATH
   const allPaths = [...additionalDirs, ...searchPaths, ...pathDirs];
 
   for (const dir of allPaths) {
@@ -194,19 +177,13 @@ export function findNodeDirectory(additionalPaths?: string): string | null {
         }
       }
     } catch {
-      // Skip inaccessible directories
+      // Inaccessible directory
     }
   }
 
   return null;
 }
 
-/**
- * Finds the full path to the Node.js executable.
- * Returns the absolute path to node, or null if not found.
- *
- * @param additionalPaths - Optional additional PATH string to search (e.g., enhanced PATH)
- */
 export function findNodeExecutable(additionalPaths?: string): string | null {
   const nodeDir = findNodeDirectory(additionalPaths);
   if (nodeDir) {
@@ -215,9 +192,6 @@ export function findNodeExecutable(additionalPaths?: string): string | null {
   return null;
 }
 
-/**
- * Checks if a CLI path requires Node.js to execute (i.e., is a .js file).
- */
 export function cliPathRequiresNode(cliPath: string): boolean {
   const jsExtensions = ['.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx'];
   const lower = cliPath.toLowerCase();
@@ -256,9 +230,6 @@ export function cliPathRequiresNode(cliPath: string): boolean {
   }
 }
 
-/**
- * Returns a user-facing error when CLI needs Node.js but Node is missing.
- */
 export function getMissingNodeError(cliPath: string, enhancedPath?: string): string | null {
   if (!cliPathRequiresNode(cliPath)) {
     return null;
@@ -287,10 +258,8 @@ export function getEnhancedPath(additionalPaths?: string, cliPath?: string): str
   const extraPaths = getExtraBinaryPaths().filter(p => p); // Filter out empty
   const currentPath = process.env.PATH || '';
 
-  // Build path segments: additional (user config) > CLI dir (if has node) > node dir (fallback) > extra paths > current PATH
   const segments: string[] = [];
 
-  // Add user-specified paths first (highest priority)
   if (additionalPaths) {
     segments.push(...parsePathEntries(additionalPaths));
   }
@@ -315,8 +284,6 @@ export function getEnhancedPath(additionalPaths?: string, cliPath?: string): str
     }
   }
 
-  // Fallback: If CLI is a .js file and we didn't find node in CLI dir,
-  // search common locations for Node.js
   if (cliPath && cliPathRequiresNode(cliPath) && !cliDirHasNode) {
     const nodeDir = findNodeDirectory();
     if (nodeDir) {
@@ -324,15 +291,12 @@ export function getEnhancedPath(additionalPaths?: string, cliPath?: string): str
     }
   }
 
-  // Add our extra paths
   segments.push(...extraPaths);
 
-  // Add current PATH
   if (currentPath) {
     segments.push(...parsePathEntries(currentPath));
   }
 
-  // Deduplicate while preserving order
   const seen = new Set<string>();
   const unique = segments.filter(p => {
     const normalized = isWindows ? p.toLowerCase() : p;
@@ -344,7 +308,6 @@ export function getEnhancedPath(additionalPaths?: string, cliPath?: string): str
   return unique.join(PATH_SEPARATOR);
 }
 
-/** Environment variable keys that can specify custom models. */
 const CUSTOM_MODEL_ENV_KEYS = [
   'ANTHROPIC_MODEL',
   'ANTHROPIC_DEFAULT_OPUS_MODEL',
@@ -352,7 +315,6 @@ const CUSTOM_MODEL_ENV_KEYS = [
   'ANTHROPIC_DEFAULT_HAIKU_MODEL',
 ] as const;
 
-/** Derives a model type identifier from an env key. */
 function getModelTypeFromEnvKey(envKey: string): string {
   if (envKey === 'ANTHROPIC_MODEL') return 'model';
   const match = envKey.match(/ANTHROPIC_DEFAULT_(\w+)_MODEL/);
@@ -362,7 +324,6 @@ function getModelTypeFromEnvKey(envKey: string): string {
 /** Parses KEY=VALUE environment variables from text. Supports comments (#) and empty lines. */
 export function parseEnvironmentVariables(input: string): Record<string, string> {
   const result: Record<string, string> = {};
-  // Handle both Unix (LF) and Windows (CRLF) line endings
   for (const line of input.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
@@ -385,7 +346,6 @@ export function parseEnvironmentVariables(input: string): Record<string, string>
   return result;
 }
 
-/** Extracts model options from ANTHROPIC_* environment variables, deduplicated by value. */
 export function getModelsFromEnvironment(envVars: Record<string, string>): { value: string; label: string; description: string }[] {
   const modelMap = new Map<string, { types: string[]; label: string }>();
 
@@ -430,7 +390,6 @@ export function getModelsFromEnvironment(envVars: Record<string, string>): { val
   return models;
 }
 
-/** Returns the highest-priority custom model from environment variables, or null. */
 export function getCurrentModelFromEnvironment(envVars: Record<string, string>): string | null {
   if (envVars.ANTHROPIC_MODEL) {
     return envVars.ANTHROPIC_MODEL;
@@ -447,28 +406,14 @@ export function getCurrentModelFromEnvironment(envVars: Record<string, string>):
   return null;
 }
 
-/**
- * Get the hostname key for CLI paths.
- * Uses os.hostname() to identify the current device.
- * Note: Hostname changes will require reconfiguration.
- */
+/** Hostname changes will require reconfiguration. */
 export function getHostnameKey(): string {
   return os.hostname();
 }
 
-/** Minimum context limit in tokens (1k). */
 export const MIN_CONTEXT_LIMIT = 1_000;
-
-/** Maximum context limit in tokens (10M). */
 export const MAX_CONTEXT_LIMIT = 10_000_000;
 
-/**
- * Extracts unique custom model IDs from environment variables.
- * De-duplicates when multiple env vars point to the same model.
- *
- * @param envVars - Parsed environment variables
- * @returns Set of unique model IDs
- */
 export function getCustomModelIds(envVars: Record<string, string>): Set<string> {
   const modelIds = new Set<string>();
   for (const envKey of CUSTOM_MODEL_ENV_KEYS) {
@@ -480,16 +425,8 @@ export function getCustomModelIds(envVars: Record<string, string>): Set<string> 
   return modelIds;
 }
 
-/**
- * Parse a context limit string into a number of tokens.
- * Supports formats: "256k", "1m", "1.5m", or exact token count ("1000000").
- * Input is case-insensitive ("256K" is treated as "256k").
- *
- * @param input - User input string (e.g., "256k", "1M", "1000000")
- * @returns Number of tokens in range [1000, 10000000], or null if invalid
- */
+/** Supports "256k", "1m", "1.5m", or exact token count. Case-insensitive. */
 export function parseContextLimit(input: string): number | null {
-  // Strip commas (from locale formatting like "256,500") before parsing
   const trimmed = input.trim().toLowerCase().replace(/,/g, '');
   if (!trimmed) return null;
 
@@ -506,18 +443,11 @@ export function parseContextLimit(input: string): number | null {
   const multiplier = suffix ? MULTIPLIERS[suffix] ?? 1 : 1;
   const result = Math.round(value * multiplier);
 
-  // Validate reasonable range (1k to 10M tokens)
   if (result < MIN_CONTEXT_LIMIT || result > MAX_CONTEXT_LIMIT) return null;
 
   return result;
 }
 
-/**
- * Format a token count for display.
- * - Exact millions: "1m", "2m"
- * - Exact thousands: "256k", "200k"
- * - Non-round numbers: locale-formatted (e.g., "256,500")
- */
 export function formatContextLimit(tokens: number): string {
   if (tokens >= 1_000_000 && tokens % 1_000_000 === 0) {
     return `${tokens / 1_000_000}m`;

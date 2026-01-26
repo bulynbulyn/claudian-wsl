@@ -1,10 +1,3 @@
-/**
- * Claudian - MCP Server Modal
- *
- * Modal for adding and editing MCP server configurations.
- * Supports stdio, sse, and http server types.
- */
-
 import type { App } from 'obsidian';
 import { Modal, Notice, Setting } from 'obsidian';
 
@@ -20,27 +13,19 @@ import { DEFAULT_MCP_SERVER, getMcpServerType } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
 import { parseCommand } from '../../../utils/mcp';
 
-/** Modal for creating/editing MCP server configurations. */
 export class McpServerModal extends Modal {
   private plugin: ClaudianPlugin;
   private existingServer: ClaudianMcpServer | null;
   private onSave: (server: ClaudianMcpServer) => void;
 
-  // Form state
   private serverName = '';
   private serverType: McpServerType = 'stdio';
   private enabled = DEFAULT_MCP_SERVER.enabled;
   private contextSaving = DEFAULT_MCP_SERVER.contextSaving;
-
-  // Stdio fields
-  private command = '';  // Full command including args
+  private command = '';
   private env = '';
-
-  // SSE/HTTP fields
   private url = '';
   private headers = '';
-
-  // DOM references
   private typeFieldsEl: HTMLElement | null = null;
   private nameInputEl: HTMLInputElement | null = null;
 
@@ -57,7 +42,6 @@ export class McpServerModal extends Modal {
     this.existingServer = existingServer;
     this.onSave = onSave;
 
-    // Initialize from existing server if editing
     if (existingServer) {
       this.serverName = existingServer.name;
       this.serverType = getMcpServerType(existingServer.config);
@@ -65,17 +49,14 @@ export class McpServerModal extends Modal {
       this.contextSaving = existingServer.contextSaving;
       this.initFromConfig(existingServer.config);
     } else if (prefillConfig) {
-      // Pre-fill from clipboard import
       this.serverName = prefillConfig.name;
       this.serverType = getMcpServerType(prefillConfig.config);
       this.initFromConfig(prefillConfig.config);
     } else if (initialType) {
-      // Set initial type from dropdown selection
       this.serverType = initialType;
     }
   }
 
-  /** Initialize form fields from a config object. */
   private initFromConfig(config: McpServerConfig) {
     const type = getMcpServerType(config);
     if (type === 'stdio') {
@@ -99,7 +80,6 @@ export class McpServerModal extends Modal {
 
     const { contentEl } = this;
 
-    // Server name
     new Setting(contentEl)
       .setName('Server name')
       .setDesc('Unique identifier for this server')
@@ -113,7 +93,6 @@ export class McpServerModal extends Modal {
         text.inputEl.addEventListener('keydown', (e) => this.handleKeyDown(e));
       });
 
-    // Server type
     new Setting(contentEl)
       .setName('Type')
       .setDesc('Server connection type')
@@ -128,11 +107,9 @@ export class McpServerModal extends Modal {
         });
       });
 
-    // Type-specific fields container
     this.typeFieldsEl = contentEl.createDiv({ cls: 'claudian-mcp-type-fields' });
     this.renderTypeFields();
 
-    // Enabled toggle
     new Setting(contentEl)
       .setName('Enabled')
       .setDesc('Whether this server is active')
@@ -143,7 +120,6 @@ export class McpServerModal extends Modal {
         });
       });
 
-    // Context-saving toggle
     new Setting(contentEl)
       .setName('Context-saving mode')
       .setDesc('Hide tools from agent unless @-mentioned (saves context window)')
@@ -154,7 +130,6 @@ export class McpServerModal extends Modal {
         });
       });
 
-    // Buttons
     const buttonContainer = contentEl.createDiv({ cls: 'claudian-mcp-buttons' });
 
     const cancelBtn = buttonContainer.createEl('button', {
@@ -184,7 +159,6 @@ export class McpServerModal extends Modal {
   private renderStdioFields() {
     if (!this.typeFieldsEl) return;
 
-    // Command (single field for full command with args)
     const cmdSetting = new Setting(this.typeFieldsEl)
       .setName('Command')
       .setDesc('Full command with arguments');
@@ -200,7 +174,6 @@ export class McpServerModal extends Modal {
       this.command = cmdTextarea.value;
     });
 
-    // Environment variables (collapsible)
     const envSetting = new Setting(this.typeFieldsEl)
       .setName('Environment variables')
       .setDesc('KEY=VALUE per line (optional)');
@@ -220,7 +193,6 @@ export class McpServerModal extends Modal {
   private renderUrlFields() {
     if (!this.typeFieldsEl) return;
 
-    // URL
     new Setting(this.typeFieldsEl)
       .setName('URL')
       .setDesc(this.serverType === 'sse' ? 'SSE endpoint URL' : 'HTTP endpoint URL')
@@ -233,7 +205,6 @@ export class McpServerModal extends Modal {
         text.inputEl.addEventListener('keydown', (e) => this.handleKeyDown(e));
       });
 
-    // Headers
     const headersSetting = new Setting(this.typeFieldsEl)
       .setName('Headers')
       .setDesc('HTTP headers (KEY=VALUE per line)');
@@ -251,7 +222,7 @@ export class McpServerModal extends Modal {
   }
 
   private handleKeyDown(e: KeyboardEvent) {
-    // Check !e.isComposing for IME support (Chinese, Japanese, Korean, etc.)
+    // !e.isComposing for IME support
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       this.save();
@@ -262,7 +233,6 @@ export class McpServerModal extends Modal {
   }
 
   private save() {
-    // Validate
     const name = this.serverName.trim();
     if (!name) {
       new Notice('Please enter a server name');
@@ -270,7 +240,6 @@ export class McpServerModal extends Modal {
       return;
     }
 
-    // Validate name format (alphanumeric, dots, hyphens, underscores)
     if (!/^[a-zA-Z0-9._-]+$/.test(name)) {
       new Notice('Server name can only contain letters, numbers, dots, hyphens, and underscores');
       this.nameInputEl?.focus();
@@ -286,7 +255,6 @@ export class McpServerModal extends Modal {
         return;
       }
 
-      // Parse command string: first part is command, rest are args
       const { cmd, args } = parseCommand(fullCommand);
       const stdioConfig: McpStdioServerConfig = { command: cmd };
 

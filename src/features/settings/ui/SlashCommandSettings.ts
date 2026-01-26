@@ -1,9 +1,3 @@
-/**
- * Claudian - Slash command settings
- *
- * Settings UI for managing slash commands with create/edit/delete/import/export.
- */
-
 import type { App} from 'obsidian';
 import { Modal, Notice, setIcon, Setting } from 'obsidian';
 
@@ -11,12 +5,10 @@ import type { SlashCommand } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
 import { parseSlashCommandContent } from '../../../utils/slashCommand';
 
-/** Check if a command is a user-defined command (not from a plugin). */
 function isUserCommand(cmd: SlashCommand): boolean {
   return !cmd.id.startsWith('plugin-');
 }
 
-/** Modal for creating/editing slash commands. */
 export class SlashCommandModal extends Modal {
   private plugin: ClaudianPlugin;
   private existingCmd: SlashCommand | null;
@@ -104,7 +96,6 @@ export class SlashCommandModal extends Modal {
       : '';
     contentArea.value = initialContent;
 
-    // Button container
     const buttonContainer = contentEl.createDiv({ cls: 'claudian-slash-modal-buttons' });
 
     const cancelBtn = buttonContainer.createEl('button', {
@@ -136,7 +127,6 @@ export class SlashCommandModal extends Modal {
         return;
       }
 
-      // Check for duplicate names in current in-memory commands (excluding current command if editing)
       const existing = this.plugin.settings.slashCommands.find(
         c => c.name.toLowerCase() === name.toLowerCase() &&
              c.id !== this.existingCmd?.id
@@ -167,7 +157,6 @@ export class SlashCommandModal extends Modal {
       this.close();
     });
 
-    // Keyboard shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -182,7 +171,6 @@ export class SlashCommandModal extends Modal {
   }
 }
 
-/** Component for managing slash commands in settings. */
 export class SlashCommandSettings {
   private containerEl: HTMLElement;
   private plugin: ClaudianPlugin;
@@ -196,7 +184,6 @@ export class SlashCommandSettings {
   private render(): void {
     this.containerEl.empty();
 
-    // Header with add button
     const headerEl = this.containerEl.createDiv({ cls: 'claudian-slash-header' });
     headerEl.createSpan({ text: 'Slash Commands', cls: 'claudian-slash-label' });
 
@@ -223,7 +210,6 @@ export class SlashCommandSettings {
     setIcon(addBtn, 'plus');
     addBtn.addEventListener('click', () => this.openCommandModal(null));
 
-    // Filter out plugin commands (they're managed in the plugins section)
     const commands = this.plugin.settings.slashCommands.filter(isUserCommand);
 
     if (commands.length === 0) {
@@ -321,14 +307,12 @@ export class SlashCommandSettings {
     new Notice(`Slash command "/${cmd.name}" deleted`);
   }
 
-  /** Reload commands from storage and update in-memory settings. */
   private async reloadCommands(): Promise<void> {
     const commands = await this.plugin.storage.commands.loadAll();
     this.plugin.settings.slashCommands = commands;
   }
 
   private exportCommands(): void {
-    // Filter out plugin commands (they're managed separately)
     const commands = this.plugin.settings.slashCommands.filter(isUserCommand);
     if (commands.length === 0) {
       new Notice('No slash commands to export');
@@ -362,13 +346,11 @@ export class SlashCommandSettings {
           throw new Error('Invalid format: expected an array');
         }
 
-        // Reload current commands to check for duplicates
         const existingCommands = await this.plugin.storage.commands.loadAll();
         const existingNames = new Set(existingCommands.map(c => c.name.toLowerCase()));
 
         let imported = 0;
         for (const cmd of commands) {
-          // Validate required fields
           if (!cmd.name || !cmd.content) {
             continue;
           }
@@ -382,10 +364,8 @@ export class SlashCommandSettings {
             continue;
           }
 
-          // Assign new ID to avoid conflicts
           cmd.id = `cmd-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
-          // Normalize optional fields
           if (cmd.allowedTools && !Array.isArray(cmd.allowedTools)) {
             cmd.allowedTools = undefined;
           }
@@ -407,7 +387,6 @@ export class SlashCommandSettings {
             cmd.model = undefined;
           }
 
-          // Fill missing fields from frontmatter
           const parsed = parseSlashCommandContent(cmd.content);
           cmd.description = cmd.description || parsed.description;
           cmd.argumentHint = cmd.argumentHint || parsed.argumentHint;
@@ -415,19 +394,15 @@ export class SlashCommandSettings {
           cmd.allowedTools = cmd.allowedTools || parsed.allowedTools;
           cmd.content = parsed.promptContent;
 
-          // Check for duplicate names
           if (existingNames.has(cmd.name.toLowerCase())) {
-            // Skip duplicates
             continue;
           }
 
-          // Save to file storage
           await this.plugin.storage.commands.save(cmd);
           existingNames.add(cmd.name.toLowerCase());
           imported++;
         }
 
-        // Reload commands from storage
         await this.reloadCommands();
 
         this.render();

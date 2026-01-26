@@ -1,10 +1,3 @@
-/**
- * Selection controller for editor selection tracking.
- *
- * Handles polling editor selection, managing highlights, and providing
- * selection context for prompts.
- */
-
 import type { App } from 'obsidian';
 import { MarkdownView } from 'obsidian';
 
@@ -15,12 +8,6 @@ import type { StoredSelection } from '../state/types';
 /** Polling interval for editor selection (ms). */
 const SELECTION_POLL_INTERVAL = 250;
 
-/**
- * SelectionController manages editor selection tracking.
- *
- * It polls the active editor for selection changes, maintains visual
- * highlights, and provides selection context for chat prompts.
- */
 export class SelectionController {
   private app: App;
   private indicatorEl: HTMLElement;
@@ -44,17 +31,11 @@ export class SelectionController {
     this.onVisibilityChange = onVisibilityChange ?? null;
   }
 
-  // ============================================
-  // Lifecycle
-  // ============================================
-
-  /** Starts polling for editor selection changes. */
   start(): void {
     if (this.pollInterval) return;
     this.pollInterval = setInterval(() => this.poll(), SELECTION_POLL_INTERVAL);
   }
 
-  /** Stops polling and clears state. */
   stop(): void {
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
@@ -63,7 +44,6 @@ export class SelectionController {
     this.clear();
   }
 
-  /** Cleans up resources. Same as stop(). */
   dispose(): void {
     this.stop();
   }
@@ -72,7 +52,6 @@ export class SelectionController {
   // Selection Polling
   // ============================================
 
-  /** Polls editor selection and updates stored selection. */
   private poll(): void {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!view) return;
@@ -123,14 +102,12 @@ export class SelectionController {
   // Highlight Management
   // ============================================
 
-  /** Shows the selection highlight in the editor. */
   showHighlight(): void {
     if (!this.storedSelection) return;
     const { from, to, editorView } = this.storedSelection;
     showSelectionHighlight(editorView, from, to);
   }
 
-  /** Clears the selection highlight from the editor. */
   private clearHighlight(): void {
     if (!this.storedSelection) return;
     hideSelectionHighlight(this.storedSelection.editorView);
@@ -140,7 +117,6 @@ export class SelectionController {
   // Indicator
   // ============================================
 
-  /** Updates selection indicator based on stored selection. */
   private updateIndicator(): void {
     if (!this.indicatorEl) return;
 
@@ -154,7 +130,6 @@ export class SelectionController {
     this.updateContextRowVisibility();
   }
 
-  /** Updates context row visibility based on whether any content is visible. */
   updateContextRowVisibility(): void {
     if (!this.contextRowEl) return;
     const hasSelection = this.storedSelection !== null;
@@ -170,7 +145,6 @@ export class SelectionController {
   // Context Access
   // ============================================
 
-  /** Returns stored selection as EditorSelectionContext, or null if none. */
   getContext(): EditorSelectionContext | null {
     if (!this.storedSelection) return null;
     return {
@@ -182,7 +156,6 @@ export class SelectionController {
     };
   }
 
-  /** Checks if there is a stored selection. */
   hasSelection(): boolean {
     return this.storedSelection !== null;
   }
@@ -191,7 +164,6 @@ export class SelectionController {
   // Clear
   // ============================================
 
-  /** Clears the stored selection and highlight. */
   clear(): void {
     this.clearHighlight();
     this.storedSelection = null;

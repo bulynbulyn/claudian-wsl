@@ -4,7 +4,6 @@
  * Builds the system prompt for instruction refinement.
  */
 
-/** Builds the system prompt for instruction refinement, including existing instructions. */
 export function buildRefineSystemPrompt(existingInstructions: string): string {
     const existingSection = existingInstructions.trim()
         ? `\n\nEXISTING INSTRUCTIONS (already in the user's system prompt):

@@ -21,7 +21,6 @@ const FILTERED_SDK_COMMANDS = new Set([
   'security-review',
 ]);
 
-/** Callbacks for slash command dropdown interactions. */
 export interface SlashCommandDropdownCallbacks {
   onSelect: (command: SlashCommand) => void;
   onHide: () => void;
@@ -33,13 +32,11 @@ export interface SlashCommandDropdownCallbacks {
   getSdkCommands?: () => Promise<SlashCommand[]>;
 }
 
-/** Options for dropdown configuration. */
 export interface SlashCommandDropdownOptions {
-  fixed?: boolean; // Use fixed positioning (for inline editor)
-  hiddenCommands?: Set<string>; // Command names to hide from dropdown
+  fixed?: boolean;
+  hiddenCommands?: Set<string>;
 }
 
-/** Dropdown UI for selecting slash commands. */
 export class SlashCommandDropdown {
   private containerEl: HTMLElement;
   private dropdownEl: HTMLElement | null = null;
@@ -71,17 +68,14 @@ export class SlashCommandDropdown {
     this.isFixed = options.fixed ?? false;
     this.hiddenCommands = options.hiddenCommands ?? new Set();
 
-    // Add input listener
     this.onInput = () => this.handleInputChange();
     this.inputEl.addEventListener('input', this.onInput);
   }
 
-  /** Updates the set of hidden commands. */
   setHiddenCommands(commands: Set<string>): void {
     this.hiddenCommands = commands;
   }
 
-  /** Handles input changes to detect / trigger. */
   handleInputChange(): void {
     const text = this.getInputValue();
     const cursorPos = this.getCursorPosition();
@@ -95,7 +89,6 @@ export class SlashCommandDropdown {
 
     const slashIndex = 0;
 
-    // Get search text after /
     const searchText = textBeforeCursor.substring(slashIndex + 1);
 
     // Hide if there's whitespace in the search text (command already selected)
@@ -108,7 +101,6 @@ export class SlashCommandDropdown {
     this.showDropdown(searchText);
   }
 
-  /** Handles keyboard navigation. Returns true if handled. */
   handleKeydown(e: KeyboardEvent): boolean {
     if (!this.isVisible()) return false;
 
@@ -137,12 +129,10 @@ export class SlashCommandDropdown {
     return false;
   }
 
-  /** Checks if dropdown is currently visible. */
   isVisible(): boolean {
     return this.dropdownEl?.hasClass('visible') ?? false;
   }
 
-  /** Hides the dropdown. */
   hide(): void {
     if (this.dropdownEl) {
       this.dropdownEl.removeClass('visible');
@@ -151,7 +141,6 @@ export class SlashCommandDropdown {
     this.callbacks.onHide();
   }
 
-  /** Destroys the dropdown and cleans up. */
   destroy(): void {
     this.inputEl.removeEventListener('input', this.onInput);
     if (this.dropdownEl) {
@@ -188,7 +177,6 @@ export class SlashCommandDropdown {
   }
 
   private async showDropdown(searchText: string): Promise<void> {
-    // Increment request ID to track this request for race condition handling
     const currentRequest = ++this.requestId;
 
     const builtInCommands = getBuiltInCommandsForDropdown();
@@ -254,10 +242,8 @@ export class SlashCommandDropdown {
       }
     }
 
-    // Add SDK commands (deduplicated and filtered)
     for (const cmd of this.cachedSdkSkills) {
       const nameLower = cmd.name.toLowerCase();
-      // Skip filtered commands, duplicates, and user-hidden commands
       if (
         FILTERED_SDK_COMMANDS.has(nameLower) ||
         seenNames.has(nameLower) ||
@@ -291,17 +277,14 @@ export class SlashCommandDropdown {
           itemEl.addClass('selected');
         }
 
-        // Command name
         const nameEl = itemEl.createSpan({ cls: 'claudian-slash-name' });
         nameEl.setText(`/${cmd.name}`);
 
-        // Argument hint
         if (cmd.argumentHint) {
           const hintEl = itemEl.createSpan({ cls: 'claudian-slash-hint' });
           hintEl.setText(`[${cmd.argumentHint}]`);
         }
 
-        // Description
         if (cmd.description) {
           const descEl = itemEl.createDiv({ cls: 'claudian-slash-desc' });
           descEl.setText(cmd.description);
@@ -376,7 +359,6 @@ export class SlashCommandDropdown {
     const selected = this.filteredCommands[this.selectedIndex];
     if (!selected) return;
 
-    // Replace /search with /commandName followed by space
     const text = this.getInputValue();
     const beforeSlash = text.substring(0, this.slashStartIndex);
     const afterCursor = text.substring(this.getCursorPosition());

@@ -1,25 +1,20 @@
 /* Status Panel - persistent bottom panel for async subagents and todos */
 
-/* Fixed container between messages and input */
 .claudian-status-panel-container {
   flex-shrink: 0;
   padding: 0 14px;
 }
 
-/* Main container - no border/background, flows seamlessly */
 .claudian-status-panel {
   padding-top: 12px;
 }
 
-/* ============================================
-   Async Subagent Section (above todos)
-   ============================================ */
+/* Async Subagent Section */
 
 .claudian-status-panel-subagents {
   margin-bottom: 4px;
 }
 
-/* Done row - completed subagent with green tick + description */
 .claudian-status-panel-done-row {
   display: flex;
   align-items: center;
@@ -27,7 +22,6 @@
   padding: 2px 0;
 }
 
-/* Combined row - done on left, running count pushed to right */
 .claudian-status-panel-combined-row {
   justify-content: flex-start;
 }
@@ -50,7 +44,6 @@
   color: var(--text-normal);
 }
 
-/* Running row - count of background tasks, right-aligned */
 .claudian-status-panel-running-row {
   display: flex;
   justify-content: flex-end;
@@ -63,16 +56,12 @@
   color: var(--color-cyan);
 }
 
-/* ============================================
-   Todo Section
-   ============================================ */
+/* Todo Section */
 
-/* Todos container */
 .claudian-status-panel-todos {
   margin-top: 4px;
 }
 
-/* Header (collapsed view) - subtle hover only */
 .claudian-status-panel-header {
   display: flex;
   align-items: center;
@@ -93,7 +82,6 @@
   outline-offset: 2px;
 }
 
-/* List icon */
 .claudian-status-panel-icon {
   display: flex;
   align-items: center;
@@ -106,7 +94,6 @@
   height: 16px;
 }
 
-/* Label */
 .claudian-status-panel-label {
   font-family: var(--font-monospace);
   font-size: 13px;
@@ -114,7 +101,6 @@
   color: var(--text-normal);
 }
 
-/* Current task preview (collapsed state) */
 .claudian-status-panel-current {
   flex: 1;
   font-family: var(--font-monospace);
@@ -125,7 +111,6 @@
   white-space: nowrap;
 }
 
-/* Status indicator */
 .claudian-status-panel-status {
   display: flex;
   align-items: center;
@@ -141,7 +126,6 @@
   color: var(--color-green);
 }
 
-/* Content (expanded list) */
 .claudian-status-panel-content {
   padding: 2px 0;
 }
@@ -153,7 +137,6 @@
   padding: 1px 0;
 }
 
-/* Status icon - no left padding, natural size */
 .claudian-todo-list-container .claudian-todo-status-icon {
   display: flex;
   align-items: center;
@@ -165,7 +148,6 @@
   height: 12px;
 }
 
-/* Text - fixed padding from left */
 .claudian-todo-list-container .claudian-todo-text {
   font-family: var(--font-monospace);
   font-size: 12px;
@@ -174,7 +156,6 @@
   padding-left: 12px;
 }
 
-/* Status colors */
 .claudian-todo-list-container .claudian-todo-pending .claudian-todo-status-icon {
   color: var(--text-normal);
 }

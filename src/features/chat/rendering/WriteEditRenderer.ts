@@ -1,12 +1,3 @@
-/**
- * WriteEditRenderer - Subagent-style renderer for Write/Edit tool calls
- *
- * Displays file modifications with inline diff view:
- * - Header: "Write: filename.md +15 -20" with collapse/expand
- * - Content: Diff view with hunks and "..." separators
- * - Collapsed by default
- */
-
 import { setIcon } from 'obsidian';
 
 import { getToolIcon } from '../../../core/tools/toolIcons';
@@ -15,7 +6,6 @@ import type { DiffLine, DiffStats } from '../../../core/types/diff';
 import { setupCollapsible } from './collapsible';
 import { renderDiffContent } from './DiffRenderer';
 
-/** State for a streaming Write/Edit block. */
 export interface WriteEditState {
   wrapperEl: HTMLElement;
   contentEl: HTMLElement;
@@ -28,7 +18,6 @@ export interface WriteEditState {
   diffLines?: DiffLine[];
 }
 
-/** Shorten file path for display. */
 function shortenPath(filePath: string, maxLength = 40): string {
   if (!filePath) return 'file';
   // Normalize path separators for cross-platform support
@@ -52,7 +41,6 @@ function shortenPath(filePath: string, maxLength = 40): string {
   return `${firstDir}/.../${filename}`;
 }
 
-/** Render "+N -M" stats into a container element. */
 function renderDiffStats(statsEl: HTMLElement, stats: DiffStats): void {
   if (stats.added > 0) {
     const addedEl = statsEl.createSpan({ cls: 'added' });

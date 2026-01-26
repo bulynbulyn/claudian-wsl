@@ -1,10 +1,3 @@
-/**
- * Claudian - File context manager
- *
- * Manages current note chip and @ mention dropdown.
- * Also handles MCP server @-mentions for context-saving mode.
- */
-
 import type { App, EventRef } from 'obsidian';
 import { Notice, TFile } from 'obsidian';
 
@@ -16,7 +9,6 @@ import { FileContextState } from './file-context/state/FileContextState';
 import { MarkdownFileCache } from './file-context/state/MarkdownFileCache';
 import { FileChipsView } from './file-context/view/FileChipsView';
 
-/** Callbacks for file context interactions. */
 export interface FileContextCallbacks {
   getExcludedTags: () => string[];
   onChipsChanged?: () => void;
@@ -25,7 +17,6 @@ export interface FileContextCallbacks {
   onAgentMentionSelect?: (agentId: string) => void;
 }
 
-/** Manages file context: current note chip and @ mention dropdown. */
 export class FileContextManager {
   private app: App;
   private callbacks: FileContextCallbacks;

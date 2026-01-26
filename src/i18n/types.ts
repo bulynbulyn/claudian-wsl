@@ -2,7 +2,6 @@
  * i18n type definitions
  */
 
-// Available locales
 export type Locale = 'en' | 'zh-CN' | 'zh-TW' | 'ja' | 'ko' | 'de' | 'fr' | 'es' | 'ru' | 'pt';
 
 /**

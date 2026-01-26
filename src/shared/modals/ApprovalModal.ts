@@ -1,7 +1,3 @@
-/**
- * Claudian - Approval modal for Safe mode tool permission prompts.
- */
-
 import type { App } from 'obsidian';
 import { Modal, setIcon } from 'obsidian';
 
@@ -15,7 +11,6 @@ export interface ApprovalModalOptions {
   title?: string;
 }
 
-/** Modal dialog for approving tool actions in Safe mode. */
 export class ApprovalModal extends Modal {
   private toolName: string;
   private description: string;

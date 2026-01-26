@@ -1,9 +1,7 @@
-/* Tool call container - transparent, no border */
 .claudian-tool-call {
   margin: 8px 0;
 }
 
-/* Tool call header - transparent */
 .claudian-tool-header {
   display: flex;
   align-items: center;
@@ -35,7 +33,6 @@
   text-overflow: ellipsis;
 }
 
-/* Current task preview (for TodoWrite when collapsed) */
 .claudian-tool-current {
   flex: 1;
   font-family: var(--font-monospace);
@@ -86,7 +83,6 @@
   padding-left: 0;
 }
 
-/* Result row */
 .claudian-tool-result-row {
   display: flex;
   align-items: flex-start;
@@ -102,7 +98,6 @@
   flex: 1;
 }
 
-/* Result items - regular text lines */
 .claudian-tool-result-item {
   display: block;
   margin-bottom: 2px;

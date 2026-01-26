@@ -1,11 +1,4 @@
 /**
- * Agent definition types for custom subagent support.
- *
- * Custom agents are defined in markdown files with YAML frontmatter,
- * matching Claude Code's agent format for compatibility.
- */
-
-/**
  * Agent definition loaded from markdown files with YAML frontmatter.
  * Matches Claude Code's agent format for compatibility.
  */
@@ -16,7 +9,6 @@ export interface AgentDefinition {
   /** Display name (from YAML `name` field) */
   name: string;
 
-  /** Description of when to use this agent */
   description: string;
 
   /** System prompt for the agent (markdown body after frontmatter) */
@@ -31,7 +23,6 @@ export interface AgentDefinition {
   /** Model override. 'inherit' (default) uses parent's model */
   model?: 'sonnet' | 'opus' | 'haiku' | 'inherit';
 
-  /** Source of the agent definition */
   source: 'plugin' | 'vault' | 'global' | 'builtin';
 
   /** Plugin name (only for plugin-sourced agents) */

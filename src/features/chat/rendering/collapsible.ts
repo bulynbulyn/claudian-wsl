@@ -1,11 +1,3 @@
-/**
- * Claudian - Shared collapsible utility
- *
- * Provides reusable expand/collapse behavior for UI components.
- * Handles click, keyboard (Enter/Space), ARIA attributes, and CSS classes.
- */
-
-/** State object for tracking expand/collapse state */
 export interface CollapsibleState {
   isExpanded: boolean;
 }

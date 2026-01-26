@@ -52,7 +52,6 @@ const TOOL_ICONS: Record<string, string> = {
 export const MCP_ICON_MARKER = '__mcp_icon__';
 
 export function getToolIcon(toolName: string): string {
-  // MCP tools start with "mcp__" prefix
   if (toolName.startsWith('mcp__')) {
     return MCP_ICON_MARKER;
   }

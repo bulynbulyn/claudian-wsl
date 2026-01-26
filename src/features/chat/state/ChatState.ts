@@ -1,10 +1,3 @@
-/**
- * Centralized state management for chat feature.
- *
- * Manages all mutable state for the chat view, following the callback-based
- * pattern established by AsyncSubagentManager.
- */
-
 import type { UsageInfo } from '../../../core/types';
 import type {
   AsyncSubagentState,
@@ -19,7 +12,6 @@ import type {
   WriteEditState,
 } from './types';
 
-/** Creates initial chat state. */
 function createInitialState(): ChatStateData {
   return {
     messages: [],
@@ -54,12 +46,6 @@ function createInitialState(): ChatStateData {
   };
 }
 
-/**
- * ChatState manages all mutable state for the chat view.
- *
- * It provides typed accessors and mutators with optional callbacks
- * for state change notifications.
- */
 export class ChatState {
   private state: ChatStateData;
   private _callbacks: ChatStateCallbacks;
@@ -69,12 +55,10 @@ export class ChatState {
     this._callbacks = callbacks;
   }
 
-  /** Gets the callbacks. */
   get callbacks(): ChatStateCallbacks {
     return this._callbacks;
   }
 
-  /** Sets the callbacks (for updating after construction). */
   set callbacks(value: ChatStateCallbacks) {
     this._callbacks = value;
   }
@@ -358,7 +342,6 @@ export class ChatState {
   // Reset Methods
   // ============================================
 
-  /** Clears flavor timer interval if active. */
   clearFlavorTimerInterval(): void {
     if (this.state.flavorTimerInterval) {
       clearInterval(this.state.flavorTimerInterval);
@@ -366,7 +349,6 @@ export class ChatState {
     }
   }
 
-  /** Resets streaming-related state. */
   resetStreamingState(): void {
     this.state.currentContentEl = null;
     this.state.currentTextEl = null;
@@ -384,7 +366,6 @@ export class ChatState {
     this.state.responseStartTime = null;
   }
 
-  /** Clears all maps for a new conversation. */
   clearMaps(): void {
     this.state.toolCallElements.clear();
     this.state.activeSubagents.clear();
@@ -394,7 +375,6 @@ export class ChatState {
     this.state.pendingTaskTools.clear();
   }
 
-  /** Resets all state for a new conversation. */
   resetForNewConversation(): void {
     this.clearMessages();
     this.resetStreamingState();
@@ -405,12 +385,10 @@ export class ChatState {
     this.autoScrollEnabled = true;
   }
 
-  /** Gets messages for persistence. */
   getPersistedMessages(): ChatMessage[] {
     // Return messages as-is - image data is single source of truth
     return this.state.messages;
   }
 }
 
-/** Creates an index.ts barrel export for the state module. */
 export { createInitialState };

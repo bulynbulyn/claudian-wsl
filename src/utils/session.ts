@@ -11,9 +11,6 @@ import { extractUserQuery, formatCurrentNote } from './context';
 // Session Recovery
 // ============================================
 
-/**
- * Error patterns that indicate session needs recovery.
- */
 const SESSION_ERROR_PATTERNS = [
   'session expired',
   'session not found',
@@ -28,7 +25,6 @@ const SESSION_ERROR_COMPOUND_PATTERNS = [
   { includes: ['resume', 'error'] },
 ] as const;
 
-/** Checks if an error indicates session needs recovery. */
 export function isSessionExpiredError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message.toLowerCase() : '';
 
@@ -95,12 +91,10 @@ export function formatToolCallForContext(toolCall: ToolCallInfo, maxErrorLength 
   const inputStr = formatToolInput(toolCall.input);
   const inputPart = inputStr ? ` input: ${inputStr}` : '';
 
-  // For successful tools, show what was done (Claude can re-execute if needed)
   if (!isFailed) {
     return `[Tool ${toolCall.name}${inputPart} status=${status}]`;
   }
 
-  // For failed tools, include the error message so Claude knows what went wrong
   const hasResult = typeof toolCall.result === 'string' && toolCall.result.trim().length > 0;
   if (!hasResult) {
     return `[Tool ${toolCall.name}${inputPart} status=${status}]`;
@@ -110,7 +104,6 @@ export function formatToolCallForContext(toolCall: ToolCallInfo, maxErrorLength 
   return `[Tool ${toolCall.name}${inputPart} status=${status}] error: ${errorMsg}`;
 }
 
-/** Truncates tool result to avoid overloading recovery prompt. */
 export function truncateToolResult(result: string, maxLength = 500): string {
   if (result.length > maxLength) {
     return `${result.slice(0, maxLength)}... (truncated)`;
@@ -118,7 +111,6 @@ export function truncateToolResult(result: string, maxLength = 500): string {
   return result;
 }
 
-/** Formats a context line for user messages when rebuilding history. */
 export function formatContextLine(message: ChatMessage): string | null {
   if (!message.currentNote) {
     return null;
@@ -140,7 +132,6 @@ function formatThinkingBlocks(message: ChatMessage): string[] {
 
   if (thinkingBlocks.length === 0) return [];
 
-  // Summarize thinking: show count and total duration if available
   const totalDuration = thinkingBlocks.reduce(
     (sum, block) => sum + (block.durationSeconds ?? 0),
     0
@@ -150,9 +141,6 @@ function formatThinkingBlocks(message: ChatMessage): string[] {
   return [`[Thinking: ${thinkingBlocks.length} block(s)${durationPart}]`];
 }
 
-/**
- * Builds conversation context from message history for session recovery.
- */
 export function buildContextFromHistory(messages: ChatMessage[]): string {
   const parts: string[] = [];
 
@@ -161,7 +149,6 @@ export function buildContextFromHistory(messages: ChatMessage[]): string {
       continue;
     }
 
-    // Skip interrupt messages - they're UI indicators, not actual conversation content
     if (message.isInterrupt) {
       continue;
     }
@@ -188,7 +175,6 @@ export function buildContextFromHistory(messages: ChatMessage[]): string {
 
     lines.push(userPayload ? `${role}: ${userPayload}` : `${role}:`);
 
-    // Add thinking block summary for assistant messages
     if (message.role === 'assistant') {
       const thinkingLines = formatThinkingBlocks(message);
       if (thinkingLines.length > 0) {
@@ -211,7 +197,6 @@ export function buildContextFromHistory(messages: ChatMessage[]): string {
   return parts.join('\n\n');
 }
 
-/** Gets the last user message from conversation history. */
 export function getLastUserMessage(messages: ChatMessage[]): ChatMessage | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role === 'user') {
@@ -236,7 +221,6 @@ export function buildPromptWithHistoryContext(
   const lastUserMessage = getLastUserMessage(conversationHistory);
 
   // Compare actual user queries, not XML-wrapped versions
-  // Use displayContent if available (already extracted), otherwise extract from content
   const lastUserQuery = lastUserMessage?.displayContent
     ?? extractUserQuery(lastUserMessage?.content ?? '');
   const currentUserQuery = extractUserQuery(actualPrompt);

@@ -1,7 +1,3 @@
-/**
- * Renders file chip for the current/focus note only.
- */
-
 import { setIcon } from 'obsidian';
 
 export interface FileChipsViewCallbacks {
@@ -29,7 +25,6 @@ export class FileChipsView {
     this.fileIndicatorEl.remove();
   }
 
-  /** Renders chip for the current/focus note only. */
   renderCurrentNote(filePath: string | null): void {
     this.fileIndicatorEl.empty();
 

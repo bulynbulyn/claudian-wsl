@@ -31,22 +31,10 @@ export type SDKContentBlock = TextContentBlock | ImageContentBlock;
 // Message Channel Types
 // ============================================
 
-/**
- * Message queue configuration for the persistent query channel.
- *
- * MAX_QUEUED_MESSAGES: Maximum pending messages before dropping.
- * This prevents memory buildup from rapid user input. 8 allows
- * reasonable queuing while protecting against runaway scenarios.
- * When exceeded, the newest message is dropped with a warning.
- *
- * MAX_MERGED_CHARS: Maximum merged text content size (~3k tokens).
- * Text messages are merged to reduce API calls. 12000 chars allows
- * substantial batching while staying well under context limits.
- * When exceeded, the merge is rejected and the newest message is dropped.
- */
+/** Overflow: newest message is dropped with a warning. */
 export const MESSAGE_CHANNEL_CONFIG = {
-  MAX_QUEUED_MESSAGES: 8,
-  MAX_MERGED_CHARS: 12000,
+  MAX_QUEUED_MESSAGES: 8, // Memory protection from rapid user input
+  MAX_MERGED_CHARS: 12000, // ~3k tokens — batch size under context limits
 } as const;
 
 /** Pending message in the queue (text-only for merging). */
@@ -110,12 +98,7 @@ export interface ResponseHandlerOptions {
   onError: (error: Error) => void;
 }
 
-/**
- * Factory function to create a ResponseHandler with encapsulated state.
- *
- * This provides proper encapsulation of the mutable sawStreamText and sawAnyChunk flags,
- * exposing them as read-only properties with explicit mutation methods.
- */
+/** Creates a ResponseHandler with encapsulated mutable state. */
 export function createResponseHandler(options: ResponseHandlerOptions): ResponseHandler {
   let _sawStreamText = false;
   let _sawAnyChunk = false;

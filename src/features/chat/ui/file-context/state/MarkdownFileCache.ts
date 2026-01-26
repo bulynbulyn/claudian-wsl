@@ -1,7 +1,3 @@
-/**
- * Cached markdown files for mention search.
- */
-
 import type { App } from 'obsidian';
 import type { TFile } from 'obsidian';
 

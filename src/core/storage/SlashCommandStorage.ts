@@ -54,7 +54,6 @@ export class SlashCommandStorage {
     return commands;
   }
 
-  /** Load a single command from a file path. */
   async loadFromFile(filePath: string): Promise<SlashCommand | null> {
     try {
       const content = await this.adapter.read(filePath);
@@ -64,14 +63,12 @@ export class SlashCommandStorage {
     }
   }
 
-  /** Save a command to its file. */
   async save(command: SlashCommand): Promise<void> {
     const filePath = this.getFilePath(command);
     const content = this.serializeCommand(command);
     await this.adapter.write(filePath, content);
   }
 
-  /** Delete a command file by ID. */
   async delete(commandId: string): Promise<void> {
     // Find the file by listing and matching ID
     const files = await this.adapter.listFilesRecursive(COMMANDS_PATH);
@@ -87,13 +84,11 @@ export class SlashCommandStorage {
     }
   }
 
-  /** Check if any commands exist. */
   async hasCommands(): Promise<boolean> {
     const files = await this.adapter.listFilesRecursive(COMMANDS_PATH);
     return files.some(f => f.endsWith('.md'));
   }
 
-  /** Get the file path for a command. */
   getFilePath(command: SlashCommand): string {
     // Convert command name to file path
     // e.g., "review-code" -> ".claude/commands/review-code.md"
@@ -102,7 +97,6 @@ export class SlashCommandStorage {
     return `${COMMANDS_PATH}/${safeName}.md`;
   }
 
-  /** Parse a command file into a SlashCommand object. */
   parseFile(content: string, filePath: string): SlashCommand {
     const parsed = parseSlashCommandContent(content);
     const id = this.filePathToId(filePath);
@@ -179,7 +173,6 @@ export class SlashCommandStorage {
     return lines.join('\n');
   }
 
-  /** Quote a YAML string if needed. */
   private yamlString(value: string): string {
     if (value.includes(':') || value.includes('#') || value.includes('\n') ||
         value.startsWith(' ') || value.endsWith(' ')) {

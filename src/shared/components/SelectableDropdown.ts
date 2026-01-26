@@ -1,9 +1,3 @@
-/**
- * Generic selectable dropdown list view.
- *
- * Manages list rendering, selection state, and visibility.
- */
-
 export interface SelectableDropdownOptions {
   listClassName: string;
   itemClassName: string;

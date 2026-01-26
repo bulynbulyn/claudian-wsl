@@ -29,18 +29,12 @@ export interface TransformOptions {
 
 /**
  * Transform SDK message to StreamChunk format.
- * Returns a generator since one SDK message can contain multiple chunks
- * (e.g., assistant message with both text and tool_use blocks).
- *
- * @param message - The SDK message to transform
- * @param options - Optional transform options for context window calculations
- * @yields StreamChunk events for UI rendering, or SessionInitEvent for session tracking
+ * One SDK message can yield multiple chunks (e.g., text + tool_use blocks).
  */
 export function* transformSDKMessage(
   message: SDKMessage,
   options?: TransformOptions
 ): Generator<TransformEvent> {
-  // Capture parent_tool_use_id for subagent routing
   // null = main agent, non-null = subagent context
   const parentToolUseId = message.type === 'result'
     ? null
@@ -48,7 +42,6 @@ export function* transformSDKMessage(
 
   switch (message.type) {
     case 'system':
-      // Emit session init event for the caller to handle
       if (message.subtype === 'init' && message.session_id) {
         yield { type: 'session_init', sessionId: message.session_id };
       }
@@ -56,7 +49,6 @@ export function* transformSDKMessage(
       break;
 
     case 'assistant': {
-      // Extract ALL content blocks - text, tool_use, and thinking
       if (message.message?.content && Array.isArray(message.message.content)) {
         for (const block of message.message.content) {
           if (block.type === 'thinking' && block.thinking) {
@@ -150,7 +142,6 @@ export function* transformSDKMessage(
       break;
 
     case 'stream_event': {
-      // Handle streaming events for real-time updates
       const event = message.event;
       if (event?.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
         yield {

@@ -32,9 +32,6 @@ export const CC_SETTINGS_PATH = '.claude/settings.json';
 /** Schema URL for CC settings. */
 const CC_SETTINGS_SCHEMA = 'https://json.schemastore.org/claude-code-settings.json';
 
-/**
- * Check if a settings object contains any Claudian-only fields.
- */
 function hasClaudianOnlyFields(data: Record<string, unknown>): boolean {
   return Object.keys(data).some(key => CLAUDIAN_ONLY_FIELDS.has(key));
 }
@@ -60,9 +57,6 @@ export function isLegacyPermissionsFormat(data: unknown): data is { permissions:
   );
 }
 
-/**
- * Normalize permissions to ensure all arrays exist.
- */
 function normalizePermissions(permissions: unknown): CCPermissions {
   if (!permissions || typeof permissions !== 'object') {
     return { ...DEFAULT_CC_PERMISSIONS };
@@ -116,7 +110,6 @@ export class CCSettingsStorage {
       };
     }
 
-    // Normalize permissions
     return {
       $schema: CC_SETTINGS_SCHEMA,
       ...stored,
@@ -165,7 +158,6 @@ export class CCSettingsStorage {
       permissions: settings.permissions ?? { ...DEFAULT_CC_PERMISSIONS },
     };
 
-    // Include enabledPlugins if present in settings
     if (settings.enabledPlugins !== undefined) {
       merged.enabledPlugins = settings.enabledPlugins;
     }
@@ -174,33 +166,21 @@ export class CCSettingsStorage {
     await this.adapter.write(CC_SETTINGS_PATH, content);
   }
 
-  /**
-   * Check if settings file exists.
-   */
   async exists(): Promise<boolean> {
     return this.adapter.exists(CC_SETTINGS_PATH);
   }
 
-  /**
-   * Get permissions from CC settings.
-   */
   async getPermissions(): Promise<CCPermissions> {
     const settings = await this.load();
     return settings.permissions ?? { ...DEFAULT_CC_PERMISSIONS };
   }
 
-  /**
-   * Update permissions in CC settings.
-   */
   async updatePermissions(permissions: CCPermissions): Promise<void> {
     const settings = await this.load();
     settings.permissions = permissions;
     await this.save(settings);
   }
 
-  /**
-   * Add a rule to the allow list.
-   */
   async addAllowRule(rule: PermissionRule): Promise<void> {
     const permissions = await this.getPermissions();
     if (!permissions.allow?.includes(rule)) {
@@ -209,9 +189,6 @@ export class CCSettingsStorage {
     }
   }
 
-  /**
-   * Add a rule to the deny list.
-   */
   async addDenyRule(rule: PermissionRule): Promise<void> {
     const permissions = await this.getPermissions();
     if (!permissions.deny?.includes(rule)) {
@@ -220,9 +197,6 @@ export class CCSettingsStorage {
     }
   }
 
-  /**
-   * Add a rule to the ask list.
-   */
   async addAskRule(rule: PermissionRule): Promise<void> {
     const permissions = await this.getPermissions();
     if (!permissions.ask?.includes(rule)) {

@@ -1,11 +1,3 @@
-/**
- * InlineEditWidget - Inline editor with diff shown directly on selection
- *
- * - Input box appears above selection (minimal style)
- * - Selection stays highlighted
- * - Diff replaces the selected text visually (like VS Code/Cursor)
- */
-
 import type { App, Editor} from 'obsidian';
 import { MarkdownView, Notice } from 'obsidian';
 
@@ -30,7 +22,6 @@ import {
   WidgetType,
 } from '@codemirror/view';
 
-// State effects
 const showInlineEdit = StateEffect.define<{
   inputPos: number;
   selFrom: number;
@@ -51,10 +42,8 @@ const showInsertion = StateEffect.define<{
 }>();
 const hideInlineEdit = StateEffect.define<null>();
 
-// Singleton
 let activeController: InlineEditController | null = null;
 
-// Diff widget that replaces the selection
 class DiffWidget extends WidgetType {
   constructor(private diffHtml: string, private controller: InlineEditController) {
     super();
@@ -64,7 +53,6 @@ class DiffWidget extends WidgetType {
     span.className = 'claudian-inline-diff-replace';
     span.innerHTML = this.diffHtml;
 
-    // Add accept/reject buttons
     const btns = document.createElement('span');
     btns.className = 'claudian-inline-diff-buttons';
 
@@ -94,7 +82,6 @@ class DiffWidget extends WidgetType {
   }
 }
 
-// Input widget above selection
 class InputWidget extends WidgetType {
   constructor(private controller: InlineEditController) {
     super();
@@ -110,7 +97,6 @@ class InputWidget extends WidgetType {
   }
 }
 
-// Shared state field
 const inlineEditField = StateField.define<DecorationSet>({
   create: () => Decoration.none,
   update: (deco, tr) => {
@@ -118,7 +104,7 @@ const inlineEditField = StateField.define<DecorationSet>({
     for (const e of tr.effects) {
       if (e.is(showInlineEdit)) {
         const builder = new RangeSetBuilder<Decoration>();
-        // Input widget: block above line for selection/inline mode, inline for inbetween mode
+        // Block above line for selection/inline mode, inline widget for inbetween mode
         const isInbetween = e.value.isInbetween ?? false;
         builder.add(e.value.inputPos, e.value.inputPos, Decoration.widget({
           widget: new InputWidget(e.value.widget),
@@ -128,17 +114,15 @@ const inlineEditField = StateField.define<DecorationSet>({
         deco = builder.finish();
       } else if (e.is(showDiff)) {
         const builder = new RangeSetBuilder<Decoration>();
-        // Replace selection with diff widget
         builder.add(e.value.from, e.value.to, Decoration.replace({
           widget: new DiffWidget(e.value.diffHtml, e.value.widget),
         }));
         deco = builder.finish();
       } else if (e.is(showInsertion)) {
         const builder = new RangeSetBuilder<Decoration>();
-        // Insert widget at cursor position (Decoration.widget for point insertion)
         builder.add(e.value.pos, e.value.pos, Decoration.widget({
           widget: new DiffWidget(e.value.diffHtml, e.value.widget),
-          side: 1, // Display after the position
+          side: 1, // After the position
         }));
         deco = builder.finish();
       } else if (e.is(hideInlineEdit)) {
@@ -152,7 +136,6 @@ const inlineEditField = StateField.define<DecorationSet>({
 
 const installedEditors = new WeakSet<EditorView>();
 
-// Simple diff
 interface DiffOp { type: 'equal' | 'insert' | 'delete'; text: string; }
 
 function computeDiff(oldText: string, newText: string): DiffOp[] {
@@ -221,7 +204,6 @@ export class InlineEditModal {
   ) {}
 
   async openAndWait(): Promise<{ decision: InlineEditDecision; editedText?: string }> {
-    // Toggle off if already open
     if (activeController) {
       activeController.reject();
       return { decision: 'reject' };
@@ -266,7 +248,7 @@ class InlineEditController {
   private inlineEditService: InlineEditService;
   private escHandler: ((e: KeyboardEvent) => void) | null = null;
   private selectionListener: ((e: Event) => void) | null = null;
-  private isConversing = false;  // True when agent asked clarification
+  private isConversing = false;
   private slashCommandDropdown: SlashCommandDropdown | null = null;
   private mentionDropdown: MentionDropdownController | null = null;
   private attachedFiles: Set<string> = new Set();
@@ -289,7 +271,6 @@ class InlineEditController {
       this.selectedText = editContext.selectedText;
     }
 
-    // Get selection/cursor range in CM6 positions
     this.updatePositionsFromEditor();
   }
 
@@ -297,13 +278,11 @@ class InlineEditController {
     const doc = this.editorView.state.doc;
 
     if (this.mode === 'cursor') {
-      // For cursor mode, use the cursor position (from === to)
       const ctx = this.cursorContext as CursorContext;
       const line = doc.line(ctx.line + 1);
       this.selFrom = line.from + ctx.column;
-      this.selTo = this.selFrom; // Same position for cursor
+      this.selTo = this.selFrom;
     } else {
-      // For selection mode
       const from = this.editor.getCursor('from');
       const to = this.editor.getCursor('to');
       const fromLine = doc.line(from.line + 1);
@@ -316,7 +295,6 @@ class InlineEditController {
   }
 
   show() {
-    // Install extension if needed
     if (!installedEditors.has(this.editorView)) {
       this.editorView.dispatch({
         effects: StateEffect.appendConfig.of(inlineEditField),
@@ -324,15 +302,13 @@ class InlineEditController {
       installedEditors.add(this.editorView);
     }
 
-    // Show input widget + selection highlight (for selection mode)
     this.updateHighlight();
 
-    // Only attach selection listeners in selection mode
     if (this.mode === 'selection') {
       this.attachSelectionListeners();
     }
 
-    // Escape handler (check !e.isComposing for IME support)
+    // !e.isComposing: skip during IME composition (Chinese, Japanese, Korean, etc.)
     this.escHandler = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !e.isComposing) {
         this.reject();
@@ -371,7 +347,7 @@ class InlineEditController {
     this.selectionListener = (e: Event) => {
       const target = e.target as Node | null;
       if (target && this.inputEl && (target === this.inputEl || this.inputEl.contains(target))) {
-        return; // Ignore events originating from the inline input itself
+        return;
       }
       const prevFrom = this.selFrom;
       const prevTo = this.selTo;
@@ -392,18 +368,15 @@ class InlineEditController {
     container.className = 'claudian-inline-input-container';
     this.containerEl = container;
 
-    // Agent reply area (hidden initially)
     this.agentReplyEl = document.createElement('div');
     this.agentReplyEl.className = 'claudian-inline-agent-reply';
     this.agentReplyEl.style.display = 'none';
     container.appendChild(this.agentReplyEl);
 
-    // Input wrapper
     const inputWrap = document.createElement('div');
     inputWrap.className = 'claudian-inline-input-wrap';
     container.appendChild(inputWrap);
 
-    // Input
     this.inputEl = document.createElement('input');
     this.inputEl.type = 'text';
     this.inputEl.className = 'claudian-inline-input';
@@ -411,22 +384,17 @@ class InlineEditController {
     this.inputEl.spellcheck = false;
     inputWrap.appendChild(this.inputEl);
 
-    // Spinner - inside input wrapper, positioned absolutely
     this.spinnerEl = document.createElement('div');
     this.spinnerEl.className = 'claudian-inline-spinner';
     this.spinnerEl.style.display = 'none';
     inputWrap.appendChild(this.spinnerEl);
 
-    // Initialize slash command dropdown with fixed positioning
     this.slashCommandDropdown = new SlashCommandDropdown(
-      document.body, // Use body for fixed positioning
+      document.body, // Fixed positioning
       this.inputEl,
       {
-        onSelect: () => {
-          // Command selected, ready for arguments
-        },
+        onSelect: () => {},
         onHide: () => {},
-        // SDK commands shared from any ready service
         getSdkCommands: () => this.plugin.getSdkCommands(),
       },
       {
@@ -435,7 +403,7 @@ class InlineEditController {
       }
     );
 
-    // Initialize mention dropdown (vault files only, no cache needed for short-lived modal)
+    // No cache needed: short-lived modal
     this.mentionDropdown = new MentionDropdownController(
       document.body,
       this.inputEl,
@@ -458,7 +426,6 @@ class InlineEditController {
       { fixed: true }
     );
 
-    // Events
     this.inputEl.addEventListener('keydown', (e) => this.handleKeydown(e));
     this.inputEl.addEventListener('input', () => this.mentionDropdown?.handleInputChange());
 
@@ -473,7 +440,6 @@ class InlineEditController {
 
     // Slash commands are passed directly to SDK for handling
 
-    // Remove selection listeners during generation
     this.removeSelectionListeners();
 
     this.inputEl.disabled = true;
@@ -485,10 +451,8 @@ class InlineEditController {
 
     let result;
     if (this.isConversing) {
-      // Continue conversation with any new @-mentioned files
       result = await this.inlineEditService.continueConversation(userMessage, contextFiles);
     } else {
-      // Initial edit request - build request based on mode
       if (this.mode === 'cursor') {
         result = await this.inlineEditService.editText({
           mode: 'cursor',
@@ -515,15 +479,12 @@ class InlineEditController {
 
     if (result.success) {
       if (result.editedText !== undefined) {
-        // Got replacement - show diff (selection mode)
         this.editedText = result.editedText;
         this.showDiffInPlace();
       } else if (result.insertedText !== undefined) {
-        // Got insertion - show insertion preview (cursor mode)
         this.insertedText = result.insertedText;
         this.showInsertionInPlace();
       } else if (result.clarification) {
-        // Agent asking for clarification - show reply and enable input
         this.showAgentReply(result.clarification);
         this.isConversing = true;
         this.inputEl.disabled = false;
@@ -531,7 +492,6 @@ class InlineEditController {
         this.inputEl.placeholder = 'Reply to continue...';
         this.inputEl.focus();
       } else {
-        // Unexpected state
         this.handleError('No response from agent');
       }
     } else {
@@ -539,7 +499,6 @@ class InlineEditController {
     }
   }
 
-  /** Show agent's clarification message. */
   private showAgentReply(message: string) {
     if (!this.agentReplyEl || !this.containerEl) return;
     this.agentReplyEl.style.display = 'block';
@@ -547,7 +506,6 @@ class InlineEditController {
     this.containerEl.classList.add('has-agent-reply');
   }
 
-  /** Handle error state. */
   private handleError(errorMessage: string) {
     if (!this.inputEl) return;
     this.inputEl.disabled = false;
@@ -575,11 +533,9 @@ class InlineEditController {
       }),
     });
 
-    // Update escape/enter handlers for diff mode
     if (this.escHandler) {
       document.removeEventListener('keydown', this.escHandler);
     }
-    // Check !e.isComposing for IME support (Chinese, Japanese, Korean, etc.)
     this.escHandler = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !e.isComposing) {
         this.reject();
@@ -590,21 +546,17 @@ class InlineEditController {
     document.addEventListener('keydown', this.escHandler);
   }
 
-  /** Show insertion preview (all green, no deletions) for cursor mode. */
   private showInsertionInPlace() {
     if (this.insertedText === null) return;
 
     hideSelectionHighlight(this.editorView);
 
-    // Trim leading/trailing newlines to avoid extra blank lines
     const trimmedText = normalizeInsertionText(this.insertedText);
     this.insertedText = trimmedText;
 
-    // For insertion, it's all new text (no deletions)
     const escaped = escapeHtml(trimmedText);
     const diffHtml = `<span class="claudian-diff-ins">${escaped}</span>`;
 
-    // Use showInsertion effect (Decoration.widget) for point insertion
     this.editorView.dispatch({
       effects: showInsertion.of({
         pos: this.selFrom,
@@ -613,11 +565,9 @@ class InlineEditController {
       }),
     });
 
-    // Update escape/enter handlers for diff mode
     if (this.escHandler) {
       document.removeEventListener('keydown', this.escHandler);
     }
-    // Check !e.isComposing for IME support (Chinese, Japanese, Korean, etc.)
     this.escHandler = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !e.isComposing) {
         this.reject();
@@ -669,11 +619,9 @@ class InlineEditController {
     if (this.escHandler) {
       document.removeEventListener('keydown', this.escHandler);
     }
-    // Clean up slash command dropdown
     this.slashCommandDropdown?.destroy();
     this.slashCommandDropdown = null;
 
-    // Clean up mention dropdown
     this.mentionDropdown?.destroy();
     this.mentionDropdown = null;
     this.attachedFiles.clear();
@@ -697,17 +645,14 @@ class InlineEditController {
   }
 
   private handleKeydown(e: KeyboardEvent) {
-    // Check mention dropdown first
     if (this.mentionDropdown?.handleKeydown(e)) {
       return;
     }
 
-    // Check slash command dropdown
     if (this.slashCommandDropdown?.handleKeydown(e)) {
       return;
     }
 
-    // Check !e.isComposing for IME support (Chinese, Japanese, Korean, etc.)
     if (e.key === 'Enter' && !e.isComposing) {
       e.preventDefault();
       this.generate();

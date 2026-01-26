@@ -16,16 +16,10 @@ import type { PluginManager } from '../plugins';
 import type { AgentDefinition } from '../types';
 import { parseAgentFile, parseModel, parseToolsList } from './AgentStorage';
 
-/** Global agents directory. */
 const GLOBAL_AGENTS_DIR = path.join(os.homedir(), '.claude', 'agents');
-
-/** Vault agents directory (relative to vault root). */
 const VAULT_AGENTS_DIR = '.claude/agents';
-
-/** Plugin agents directory name. */
 const PLUGIN_AGENTS_DIR = 'agents';
 
-/** Built-in agents provided by the SDK */
 const BUILTIN_AGENTS: AgentDefinition[] = [
   {
     id: 'Explore',

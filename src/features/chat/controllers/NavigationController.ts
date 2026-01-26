@@ -1,18 +1,8 @@
-/**
- * Navigation controller for vim-style keyboard navigation.
- *
- * Handles keyboard-based scrolling and focus management for the chat panel.
- * - w/s (configurable) for continuous scrolling when focused on messages
- * - i to focus input
- * - Escape in input: interrupt if streaming, else blur and focus messages
- */
-
 import type { KeyboardNavigationSettings } from '../../../core/types';
 
 /** Scroll speed in pixels per frame (~60fps = 480px/sec). */
 const SCROLL_SPEED = 8;
 
-/** Dependencies for NavigationController. */
 export interface NavigationControllerDeps {
   getMessagesEl: () => HTMLElement;
   getInputEl: () => HTMLTextAreaElement;
@@ -22,14 +12,6 @@ export interface NavigationControllerDeps {
   shouldSkipEscapeHandling?: () => boolean;
 }
 
-/**
- * NavigationController manages vim-style keyboard navigation.
- *
- * Features:
- * - Configurable keys for continuous scrolling when focused on messages
- * - 'i' to focus input (like vim insert mode)
- * - Escape in input: interrupt if streaming, else blur and focus messages
- */
 export class NavigationController {
   private deps: NavigationControllerDeps;
   private scrollDirection: 'up' | 'down' | null = null;
@@ -49,11 +31,6 @@ export class NavigationController {
     this.boundInputKeydown = this.handleInputKeydown.bind(this);
   }
 
-  // ============================================
-  // Lifecycle
-  // ============================================
-
-  /** Initializes navigation by making messagesEl focusable and attaching listeners. */
   initialize(): void {
     if (this.initialized || this.disposed) return;
 
@@ -157,13 +134,8 @@ export class NavigationController {
       return;
     }
 
-    // If a UI component (dropdown, modal, instruction mode) should handle Escape, skip
-    try {
-      if (this.deps.shouldSkipEscapeHandling?.()) {
-        return;
-      }
-    } catch {
-      // Callback threw - continue with default behavior
+    if (this.deps.shouldSkipEscapeHandling?.()) {
+      return;
     }
 
     // Not streaming, no active UI: blur input and focus messages panel

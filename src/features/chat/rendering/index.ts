@@ -1,7 +1,3 @@
-/**
- * Chat rendering module exports.
- */
-
 export { MessageRenderer } from './MessageRenderer';
 export {
   addSubagentToolCall,

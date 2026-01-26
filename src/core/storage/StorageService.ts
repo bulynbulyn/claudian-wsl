@@ -129,26 +129,16 @@ export class StorageService {
     this.mcp = new McpStorage(this.adapter);
   }
 
-  /**
-   * Initialize storage, running migrations if needed.
-   */
   async initialize(): Promise<CombinedSettings> {
-    // Ensure .claude directory structure exists
     await this.ensureDirectories();
-
-    // Run migrations if needed
     await this.runMigrations();
 
-    // Load both settings
     const cc = await this.ccSettings.load();
     const claudian = await this.claudianSettings.load();
 
     return { cc, claudian };
   }
 
-  /**
-   * Run all necessary migrations.
-   */
   private async runMigrations(): Promise<void> {
     const ccExists = await this.ccSettings.exists();
     const claudianExists = await this.claudianSettings.exists();
@@ -182,9 +172,6 @@ export class StorageService {
     }
   }
 
-  /**
-   * Check if data.json has state fields that need migration.
-   */
   private hasStateToMigrate(data: LegacyDataJson): boolean {
     return (
       data.lastEnvHash !== undefined ||
@@ -193,9 +180,6 @@ export class StorageService {
     );
   }
 
-  /**
-   * Check if data.json has legacy content (slash commands or conversations).
-   */
   private hasLegacyContentToMigrate(data: LegacyDataJson): boolean {
     return (
       (data.slashCommands?.length ?? 0) > 0 ||
@@ -216,7 +200,6 @@ export class StorageService {
     const content = await this.adapter.read(CC_SETTINGS_PATH);
     const oldSettings = JSON.parse(content) as LegacySettingsJson;
 
-    // Check if this has Claudian-specific fields
     const hasClaudianFields = Array.from(CLAUDIAN_ONLY_FIELDS).some(
       field => (oldSettings as Record<string, unknown>)[field] !== undefined
     );
@@ -234,7 +217,6 @@ export class StorageService {
       }
     }
 
-    // Extract Claudian-specific fields
     const claudianFields: Partial<StoredClaudianSettings> = {
       userName: oldSettings.userName ?? DEFAULT_SETTINGS.userName,
       enableBlocklist: oldSettings.enableBlocklist ?? DEFAULT_SETTINGS.enableBlocklist,
@@ -297,9 +279,6 @@ export class StorageService {
     await this.ccSettings.save(ccSettings, true);
   }
 
-  /**
-   * Migrate state from data.json to claudian-settings.json.
-   */
   private async migrateFromDataJson(dataJson: LegacyDataJson): Promise<void> {
     const claudian = await this.claudianSettings.load();
 
@@ -317,13 +296,9 @@ export class StorageService {
     await this.claudianSettings.save(claudian);
   }
 
-  /**
-   * Migrate slash commands and conversations from legacy data.json.
-   */
   private async migrateLegacyDataJsonContent(dataJson: LegacyDataJson): Promise<{ hadErrors: boolean }> {
     let hadErrors = false;
 
-    // Migrate slash commands
     if (dataJson.slashCommands && dataJson.slashCommands.length > 0) {
       for (const command of dataJson.slashCommands) {
         try {
@@ -338,7 +313,6 @@ export class StorageService {
       }
     }
 
-    // Migrate conversations
     if (dataJson.conversations && dataJson.conversations.length > 0) {
       for (const conversation of dataJson.conversations) {
         try {
@@ -356,9 +330,6 @@ export class StorageService {
     return { hadErrors };
   }
 
-  /**
-   * Clear legacy data.json after successful migration.
-   */
   private async clearLegacyDataJson(): Promise<void> {
     const dataJson = await this.loadDataJson();
     if (!dataJson) {
@@ -381,9 +352,6 @@ export class StorageService {
     await this.plugin.saveData(cleaned);
   }
 
-  /**
-   * Load legacy data.json content.
-   */
   private async loadDataJson(): Promise<LegacyDataJson | null> {
     try {
       const data = await this.plugin.loadData();
@@ -394,18 +362,12 @@ export class StorageService {
     }
   }
 
-  /**
-   * Ensure all required directories exist.
-   */
   async ensureDirectories(): Promise<void> {
     await this.adapter.ensureFolder(CLAUDE_PATH);
     await this.adapter.ensureFolder(COMMANDS_PATH);
     await this.adapter.ensureFolder(SESSIONS_PATH);
   }
 
-  /**
-   * Get the vault file adapter for direct file operations.
-   */
   getAdapter(): VaultFileAdapter {
     return this.adapter;
   }
@@ -414,30 +376,18 @@ export class StorageService {
   // Convenience methods for common operations
   // ============================================================================
 
-  /**
-   * Get CC permissions.
-   */
   async getPermissions(): Promise<CCPermissions> {
     return this.ccSettings.getPermissions();
   }
 
-  /**
-   * Update CC permissions.
-   */
   async updatePermissions(permissions: CCPermissions): Promise<void> {
     return this.ccSettings.updatePermissions(permissions);
   }
 
-  /**
-   * Add a rule to allow list.
-   */
   async addAllowRule(rule: string): Promise<void> {
     return this.ccSettings.addAllowRule(createPermissionRule(rule));
   }
 
-  /**
-   * Add a rule to deny list.
-   */
   async addDenyRule(rule: string): Promise<void> {
     return this.ccSettings.addDenyRule(createPermissionRule(rule));
   }
@@ -449,23 +399,14 @@ export class StorageService {
     return this.ccSettings.removeRule(createPermissionRule(rule));
   }
 
-  /**
-   * Update Claudian settings.
-   */
   async updateClaudianSettings(updates: Partial<StoredClaudianSettings>): Promise<void> {
     return this.claudianSettings.update(updates);
   }
 
-  /**
-   * Save Claudian settings.
-   */
   async saveClaudianSettings(settings: StoredClaudianSettings): Promise<void> {
     return this.claudianSettings.save(settings);
   }
 
-  /**
-   * Load Claudian settings.
-   */
   async loadClaudianSettings(): Promise<StoredClaudianSettings> {
     return this.claudianSettings.load();
   }
@@ -533,7 +474,6 @@ export class StorageService {
 
     const state = data as Record<string, unknown>;
 
-    // Validate openTabs
     if (!Array.isArray(state.openTabs)) {
       return null;
     }
@@ -554,7 +494,6 @@ export class StorageService {
       });
     }
 
-    // Validate activeTabId
     const activeTabId =
       typeof state.activeTabId === 'string' ? state.activeTabId : null;
 
@@ -564,9 +503,6 @@ export class StorageService {
     };
   }
 
-  /**
-   * Set tab manager state in data.json.
-   */
   async setTabManagerState(state: TabManagerPersistedState): Promise<void> {
     try {
       const data = (await this.plugin.loadData()) || {};

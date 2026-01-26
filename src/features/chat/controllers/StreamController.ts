@@ -1,10 +1,3 @@
-/**
- * Stream controller for handling SDK stream chunks.
- *
- * Manages real-time message updates, tool call rendering, subagent
- * state tracking, and thinking indicator display.
- */
-
 import type { ClaudianService } from '../../../core/agent';
 import { parseTodoInput } from '../../../core/tools';
 import { isWriteEditTool, TOOL_AGENT_OUTPUT, TOOL_TASK, TOOL_TODO_WRITE } from '../../../core/tools/toolNames';
@@ -41,7 +34,6 @@ import type { AsyncSubagentManager } from '../services/AsyncSubagentManager';
 import type { ChatState } from '../state/ChatState';
 import type { FileContextManager } from '../ui';
 
-/** Dependencies for StreamController. */
 export interface StreamControllerDeps {
   plugin: ClaudianPlugin;
   state: ChatState;
@@ -54,9 +46,6 @@ export interface StreamControllerDeps {
   getAgentService?: () => ClaudianService | null;
 }
 
-/**
- * StreamController handles all stream chunk processing.
- */
 export class StreamController {
   private deps: StreamControllerDeps;
 

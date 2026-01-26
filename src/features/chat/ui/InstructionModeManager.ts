@@ -1,18 +1,9 @@
-/**
- * Claudian - Instruction mode manager
- *
- * Detects `#` at start of input to enable instruction mode.
- * Shows visual indicator (light blue border) and custom placeholder when active.
- */
-
-/** Callbacks for instruction mode interactions. */
 export interface InstructionModeCallbacks {
   onSubmit: (rawInstruction: string) => Promise<void>;
   getInputWrapper: () => HTMLElement | null;
   resetInputHeight?: () => void;
 }
 
-/** State for instruction mode. */
 export interface InstructionModeState {
   active: boolean;
   rawInstruction: string;
@@ -20,7 +11,6 @@ export interface InstructionModeState {
 
 const INSTRUCTION_MODE_PLACEHOLDER = '# Save in custom system prompt';
 
-/** Manages instruction mode detection and visual indicator. */
 export class InstructionModeManager {
   private inputEl: HTMLTextAreaElement;
   private callbacks: InstructionModeCallbacks;

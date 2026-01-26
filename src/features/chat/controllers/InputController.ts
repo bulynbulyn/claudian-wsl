@@ -1,10 +1,3 @@
-/**
- * Input controller for handling user input and message sending.
- *
- * Manages message sending, queue handling, instruction mode, and approval dialogs.
- * Slash command expansion is handled by the SDK.
- */
-
 import { Notice } from 'obsidian';
 
 import type { ClaudianService } from '../../../core/agent';
@@ -28,7 +21,6 @@ import type { ConversationController } from './ConversationController';
 import type { SelectionController } from './SelectionController';
 import type { StreamController } from './StreamController';
 
-/** Dependencies for InputController. */
 export interface InputControllerDeps {
   plugin: ClaudianPlugin;
   state: ChatState;
@@ -52,15 +44,11 @@ export interface InputControllerDeps {
   getStatusPanel: () => StatusPanel | null;
   generateId: () => string;
   resetInputHeight: () => void;
-  /** Get the agent service from the tab. */
   getAgentService?: () => ClaudianService | null;
-  /** Ensures the agent service is initialized (lazy loading). Returns true if ready. */
+  /** Returns true if ready. */
   ensureServiceInitialized?: () => Promise<boolean>;
 }
 
-/**
- * InputController handles user input and message sending.
- */
 export class InputController {
   private deps: InputControllerDeps;
 
@@ -68,7 +56,6 @@ export class InputController {
     this.deps = deps;
   }
 
-  /** Gets the agent service from the tab. */
   private getAgentService(): ClaudianService | null {
     return this.deps.getAgentService?.() ?? null;
   }
@@ -77,7 +64,6 @@ export class InputController {
   // Message Sending
   // ============================================
 
-  /** Sends a message with optional editor context override. */
   async sendMessage(options?: {
     editorContextOverride?: EditorSelectionContext | null;
     content?: string;
@@ -361,7 +347,6 @@ export class InputController {
   // Queue Management
   // ============================================
 
-  /** Updates the queue indicator UI. */
   updateQueueIndicator(): void {
     const { state } = this.deps;
     if (!state.queueIndicatorEl) return;
@@ -385,14 +370,12 @@ export class InputController {
     }
   }
 
-  /** Clears the queued message. */
   clearQueuedMessage(): void {
     const { state } = this.deps;
     state.queuedMessage = null;
     this.updateQueueIndicator();
   }
 
-  /** Restores the queued message to the input field without sending. */
   private restoreQueuedMessageToInput(): void {
     const { state } = this.deps;
     if (!state.queuedMessage) return;
@@ -408,7 +391,6 @@ export class InputController {
     }
   }
 
-  /** Processes the queued message. */
   private processQueuedMessage(): void {
     const { state } = this.deps;
     if (!state.queuedMessage) return;
@@ -510,7 +492,6 @@ export class InputController {
   // Streaming Control
   // ============================================
 
-  /** Cancels the current streaming operation. */
   cancelStreaming(): void {
     const { state, streamController } = this.deps;
     if (!state.isStreaming) return;
@@ -525,7 +506,6 @@ export class InputController {
   // Instruction Mode
   // ============================================
 
-  /** Handles instruction mode submission. */
   async handleInstructionSubmit(rawInstruction: string): Promise<void> {
     const { plugin } = this.deps;
     const instructionRefineService = this.deps.getInstructionRefineService();
@@ -623,7 +603,6 @@ export class InputController {
   // Approval Dialogs
   // ============================================
 
-  /** Handles tool approval requests. */
   async handleApprovalRequest(
     toolName: string,
     input: Record<string, unknown>,
@@ -640,7 +619,6 @@ export class InputController {
   // Built-in Commands
   // ============================================
 
-  /** Executes a built-in command action. */
   private async executeBuiltInCommand(action: string, args: string): Promise<void> {
     const { conversationController } = this.deps;
 

@@ -1,10 +1,3 @@
-/**
- * Claudian - Sidebar chat view
- *
- * Thin shell that coordinates TabManager for multi-tab support.
- * All per-conversation state is managed by individual tabs.
- */
-
 import type { EventRef, WorkspaceLeaf } from 'obsidian';
 import { ItemView, Notice, setIcon } from 'obsidian';
 
@@ -14,7 +7,6 @@ import { LOGO_SVG } from './constants';
 import { TabBar, TabManager } from './tabs';
 import type { TabData, TabId } from './tabs/types';
 
-/** Main sidebar chat view for interacting with Claude. */
 export class ClaudianView extends ItemView {
   private plugin: ClaudianPlugin;
 

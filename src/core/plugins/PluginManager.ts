@@ -43,9 +43,6 @@ export class PluginManager {
     return state !== false;
   }
 
-  /**
-   * Apply enabled state to all plugins based on CC settings.
-   */
   private applyEnabledState(): void {
     for (const plugin of this.plugins) {
       plugin.enabled = this.isPluginEnabled(plugin.id);
@@ -77,9 +74,6 @@ export class PluginManager {
     return [...this.plugins];
   }
 
-  /**
-   * Get SDK plugin configs for enabled and available plugins.
-   */
   getActivePluginConfigs(): SdkPluginConfig[] {
     return this.getActivePlugins().map((plugin) => ({
       type: 'local' as const,
@@ -87,16 +81,10 @@ export class PluginManager {
     }));
   }
 
-  /**
-   * Check if any plugins are enabled and available.
-   */
   hasEnabledPlugins(): boolean {
     return this.getActivePlugins().length > 0;
   }
 
-  /**
-   * Get the count of enabled and available plugins.
-   */
   getEnabledCount(): number {
     return this.getActivePlugins().length;
   }
@@ -128,53 +116,36 @@ export class PluginManager {
 
     const newEnabled = !plugin.enabled;
 
-    // Update local state
     this.enabledState[pluginId] = newEnabled;
     plugin.enabled = newEnabled;
 
-    // Persist to CC settings
     await this.ccSettingsStorage.setPluginEnabled(pluginId, newEnabled);
   }
 
-  /**
-   * Enable a plugin by ID.
-   * Writes to .claude/settings.json so CLI respects the state.
-   */
   async enablePlugin(pluginId: string): Promise<void> {
     const plugin = this.plugins.find((p) => p.id === pluginId);
     if (!plugin || plugin.enabled) {
       return;
     }
 
-    // Update local state
     this.enabledState[pluginId] = true;
     plugin.enabled = true;
 
-    // Persist to CC settings
     await this.ccSettingsStorage.setPluginEnabled(pluginId, true);
   }
 
-  /**
-   * Disable a plugin by ID.
-   * Writes to .claude/settings.json so CLI respects the state.
-   */
   async disablePlugin(pluginId: string): Promise<void> {
     const plugin = this.plugins.find((p) => p.id === pluginId);
     if (!plugin || !plugin.enabled) {
       return;
     }
 
-    // Update local state
     this.enabledState[pluginId] = false;
     plugin.enabled = false;
 
-    // Persist to CC settings
     await this.ccSettingsStorage.setPluginEnabled(pluginId, false);
   }
 
-  /**
-   * Check if there are any plugins available.
-   */
   hasPlugins(): boolean {
     return this.plugins.length > 0;
   }

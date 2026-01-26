@@ -1,10 +1,3 @@
-/**
- * Claudian - Instruction refine service
- *
- * Lightweight Claude query service for refining user instructions.
- * Parses <instruction> tags from response.
- */
-
 import type { Options } from '@anthropic-ai/claude-agent-sdk';
 import { query as agentQuery } from '@anthropic-ai/claude-agent-sdk';
 

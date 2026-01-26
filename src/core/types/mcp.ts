@@ -39,15 +39,12 @@ export type McpServerType = 'stdio' | 'sse' | 'http';
 export interface ClaudianMcpServer {
   /** Unique server name (key in mcpServers record). */
   name: string;
-  /** Server configuration. */
   config: McpServerConfig;
-  /** Whether the server is enabled. */
   enabled: boolean;
   /** Context-saving mode: hide tools unless @-mentioned. */
   contextSaving: boolean;
   /** Tool names disabled for this server. */
   disabledTools?: string[];
-  /** Optional description for UI display. */
   description?: string;
 }
 
@@ -78,7 +75,6 @@ export interface ParsedMcpConfig {
   needsName: boolean;
 }
 
-/** Get the type of an MCP server config. */
 export function getMcpServerType(config: McpServerConfig): McpServerType {
   if (config.type === 'sse') return 'sse';
   if (config.type === 'http') return 'http';
@@ -86,7 +82,6 @@ export function getMcpServerType(config: McpServerConfig): McpServerType {
   return 'stdio';
 }
 
-/** Check if a value is a valid MCP server config. */
 export function isValidMcpServerConfig(obj: unknown): obj is McpServerConfig {
   if (!obj || typeof obj !== 'object') return false;
   const config = obj as Record<string, unknown>;
@@ -100,7 +95,6 @@ export function isValidMcpServerConfig(obj: unknown): obj is McpServerConfig {
   return false;
 }
 
-/** Infer the server type from a config. */
 export function inferMcpServerType(config: McpServerConfig): McpServerType {
   if (config.type === 'sse') return 'sse';
   if (config.type === 'http') return 'http';
@@ -108,7 +102,6 @@ export function inferMcpServerType(config: McpServerConfig): McpServerType {
   return 'stdio';
 }
 
-/** Default values for a new MCP server. */
 export const DEFAULT_MCP_SERVER: Omit<ClaudianMcpServer, 'name' | 'config'> = {
   enabled: true,
   contextSaving: true,

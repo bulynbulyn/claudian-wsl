@@ -1,9 +1,3 @@
-/**
- * Claudian - Settings tab
- *
- * Plugin settings UI for hotkeys, customization, safety, and environment variables.
- */
-
 import * as fs from 'fs';
 import type { App } from 'obsidian';
 import { Notice, PluginSettingTab, Setting } from 'obsidian';
@@ -35,12 +29,10 @@ function formatHotkey(hotkey: { modifiers: string[]; key: string }): string {
   return isMac ? [...mods, key].join('') : [...mods, key].join('+');
 }
 
-/** Open Obsidian's hotkey settings filtered to Claudian commands. */
 function openHotkeySettings(app: App): void {
   const setting = (app as any).setting;
   setting.open();
   setting.openTabById('hotkeys');
-  // Slight delay to ensure the tab is loaded
   setTimeout(() => {
     const tab = setting.activeTab;
     if (tab) {
@@ -54,13 +46,10 @@ function openHotkeySettings(app: App): void {
   }, 100);
 }
 
-/** Get the current hotkey string for a command, or null if not set. */
 function getHotkeyForCommand(app: App, commandId: string): string | null {
-  // Access Obsidian's internal hotkey manager
   const hotkeyManager = (app as any).hotkeyManager;
   if (!hotkeyManager) return null;
 
-  // Get custom hotkeys first, then fall back to defaults
   const customHotkeys = hotkeyManager.customKeys?.[commandId];
   const defaultHotkeys = hotkeyManager.defaultKeys?.[commandId];
   const hotkeys = customHotkeys?.length > 0 ? customHotkeys : defaultHotkeys;
@@ -70,7 +59,6 @@ function getHotkeyForCommand(app: App, commandId: string): string | null {
   return hotkeys.map(formatHotkey).join(', ');
 }
 
-/** Add a hotkey setting row with standard pattern. */
 function addHotkeySettingRow(
   containerEl: HTMLElement,
   app: App,
@@ -92,7 +80,6 @@ function addHotkeySettingRow(
     );
 }
 
-/** Plugin settings tab displayed in Obsidian's settings pane. */
 export class ClaudianSettingTab extends PluginSettingTab {
   plugin: ClaudianPlugin;
   private contextLimitsContainer: HTMLElement | null = null;
@@ -107,10 +94,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.addClass('claudian-settings');
 
-    // Update i18n locale from settings
     setLocale(this.plugin.settings.locale);
 
-    // Language selector at the very top
     new Setting(containerEl)
       .setName(t('settings.language.name'))
       .setDesc(t('settings.language.desc'))
@@ -134,7 +119,6 @@ export class ClaudianSettingTab extends PluginSettingTab {
           });
       });
 
-    // Customization section
     new Setting(containerEl).setName(t('settings.customization')).setHeading();
 
     new Setting(containerEl)
@@ -160,8 +144,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.excludedTags.join('\n'))
           .onChange(async (value) => {
             this.plugin.settings.excludedTags = value
-              .split(/\r?\n/)  // Handle both Unix (LF) and Windows (CRLF) line endings
-              .map((s) => s.trim().replace(/^#/, ''))  // Remove leading # if present
+              .split(/\r?\n/)
+              .map((s) => s.trim().replace(/^#/, ''))
               .filter((s) => s.length > 0);
             await this.plugin.saveSettings();
           });
@@ -327,7 +311,6 @@ export class ClaudianSettingTab extends PluginSettingTab {
           });
       });
 
-    // Hotkeys section
     new Setting(containerEl).setName(t('settings.hotkeys')).setHeading();
 
     addHotkeySettingRow(containerEl, this.app, 'claudian:inline-edit', 'settings.inlineEditHotkey');
@@ -336,7 +319,6 @@ export class ClaudianSettingTab extends PluginSettingTab {
     addHotkeySettingRow(containerEl, this.app, 'claudian:new-tab', 'settings.newTabHotkey');
     addHotkeySettingRow(containerEl, this.app, 'claudian:close-current-tab', 'settings.closeTabHotkey');
 
-    // Slash Commands section
     new Setting(containerEl).setName(t('settings.slashCommands.name')).setHeading();
 
     const slashCommandsDesc = containerEl.createDiv({ cls: 'claudian-slash-settings-desc' });
@@ -348,7 +330,6 @@ export class ClaudianSettingTab extends PluginSettingTab {
     const slashCommandsContainer = containerEl.createDiv({ cls: 'claudian-slash-commands-container' });
     new SlashCommandSettings(slashCommandsContainer, this.plugin);
 
-    // Hidden Commands setting
     new Setting(containerEl)
       .setName(t('settings.hiddenSlashCommands.name'))
       .setDesc(t('settings.hiddenSlashCommands.desc'))
@@ -359,17 +340,15 @@ export class ClaudianSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.hiddenSlashCommands = value
               .split(/\r?\n/)
-              .map((s) => s.trim().replace(/^\//, ''))  // Remove leading / if present
+              .map((s) => s.trim().replace(/^\//, ''))
               .filter((s) => s.length > 0);
             await this.plugin.saveSettings();
-            // Update all open tabs immediately
             this.plugin.getView()?.updateHiddenSlashCommands();
           });
         text.inputEl.rows = 4;
         text.inputEl.cols = 30;
       });
 
-    // MCP Servers section
     new Setting(containerEl).setName(t('settings.mcpServers.name')).setHeading();
 
     const mcpDesc = containerEl.createDiv({ cls: 'claudian-mcp-settings-desc' });
@@ -381,7 +360,6 @@ export class ClaudianSettingTab extends PluginSettingTab {
     const mcpContainer = containerEl.createDiv({ cls: 'claudian-mcp-container' });
     new McpSettingsManager(mcpContainer, this.plugin);
 
-    // Claude Code Plugins section
     new Setting(containerEl).setName(t('settings.plugins.name')).setHeading();
 
     const pluginsDesc = containerEl.createDiv({ cls: 'claudian-plugin-settings-desc' });
@@ -393,7 +371,6 @@ export class ClaudianSettingTab extends PluginSettingTab {
     const pluginsContainer = containerEl.createDiv({ cls: 'claudian-plugins-container' });
     new PluginSettingsManager(pluginsContainer, this.plugin);
 
-    // Safety section
     new Setting(containerEl).setName(t('settings.safety')).setHeading();
 
     new Setting(containerEl)
@@ -428,7 +405,6 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .setName(t('settings.blockedCommands.name', { platform: platformLabel }))
       .setDesc(t('settings.blockedCommands.desc', { platform: platformLabel }))
       .addTextArea((text) => {
-        // Platform-aware placeholder
         const placeholder = isWindows
           ? 'del /s /q\nrd /s /q\nRemove-Item -Recurse -Force'
           : 'rm -rf\nchmod 777\nmkfs';
@@ -437,7 +413,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.blockedCommands[platformKey].join('\n'))
           .onChange(async (value) => {
             this.plugin.settings.blockedCommands[platformKey] = value
-              .split(/\r?\n/)  // Handle both Unix (LF) and Windows (CRLF) line endings
+              .split(/\r?\n/)
               .map((s) => s.trim())
               .filter((s) => s.length > 0);
             await this.plugin.saveSettings();
@@ -471,7 +447,6 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .setName(t('settings.exportPaths.name'))
       .setDesc(t('settings.exportPaths.desc'))
       .addTextArea((text) => {
-        // Platform-aware placeholder
         const placeholder = process.platform === 'win32'
           ? '~/Desktop\n~/Downloads\n%TEMP%'
           : '~/Desktop\n~/Downloads\n/tmp';
@@ -480,7 +455,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.allowedExportPaths.join('\n'))
           .onChange(async (value) => {
             this.plugin.settings.allowedExportPaths = value
-              .split(/\r?\n/)  // Handle both Unix (LF) and Windows (CRLF) line endings
+              .split(/\r?\n/)
               .map((s) => s.trim())
               .filter((s) => s.length > 0);
             await this.plugin.saveSettings();
@@ -490,7 +465,6 @@ export class ClaudianSettingTab extends PluginSettingTab {
         text.inputEl.addEventListener('blur', () => this.restartServiceForPromptChange());
       });
 
-    // Environment Variables section
     new Setting(containerEl).setName(t('settings.environment')).setHeading();
 
     new Setting(containerEl)
@@ -503,29 +477,22 @@ export class ClaudianSettingTab extends PluginSettingTab {
         text.inputEl.rows = 6;
         text.inputEl.cols = 50;
         text.inputEl.addClass('claudian-settings-env-textarea');
-        // Apply changes only on blur (when user exits the input field)
         text.inputEl.addEventListener('blur', async () => {
           await this.plugin.applyEnvironmentVariables(text.inputEl.value);
-          // Refresh context limits section to show/hide inputs for detected custom models
           this.renderContextLimitsSection();
         });
       });
 
-    // Custom Context Limits subsection (shown only when custom models are configured)
     this.contextLimitsContainer = containerEl.createDiv({ cls: 'claudian-context-limits-container' });
     this.renderContextLimitsSection();
 
-    // Environment Snippets subsection
     const envSnippetsContainer = containerEl.createDiv({ cls: 'claudian-env-snippets-container' });
     new EnvSnippetManager(envSnippetsContainer, this.plugin, () => {
-      // Callback to refresh context limits section when snippet is inserted
       this.renderContextLimitsSection();
     });
 
-    // Advanced section
     new Setting(containerEl).setName(t('settings.advanced')).setHeading();
 
-    // 1M context model toggle
     new Setting(containerEl)
       .setName(t('settings.show1MModel.name'))
       .setDesc(t('settings.show1MModel.desc'))
@@ -536,18 +503,15 @@ export class ClaudianSettingTab extends PluginSettingTab {
             this.plugin.settings.show1MModel = value;
             await this.plugin.saveSettings();
 
-            // Refresh model selector to show/hide model options
             const view = this.plugin.app.workspace.getLeavesOfType('claudian-view')[0]?.view as ClaudianView | undefined;
             view?.refreshModelSelector();
           })
       );
 
-    // Max tabs setting
     const maxTabsSetting = new Setting(containerEl)
       .setName(t('settings.maxTabs.name'))
       .setDesc(t('settings.maxTabs.desc'));
 
-    // Warning element for high tab count
     const maxTabsWarningEl = containerEl.createDiv({ cls: 'claudian-max-tabs-warning' });
     maxTabsWarningEl.style.color = 'var(--text-warning)';
     maxTabsWarningEl.style.fontSize = '0.85em';
@@ -570,14 +534,11 @@ export class ClaudianSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
           updateMaxTabsWarning(value);
         });
-      // Show warning on initial load if needed
       updateMaxTabsWarning(this.plugin.settings.maxTabs ?? 3);
     });
 
-    // Get hostname key for per-device CLI path storage
     const hostnameKey = getHostnameKey();
 
-    // Build description with hostname info
     const platformDesc = process.platform === 'win32'
       ? t('settings.cliPath.descWindows')
       : t('settings.cliPath.descUnix');
@@ -587,7 +548,6 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .setName(`${t('settings.cliPath.name')} (${hostnameKey})`)
       .setDesc(cliPathDescription);
 
-    // Create validation message element
     const validationEl = containerEl.createDiv({ cls: 'claudian-cli-path-validation' });
     validationEl.style.color = 'var(--text-error)';
     validationEl.style.fontSize = '0.85em';
@@ -612,12 +572,10 @@ export class ClaudianSettingTab extends PluginSettingTab {
     };
 
     cliPathSetting.addText((text) => {
-      // Platform-aware placeholder
       const placeholder = process.platform === 'win32'
         ? 'D:\\nodejs\\node_global\\node_modules\\@anthropic-ai\\claude-code\\cli.js'
         : '/usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js';
 
-      // Read from hostname-specific path
       const currentValue = this.plugin.settings.claudeCliPathsByHost?.[hostnameKey] || '';
 
       text
@@ -635,16 +593,12 @@ export class ClaudianSettingTab extends PluginSettingTab {
           }
 
           const trimmed = value.trim();
-          // Initialize claudeCliPathsByHost if needed
           if (!this.plugin.settings.claudeCliPathsByHost) {
             this.plugin.settings.claudeCliPathsByHost = {};
           }
-          // Write to hostname-specific path
           this.plugin.settings.claudeCliPathsByHost[hostnameKey] = trimmed;
           await this.plugin.saveSettings();
-          // Clear cached path so next query will use the new path
           this.plugin.cliResolver?.reset();
-          // Cleanup all tab services so they restart with the new CLI path
           const view = this.plugin.getView();
           await view?.getTabManager()?.broadcastToAllTabs(
             (service) => Promise.resolve(service.cleanup())
@@ -653,7 +607,6 @@ export class ClaudianSettingTab extends PluginSettingTab {
       text.inputEl.addClass('claudian-settings-cli-path-input');
       text.inputEl.style.width = '100%';
 
-      // Validate on initial load
       const initialError = validatePath(currentValue);
       if (initialError) {
         validationEl.setText(initialError);
@@ -663,37 +616,27 @@ export class ClaudianSettingTab extends PluginSettingTab {
     });
   }
 
-  /**
-   * Renders the custom context limits section.
-   * Shows input fields for each custom model detected via environment variables.
-   */
   private renderContextLimitsSection(): void {
     const container = this.contextLimitsContainer;
     if (!container) return;
 
     container.empty();
 
-    // Detect custom models from environment variables
     const envVars = parseEnvironmentVariables(this.plugin.settings.environmentVariables);
     const uniqueModelIds = getCustomModelIds(envVars);
 
-    // Don't render section if no custom models are detected
     if (uniqueModelIds.size === 0) {
       return;
     }
 
-    // Header (same hierarchy as EnvSnippetManager)
     const headerEl = container.createDiv({ cls: 'claudian-context-limits-header' });
     headerEl.createSpan({ text: t('settings.customContextLimits.name'), cls: 'claudian-context-limits-label' });
 
-    // Description
     const descEl = container.createDiv({ cls: 'claudian-context-limits-desc' });
     descEl.setText(t('settings.customContextLimits.desc'));
 
-    // List container for model inputs
     const listEl = container.createDiv({ cls: 'claudian-context-limits-list' });
 
-    // Create input for each unique model ID
     for (const modelId of uniqueModelIds) {
       const currentValue = this.plugin.settings.customContextLimits?.[modelId];
 
@@ -717,7 +660,6 @@ export class ClaudianSettingTab extends PluginSettingTab {
       inputEl.addEventListener('input', async () => {
         const trimmed = inputEl.value.trim();
 
-        // Initialize customContextLimits if needed
         if (!this.plugin.settings.customContextLimits) {
           this.plugin.settings.customContextLimits = {};
         }
@@ -746,10 +688,6 @@ export class ClaudianSettingTab extends PluginSettingTab {
     }
   }
 
-  /**
-   * Restarts the service to apply system prompt changes (userName, systemPrompt).
-   * This ensures prompt changes take effect immediately in active sessions.
-   */
   private async restartServiceForPromptChange(): Promise<void> {
     const view = this.plugin.getView();
     const tabManager = view?.getTabManager();

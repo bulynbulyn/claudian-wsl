@@ -1,10 +1,3 @@
-/**
- * Claudian - Async subagent lifecycle manager
- *
- * Manages background Task tool execution using a two-tool transaction model:
- * Task tool_use → task_id → TaskOutput → completed/error/orphaned.
- */
-
 import type {
   AsyncSubagentStatus,
   SubagentInfo,
@@ -15,7 +8,6 @@ import type {
 /** Callback for UI state updates when async subagent state changes. */
 export type AsyncSubagentStateChangeCallback = (subagent: SubagentInfo) => void;
 
-/** Manages async subagent lifecycle and state transitions. */
 export class AsyncSubagentManager {
   private activeAsyncSubagents: Map<string, SubagentInfo> = new Map();
   private pendingAsyncSubagents: Map<string, SubagentInfo> = new Map();

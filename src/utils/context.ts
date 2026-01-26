@@ -16,12 +16,10 @@ const CURRENT_NOTE_SUFFIX_REGEX = /\n\n<current_note>\n[\s\S]*?<\/current_note>$
  */
 export const XML_CONTEXT_PATTERN = /\n\n<(?:current_note|editor_selection|editor_cursor|context_files)[\s>]/;
 
-/** Formats current note in XML format. */
 export function formatCurrentNote(notePath: string): string {
   return `<current_note>\n${notePath}\n</current_note>`;
 }
 
-/** Appends current note to a prompt. */
 export function appendCurrentNote(prompt: string, notePath: string): string {
   return `${prompt}\n\n${formatCurrentNote(notePath)}`;
 }
@@ -42,14 +40,9 @@ export function stripCurrentNoteContext(prompt: string): string {
 
 /**
  * Extracts user content that appears before XML context tags.
- * Returns the content before any XML context tags, or undefined if no tags found.
- *
  * Handles two formats:
  * 1. Legacy: content inside <query> tags
  * 2. Current: user content first, context XML appended after
- *
- * @param text - The text to extract from
- * @returns The extracted content, or undefined if no XML context found
  */
 export function extractContentBeforeXmlContext(text: string): string | undefined {
   if (!text) return undefined;
@@ -95,16 +88,10 @@ export function extractUserQuery(prompt: string): string {
     .trim();
 }
 
-// ============================================
-// Context Files (for InlineEditService)
-// ============================================
-
-/** Formats context files in XML format (used by inline edit). */
 function formatContextFilesLine(files: string[]): string {
   return `<context_files>\n${files.join(', ')}\n</context_files>`;
 }
 
-/** Appends context files to a prompt (used by inline edit). */
 export function appendContextFiles(prompt: string, files: string[]): string {
   return `${prompt}\n\n${formatContextFilesLine(files)}`;
 }

@@ -1,7 +1,3 @@
-/**
- * Tools barrel export.
- */
-
 export {
   extractLastTodosFromMessages,
   parseTodoInput,

@@ -1,7 +1,3 @@
-/**
- * Shared module exports.
- */
-
 export {
   SelectableDropdown,
   type SelectableDropdownOptions,

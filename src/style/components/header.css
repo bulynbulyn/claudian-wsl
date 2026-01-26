@@ -22,7 +22,6 @@
   flex-shrink: 0;
 }
 
-/* Title text element */
 .claudian-title-text {
   margin: 0;
   font-size: 14px;
@@ -43,18 +42,15 @@
   margin-left: auto;
 }
 
-/* Header actions slot (in header mode) */
 .claudian-header-actions-slot {
   /* No margin-left: auto here; it's set by the base .claudian-header-actions */
 }
 
-/* Tab badges in header mode - flex display with gap */
 .claudian-header .claudian-tab-bar-container {
   display: flex;
   gap: 4px;
 }
 
-/* Header icon buttons (history, new, etc.) */
 .claudian-header-btn {
   display: flex;
   align-items: center;
@@ -76,7 +72,6 @@
   height: 16px;
 }
 
-/* New tab button icon slightly larger */
 .claudian-new-tab-btn svg {
   width: 16.8px;
   height: 16.8px;

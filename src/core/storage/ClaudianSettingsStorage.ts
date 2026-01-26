@@ -28,9 +28,6 @@ type SeparatelyLoadedFields = 'slashCommands';
 /** Settings stored in .claude/claudian-settings.json. */
 export type StoredClaudianSettings = Omit<ClaudianSettings, SeparatelyLoadedFields>;
 
-/**
- * Normalize a command list, filtering invalid entries.
- */
 function normalizeCommandList(value: unknown, fallback: string[]): string[] {
   if (!Array.isArray(value)) {
     return [...fallback];
@@ -42,9 +39,6 @@ function normalizeCommandList(value: unknown, fallback: string[]): string[] {
     .filter((item) => item.length > 0);
 }
 
-/**
- * Normalize platform-keyed blocked commands.
- */
 export function normalizeBlockedCommands(value: unknown): PlatformBlockedCommands {
   const defaults = getDefaultBlockedCommands();
 
@@ -67,9 +61,6 @@ export function normalizeBlockedCommands(value: unknown): PlatformBlockedCommand
   };
 }
 
-/**
- * Normalize hostname-keyed CLI paths.
- */
 function normalizeHostnameCliPaths(value: unknown): Record<string, string> {
   if (!value || typeof value !== 'object') {
     return {};
@@ -101,7 +92,6 @@ export class ClaudianSettingsStorage {
     const stored = JSON.parse(content) as Record<string, unknown>;
     const { activeConversationId: _activeConversationId, ...storedWithoutLegacy } = stored;
 
-    // Normalize complex fields
     const blockedCommands = normalizeBlockedCommands(stored.blockedCommands);
     const hostnameCliPaths = normalizeHostnameCliPaths(stored.claudeCliPathsByHost);
     const legacyCliPath = typeof stored.claudeCliPath === 'string' ? stored.claudeCliPath : '';
@@ -115,24 +105,15 @@ export class ClaudianSettingsStorage {
     } as StoredClaudianSettings;
   }
 
-  /**
-   * Save Claudian settings to .claude/claudian-settings.json.
-   */
   async save(settings: StoredClaudianSettings): Promise<void> {
     const content = JSON.stringify(settings, null, 2);
     await this.adapter.write(CLAUDIAN_SETTINGS_PATH, content);
   }
 
-  /**
-   * Check if settings file exists.
-   */
   async exists(): Promise<boolean> {
     return this.adapter.exists(CLAUDIAN_SETTINGS_PATH);
   }
 
-  /**
-   * Update specific fields in settings.
-   */
   async update(updates: Partial<StoredClaudianSettings>): Promise<void> {
     const current = await this.load();
     await this.save({ ...current, ...updates });
@@ -178,9 +159,6 @@ export class ClaudianSettingsStorage {
     await this.adapter.write(CLAUDIAN_SETTINGS_PATH, nextContent);
   }
 
-  /**
-   * Update last used model.
-   */
   async setLastModel(model: ClaudeModel, isCustom: boolean): Promise<void> {
     if (isCustom) {
       await this.update({ lastCustomModel: model });
@@ -189,9 +167,6 @@ export class ClaudianSettingsStorage {
     }
   }
 
-  /**
-   * Update environment hash.
-   */
   async setLastEnvHash(hash: string): Promise<void> {
     await this.update({ lastEnvHash: hash });
   }

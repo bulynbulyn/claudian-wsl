@@ -6,7 +6,6 @@
  */
 
 import * as de from './locales/de.json';
-// Import translation files from locales folder
 import * as en from './locales/en.json';
 import * as es from './locales/es.json';
 import * as fr from './locales/fr.json';
@@ -18,7 +17,6 @@ import * as zhCN from './locales/zh-CN.json';
 import * as zhTW from './locales/zh-TW.json';
 import type { Locale, TranslationKey } from './types';
 
-// Type-safe translation mapping
 const translations: Record<Locale, typeof en> = {
   en,
   'zh-CN': zhCN,
@@ -32,23 +30,16 @@ const translations: Record<Locale, typeof en> = {
   pt,
 };
 
-// Default locale
 const DEFAULT_LOCALE: Locale = 'en';
-
-// Current locale (can be changed at runtime)
 let currentLocale: Locale = DEFAULT_LOCALE;
 
 /**
  * Get a translation by key with optional parameters
- * @param key - Dot-notation key (e.g., 'settings.userName.name')
- * @param params - Optional parameters for string interpolation
- * @returns Translated string
  */
 export function t(key: TranslationKey, params?: Record<string, string | number>): string {
   const locale = currentLocale;
   const dict = translations[locale];
 
-  // Navigate nested object using dot notation
   const keys = key.split('.');
   let value: any = dict;
 
@@ -56,7 +47,6 @@ export function t(key: TranslationKey, params?: Record<string, string | number>)
     if (value && typeof value === 'object' && k in value) {
       value = value[k];
     } else {
-      // Fallback to English if key not found in current locale
       if (locale !== DEFAULT_LOCALE) {
         return tFallback(key, params);
       }
@@ -68,7 +58,6 @@ export function t(key: TranslationKey, params?: Record<string, string | number>)
     return key;
   }
 
-  // Replace placeholders {param}
   if (params) {
     return value.replace(/\{(\w+)\}/g, (_, param) => {
       return params[param]?.toString() ?? `{${param}}`;
@@ -78,12 +67,6 @@ export function t(key: TranslationKey, params?: Record<string, string | number>)
   return value;
 }
 
-/**
- * Fallback to English translation
- * @param key - Dot-notation translation key
- * @param params - Optional parameters for string interpolation
- * @returns English translation, or the key itself if not found
- */
 function tFallback(key: TranslationKey, params?: Record<string, string | number>): string {
   const dict = translations[DEFAULT_LOCALE];
   const keys = key.split('.');

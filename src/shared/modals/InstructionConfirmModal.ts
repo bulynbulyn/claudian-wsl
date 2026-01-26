@@ -12,17 +12,14 @@ import { Modal, TextAreaComponent } from 'obsidian';
 
 export type InstructionDecision = 'accept' | 'reject';
 
-/** Modal state. */
 type ModalState = 'loading' | 'clarification' | 'confirmation';
 
-/** Callbacks for the instruction modal. */
 export interface InstructionModalCallbacks {
   onAccept: (finalInstruction: string) => void;
   onReject: () => void;
   onClarificationSubmit: (response: string) => Promise<void>;
 }
 
-/** Unified modal for instruction mode. */
 export class InstructionModal extends Modal {
   private rawInstruction: string;
   private callbacks: InstructionModalCallbacks;
@@ -122,11 +119,9 @@ export class InstructionModal extends Modal {
     this.buttonsEl = contentEl.createDiv({ cls: 'claudian-instruction-buttons' });
     this.updateButtons();
 
-    // Start in loading state
     this.showState('loading');
   }
 
-  /** Shows clarification question from agent. */
   showClarification(clarification: string) {
     if (this.clarificationTextEl) {
       this.clarificationTextEl.setText(clarification);
@@ -139,7 +134,6 @@ export class InstructionModal extends Modal {
     this.responseTextarea?.inputEl.focus();
   }
 
-  /** Shows confirmation with refined instruction. */
   showConfirmation(refinedInstruction: string) {
     this.refinedInstruction = refinedInstruction;
 
@@ -153,14 +147,12 @@ export class InstructionModal extends Modal {
     this.showState('confirmation');
   }
 
-  /** Shows error and closes modal. */
   showError(error: string) {
     // Just close - the error notice will be shown by caller
     this.resolved = true;
     this.close();
   }
 
-  /** Updates the modal to show loading state during clarification submit. */
   showClarificationLoading() {
     this.isSubmitting = true;
     if (this.loadingEl) {

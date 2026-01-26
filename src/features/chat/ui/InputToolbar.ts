@@ -1,7 +1,3 @@
-/**
- * Claudian - Input toolbar components (model selector, thinking budget, permission toggle).
- */
-
 import { Notice, setIcon } from 'obsidian';
 import * as path from 'path';
 

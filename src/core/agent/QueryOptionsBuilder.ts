@@ -105,18 +105,9 @@ export interface ColdStartQueryContext extends QueryOptionsContext {
 // QueryOptionsBuilder
 // ============================================
 
-/**
- * Static builder for SDK Options and configuration objects.
- *
- * Design: Uses static methods rather than instance methods because the builder
- * is stateless - all state comes from the context parameter. This makes the
- * code easier to test and avoids needing to instantiate a builder object.
- */
+/** Static builder for SDK Options and configuration objects. */
 export class QueryOptionsBuilder {
   /**
-   * Checks if the persistent query needs to be restarted based on configuration changes.
-   *
-   * Compares current config against new config to detect changes that require restart.
    * Some changes (model, thinking tokens) can be updated dynamically; others require restart.
    */
   static needsRestart(
@@ -152,15 +143,7 @@ export class QueryOptionsBuilder {
     return false;
   }
 
-  /**
-   * Builds configuration object for tracking changes.
-   *
-   * Used to detect when the persistent query needs to be restarted
-   * due to configuration changes that cannot be applied dynamically.
-   *
-   * @param ctx - The query options context
-   * @param externalContextPaths - External context paths for additionalDirectories
-   */
+  /** Builds configuration snapshot for restart detection. */
   static buildPersistentQueryConfig(
     ctx: QueryOptionsContext,
     externalContextPaths?: string[]
@@ -201,20 +184,11 @@ export class QueryOptionsBuilder {
     };
   }
 
-  /**
-   * Builds SDK options for the persistent query.
-   *
-   * Persistent queries maintain a long-running connection to Claude,
-   * eliminating cold-start latency for follow-up messages.
-   */
+  /** Builds SDK options for the persistent query. */
   static buildPersistentQueryOptions(ctx: PersistentQueryContext): Options {
     const permissionMode = ctx.settings.permissionMode;
 
-    // Resolve model and optional beta flags (e.g., 1M context)
-    // If show1MModel is enabled, always include 1M beta to allow model switching without restart
     const resolved = resolveModelWithBetas(ctx.settings.model, ctx.settings.show1MModel);
-
-    // Build system prompt (agents are passed via Options.agents, not system prompt)
     const systemPrompt = buildSystemPrompt({
       mediaFolder: ctx.settings.mediaFolder,
       customPrompt: ctx.settings.systemPrompt,
@@ -237,75 +211,48 @@ export class QueryOptionsBuilder {
         ...ctx.customEnv,
         PATH: ctx.enhancedPath,
       },
-      includePartialMessages: true, // Enable streaming
+      includePartialMessages: true,
     };
 
-    // Add beta flags if present (e.g., 1M context window)
     if (resolved.betas) {
       options.betas = resolved.betas;
     }
 
-    // Pre-register all disabled MCP tools, unsupported SDK tools, and disabled subagents
-    const allDisallowedTools = [
+    options.disallowedTools = [
       ...ctx.mcpManager.getAllDisallowedMcpTools(),
       ...UNSUPPORTED_SDK_TOOLS,
       ...DISABLED_BUILTIN_SUBAGENTS,
     ];
-    options.disallowedTools = allDisallowedTools;
 
-    // Add plugins
     const pluginConfigs = ctx.pluginManager.getActivePluginConfigs();
     if (pluginConfigs.length > 0) {
       options.plugins = pluginConfigs;
     }
 
-    // Add custom agents via SDK native support
     QueryOptionsBuilder.applyAgents(options, ctx.agentManager);
-
-    // Set permission mode
     QueryOptionsBuilder.applyPermissionMode(options, permissionMode, ctx.canUseTool);
-
-    // Add thinking budget
     QueryOptionsBuilder.applyThinkingBudget(options, ctx.settings.thinkingBudget);
-
-    // Add hooks
     options.hooks = ctx.hooks;
 
-    // Resume session if provided
     if (ctx.resumeSessionId) {
       options.resume = ctx.resumeSessionId;
     }
 
-    // Add external context paths as additionalDirectories
     if (ctx.externalContextPaths && ctx.externalContextPaths.length > 0) {
       options.additionalDirectories = ctx.externalContextPaths;
     }
 
-    // Use custom spawn function to resolve full node path (fixes GUI app PATH issues)
     options.spawnClaudeCodeProcess = createCustomSpawnFunction(ctx.enhancedPath);
 
     return options;
   }
 
-  /**
-   * Builds SDK options for a cold-start query.
-   *
-   * Cold-start queries are used for:
-   * - Inline edit (separate context)
-   * - Title generation (lightweight)
-   * - Session recovery (interrupted or expired sessions)
-   * - When persistent query is not available
-   * - When forceColdStart option is set
-   */
+  /** Builds SDK options for a cold-start query. */
   static buildColdStartQueryOptions(ctx: ColdStartQueryContext): Options {
     const permissionMode = ctx.settings.permissionMode;
 
-    // Resolve model and optional beta flags (e.g., 1M context)
-    // If show1MModel is enabled, always include 1M beta to allow model switching without restart
     const selectedModel = ctx.modelOverride ?? ctx.settings.model;
     const resolved = resolveModelWithBetas(selectedModel, ctx.settings.show1MModel);
-
-    // Build system prompt (agents are passed via Options.agents, not system prompt)
     const systemPrompt = buildSystemPrompt({
       mediaFolder: ctx.settings.mediaFolder,
       customPrompt: ctx.settings.systemPrompt,
@@ -320,10 +267,7 @@ export class QueryOptionsBuilder {
       model: resolved.model,
       abortController: ctx.abortController,
       pathToClaudeCodeExecutable: ctx.cliPath,
-      // Load project settings. Optionally load user settings if enabled.
-      // Note: User settings (~/.claude/settings.json) may contain permission rules
-      // that bypass Claudian's permission system. Skills from ~/.claude/skills/
-      // are still discovered regardless (not in settings.json).
+      // User settings may contain permission rules that bypass Claudian's permission system
       settingSources: ctx.settings.loadUserClaudeSettings
         ? ['user', 'project']
         : ['project'],
@@ -332,15 +276,13 @@ export class QueryOptionsBuilder {
         ...ctx.customEnv,
         PATH: ctx.enhancedPath,
       },
-      includePartialMessages: true, // Enable streaming
+      includePartialMessages: true,
     };
 
-    // Add beta flags if present (e.g., 1M context window)
     if (resolved.betas) {
       options.betas = resolved.betas;
     }
 
-    // Add MCP servers to options
     const mcpMentions = ctx.mcpMentions || new Set<string>();
     const uiEnabledServers = ctx.enabledMcpServers || new Set<string>();
     const combinedMentions = new Set([...mcpMentions, ...uiEnabledServers]);
@@ -350,7 +292,6 @@ export class QueryOptionsBuilder {
       options.mcpServers = mcpServers;
     }
 
-    // Disallow MCP tools from inactive servers, unsupported SDK tools, and disabled subagents
     const disallowedMcpTools = ctx.mcpManager.getDisallowedMcpTools(combinedMentions);
     options.disallowedTools = [
       ...disallowedMcpTools,
@@ -358,48 +299,33 @@ export class QueryOptionsBuilder {
       ...DISABLED_BUILTIN_SUBAGENTS,
     ];
 
-    // Add plugins
     const pluginConfigs = ctx.pluginManager.getActivePluginConfigs();
     if (pluginConfigs.length > 0) {
       options.plugins = pluginConfigs;
     }
 
-    // Add custom agents via SDK native support
     QueryOptionsBuilder.applyAgents(options, ctx.agentManager);
-
-    // Set permission mode
     QueryOptionsBuilder.applyPermissionMode(options, permissionMode, ctx.canUseTool);
-
-    // Add hooks
     options.hooks = ctx.hooks;
-
-    // Add thinking budget
     QueryOptionsBuilder.applyThinkingBudget(options, ctx.settings.thinkingBudget);
 
-    // Apply tool restriction for cold-start queries
     if (ctx.allowedTools !== undefined && ctx.allowedTools.length > 0) {
       options.tools = ctx.allowedTools;
     }
 
-    // Resume previous session if we have a session ID
     if (ctx.sessionId) {
       options.resume = ctx.sessionId;
     }
 
-    // Add external context paths as additionalDirectories
     if (ctx.externalContextPaths && ctx.externalContextPaths.length > 0) {
       options.additionalDirectories = ctx.externalContextPaths;
     }
 
-    // Use custom spawn function to resolve full node path (fixes GUI app PATH issues)
     options.spawnClaudeCodeProcess = createCustomSpawnFunction(ctx.enhancedPath);
 
     return options;
   }
 
-  /**
-   * Gets active MCP servers and their configuration for dynamic updates.
-   */
   static getMcpServersConfig(
     mcpManager: McpServerManager,
     mcpMentions?: Set<string>,
@@ -421,18 +347,14 @@ export class QueryOptionsBuilder {
   // ============================================
 
   /**
-   * Applies permission mode settings to options.
-   *
    * Always sets allowDangerouslySkipPermissions: true to enable dynamic
-   * switching between permission modes via setPermissionMode() without
-   * requiring a process restart. This mimics Claude Code CLI behavior.
+   * switching between permission modes without requiring a process restart.
    */
   private static applyPermissionMode(
     options: Options,
     permissionMode: PermissionMode,
     canUseTool?: CanUseTool
   ): void {
-    // Always enable bypass capability so we can dynamically switch modes
     options.allowDangerouslySkipPermissions = true;
 
     if (permissionMode === 'yolo') {
@@ -445,9 +367,6 @@ export class QueryOptionsBuilder {
     }
   }
 
-  /**
-   * Applies thinking budget settings to options.
-   */
   private static applyThinkingBudget(
     options: Options,
     budgetSetting: string
@@ -458,9 +377,6 @@ export class QueryOptionsBuilder {
     }
   }
 
-  /**
-   * Compares two path arrays for equality (order-independent).
-   */
   private static pathsChanged(a?: string[], b?: string[]): boolean {
     const aKey = [...(a || [])].sort().join('|');
     const bKey = [...(b || [])].sort().join('|');
@@ -477,12 +393,6 @@ export class QueryOptionsBuilder {
     }
   }
 
-  /**
-   * Converts Claudian agent definitions to SDK format.
-   *
-   * @param agents - Array of Claudian agent definitions
-   * @returns Record of agent ID to SDK agent definition
-   */
   private static buildSdkAgentsRecord(
     agents: AgentDefinition[]
   ): Record<string, SdkAgentDefinition> {

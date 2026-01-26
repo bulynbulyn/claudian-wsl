@@ -1,8 +1,3 @@
-/**
- * File context session state.
- */
-
-/** Escape special regex characters in a string. */
 function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

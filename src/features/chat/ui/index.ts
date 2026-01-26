@@ -1,7 +1,3 @@
-/**
- * Chat UI module exports.
- */
-
 export { type FileContextCallbacks,FileContextManager } from './FileContext';
 export { type ImageContextCallbacks,ImageContextManager } from './ImageContext';
 export {

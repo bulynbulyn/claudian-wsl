@@ -1,9 +1,3 @@
-/**
- * Claudian - Image context manager
- *
- * Manages image attachments via drag/drop and paste.
- */
-
 import { Notice } from 'obsidian';
 import * as path from 'path';
 
@@ -19,12 +13,10 @@ const IMAGE_EXTENSIONS: Record<string, ImageMediaType> = {
   '.webp': 'image/webp',
 };
 
-/** Callbacks for image context interactions. */
 export interface ImageContextCallbacks {
   onImagesChanged: () => void;
 }
 
-/** Manages image attachments via drag/drop and paste. */
 export class ImageContextManager {
   private callbacks: ImageContextCallbacks;
   private containerEl: HTMLElement;

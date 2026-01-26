@@ -115,7 +115,6 @@ async function testStdioServer(server: ClaudianMcpServer): Promise<McpTestResult
       child.stdout?.on('data', (data) => {
         stdout += data.toString();
 
-        // Parse each line
         const lines = stdout.split('\n');
         stdout = lines.pop() || ''; // Keep incomplete line
 
@@ -130,7 +129,6 @@ async function testStdioServer(server: ClaudianMcpServer): Promise<McpTestResult
             // Handle initialize response (id: 1)
             if (msg.id === 1) {
               if (msg.error) {
-                // Initialize failed
                 if (!resolved) {
                   resolved = true;
                   clearTimeout(timeout);
@@ -158,7 +156,6 @@ async function testStdioServer(server: ClaudianMcpServer): Promise<McpTestResult
                 };
                 child?.stdin?.write(JSON.stringify(initializedNotification) + '\n');
 
-                // Send tools/list request
                 const toolsRequest = {
                   jsonrpc: '2.0',
                   id: 2,
@@ -204,7 +201,6 @@ async function testStdioServer(server: ClaudianMcpServer): Promise<McpTestResult
               return;
             }
 
-            // Ignore all other messages (notifications, errors for unknown methods, etc.)
           } catch {
             // Not valid JSON, continue
           }
@@ -249,7 +245,6 @@ async function testStdioServer(server: ClaudianMcpServer): Promise<McpTestResult
         }
       });
 
-      // Send MCP initialize request
       const initRequest = {
         jsonrpc: '2.0',
         id: 1,
@@ -320,17 +315,15 @@ function httpRequest(
 function parseJsonOrSse(data: string): Record<string, unknown> | null {
   const trimmed = data.trim();
 
-  // Try parsing as JSON first
   try {
     return JSON.parse(trimmed);
   } catch {
-    // May be SSE format - extract JSON from data lines
     const dataMatch = trimmed.match(/^data:\s*(.+)$/m);
     if (dataMatch) {
       try {
         return JSON.parse(dataMatch[1]);
       } catch {
-        // Not valid JSON in SSE
+        // Not valid JSON
       }
     }
   }
@@ -381,7 +374,6 @@ async function testHttpServer(server: ClaudianMcpServer): Promise<McpTestResult>
         let serverName: string | undefined;
         let serverVersion: string | undefined;
 
-        // Parse response - may be JSON or SSE format
         const initResult = parseJsonOrSse(initResponse.data);
 
         if (!initResult) {
@@ -431,7 +423,6 @@ async function testHttpServer(server: ClaudianMcpServer): Promise<McpTestResult>
 
         const toolsResponse = await httpRequest(url, headers, toolsRequest);
 
-        // Parse tools response - may be JSON or SSE format
         const toolsResult = parseJsonOrSse(toolsResponse.data);
         clearTimeout(timeout);
 

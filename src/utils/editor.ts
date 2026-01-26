@@ -32,7 +32,6 @@ export interface EditorSelectionContext {
   startLine?: number; // 1-indexed starting line number
 }
 
-/** Helper to find nearest non-empty line in a direction. */
 export function findNearestNonEmptyLine(
   getLine: (line: number) => string,
   lineCount: number,
@@ -49,13 +48,7 @@ export function findNearestNonEmptyLine(
   return '';
 }
 
-/**
- * Builds cursor context for inline edit cursor mode.
- * @param getLine Function to get line content by index (0-indexed)
- * @param lineCount Total number of lines in document
- * @param line Cursor line (0-indexed)
- * @param column Cursor column
- */
+/** All line/column params are 0-indexed. */
 export function buildCursorContext(
   getLine: (line: number) => string,
   lineCount: number,
@@ -75,16 +68,13 @@ export function buildCursorContext(
   let contextAfter = afterCursor;
 
   if (isInbetween) {
-    // Find nearest non-empty line before cursor
     contextBefore = findNearestNonEmptyLine(getLine, lineCount, line, 'before');
-    // Find nearest non-empty line after cursor
     contextAfter = findNearestNonEmptyLine(getLine, lineCount, line, 'after');
   }
 
   return { beforeCursor: contextBefore, afterCursor: contextAfter, isInbetween, line, column };
 }
 
-/** Formats editor context in XML format. */
 export function formatEditorContext(context: EditorSelectionContext): string {
   if (context.mode === 'selection' && context.selectedText) {
     const lineAttr = context.startLine && context.lineCount
@@ -108,7 +98,6 @@ export function formatEditorContext(context: EditorSelectionContext): string {
   return '';
 }
 
-/** Appends editor context to a prompt. */
 export function appendEditorContext(prompt: string, context: EditorSelectionContext): string {
   const formatted = formatEditorContext(context);
   return formatted ? `${prompt}\n\n${formatted}` : prompt;

@@ -15,13 +15,11 @@ import { getPathFromToolInput } from '../tools/toolInput';
 import { isEditTool, isFileTool, TOOL_BASH } from '../tools/toolNames';
 import { getBashToolBlockedCommands, type PlatformBlockedCommands } from '../types';
 
-/** Context for blocklist checking. */
 export interface BlocklistContext {
   blockedCommands: PlatformBlockedCommands;
   enableBlocklist: boolean;
 }
 
-/** Context for vault restriction checking. */
 export interface VaultRestrictionContext {
   getPathAccessType: (filePath: string) => PathAccessType;
 }
@@ -98,12 +96,10 @@ export function createVaultRestrictionHook(context: VaultRestrictionContext): Ho
           return { continue: true };
         }
 
-        // Skip if not a file-related tool
         if (!isFileTool(toolName)) {
           return { continue: true };
         }
 
-        // Get the path from tool input
         const filePath = getPathFromToolInput(toolName, input.tool_input);
 
         if (filePath) {

@@ -1,9 +1,3 @@
-/**
- * Todo list parser.
- *
- * Re-export core todo helpers for UI usage.
- */
-
 export {
   extractLastTodosFromMessages,
   parseTodoInput,

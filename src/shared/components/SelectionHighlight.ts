@@ -68,12 +68,10 @@ function createSelectionHighlighter(): SelectionHighlighter {
 
 const defaultHighlighter = createSelectionHighlighter();
 
-/** Shows selection highlight on the given range. */
 export function showSelectionHighlight(editorView: EditorView, from: number, to: number): void {
   defaultHighlighter.show(editorView, from, to);
 }
 
-/** Hides selection highlight. */
 export function hideSelectionHighlight(editorView: EditorView): void {
   defaultHighlighter.hide(editorView);
 }

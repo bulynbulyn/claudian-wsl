@@ -1,7 +1,3 @@
-/**
- * @ mention dropdown controller.
- */
-
 import type { TFile } from 'obsidian';
 import { setIcon } from 'obsidian';
 
@@ -28,7 +24,6 @@ export interface MentionDropdownCallbacks {
   /** Attach context file with display name to absolute path mapping. */
   onAttachContextFile?: (displayName: string, absolutePath: string) => void;
   onMcpMentionChange?: (servers: Set<string>) => void;
-  /** Called when an agent is selected from the dropdown. */
   onAgentMentionSelect?: (agentId: string) => void;
   getMentionedMcpServers: () => Set<string>;
   setMentionedMcpServers: (mentions: Set<string>) => boolean;
@@ -242,7 +237,6 @@ export class MentionDropdownController {
     const isFilterSearch = searchText.includes('/');
     let fileSearchText = searchLower;
 
-    // Check for @Agents/ filter
     if (isFilterSearch && searchLower.startsWith('agents/')) {
       this.activeAgentFilter = true;
       this.activeContextFilter = null;
@@ -332,7 +326,6 @@ export class MentionDropdownController {
       }
     }
 
-    // Add @Agents folder entry if there are any agents and it matches the search
     if (this.agentService) {
       const hasAgents = this.agentService.searchAgents('').length > 0;
       if (hasAgents && 'agents'.includes(searchLower)) {
@@ -486,7 +479,6 @@ export class MentionDropdownController {
   }
 
   private returnToFirstLevel(): void {
-    // Reset input to just '@'
     const text = this.inputEl.value;
     const beforeAt = text.substring(0, this.mentionStartIndex);
     const cursorPos = this.inputEl.selectionStart || 0;
@@ -495,11 +487,9 @@ export class MentionDropdownController {
     this.inputEl.value = beforeAt + '@' + afterCursor;
     this.inputEl.selectionStart = this.inputEl.selectionEnd = beforeAt.length + 1;
 
-    // Clear filter state
     this.activeContextFilter = null;
     this.activeAgentFilter = false;
 
-    // Show first level dropdown
     this.showMentionDropdown('');
   }
 
@@ -530,12 +520,10 @@ export class MentionDropdownController {
       this.showMentionDropdown('Agents/');
       return;
     } else if (selectedItem.type === 'agent') {
-      // Insert agent mention with (agent) suffix
       const replacement = `@${selectedItem.id} (agent) `;
       this.inputEl.value = beforeAt + replacement + afterCursor;
       this.inputEl.selectionStart = this.inputEl.selectionEnd = beforeAt.length + replacement.length;
 
-      // Notify callback with agent ID
       this.callbacks.onAgentMentionSelect?.(selectedItem.id);
     } else if (selectedItem.type === 'context-folder') {
       const replacement = `@${selectedItem.name}/`;
@@ -552,7 +540,6 @@ export class MentionDropdownController {
         : `@${selectedItem.name}`;
 
       if (selectedItem.absolutePath) {
-        // Use context file callback if available, fallback to regular attach
         if (this.callbacks.onAttachContextFile) {
           this.callbacks.onAttachContextFile(displayName, selectedItem.absolutePath);
         } else {

@@ -1,7 +1,3 @@
-/**
- * Security modules barrel export.
- */
-
 export {
   type AddAllowRuleCallback,
   type AddDenyRuleCallback,

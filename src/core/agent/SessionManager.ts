@@ -84,12 +84,10 @@ export class SessionManager {
     this.state.sessionInvalidated = false;
   }
 
-  /** Check if history rebuild is needed due to session mismatch. */
   needsHistoryRebuild(): boolean {
     return this.state.needsHistoryRebuild;
   }
 
-  /** Clear the history rebuild flag after injecting history. */
   clearHistoryRebuild(): void {
     this.state.needsHistoryRebuild = false;
   }

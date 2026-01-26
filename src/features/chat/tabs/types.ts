@@ -1,10 +1,3 @@
-/**
- * Type definitions for the multi-tab system.
- *
- * Each tab represents an independent chat conversation with its own
- * ClaudianService instance for concurrent streaming support.
- */
-
 import type { Component, WorkspaceLeaf } from 'obsidian';
 
 import type { ClaudianService } from '../../../core/agent';

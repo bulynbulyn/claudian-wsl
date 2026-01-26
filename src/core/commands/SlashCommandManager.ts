@@ -20,12 +20,10 @@ export class SlashCommandManager {
     }
   }
 
-  /** Gets all registered commands. */
   getCommands(): SlashCommand[] {
     return Array.from(this.commands.values());
   }
 
-  /** Gets a command by name. */
   getCommand(name: string): SlashCommand | undefined {
     return this.commands.get(name.toLowerCase());
   }

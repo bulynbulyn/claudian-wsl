@@ -5,14 +5,6 @@
  * Patterns are treated as case-insensitive regex with fallback to substring match.
  */
 
-/**
- * Check if a bash command should be blocked by user-defined patterns.
- *
- * @param command - The bash command to check
- * @param patterns - Array of blocklist patterns (regex or substring)
- * @param enableBlocklist - Whether blocklist checking is enabled
- * @returns true if the command should be blocked
- */
 export function isCommandBlocked(
   command: string,
   patterns: string[],

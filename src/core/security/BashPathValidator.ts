@@ -9,7 +9,6 @@ import * as path from 'path';
 
 import type { PathAccessType } from '../../utils/path';
 
-/** Result of a path violation check */
 export type PathViolation =
   | { type: 'outside_vault'; path: string }
   | { type: 'export_path_read'; path: string };
@@ -87,17 +86,14 @@ export function getBashSegmentCommandName(segment: string[]): { cmdName: string;
   return { cmdName, cmdIndex };
 }
 
-/** Check if token is a bash output redirect operator */
 export function isBashOutputRedirectOperator(token: string): boolean {
   return token === '>' || token === '>>' || token === '1>' || token === '1>>' || token === '2>' || token === '2>>' || token === '&>' || token === '&>>' || token === '>|';
 }
 
-/** Check if token is a bash input redirect operator */
 export function isBashInputRedirectOperator(token: string): boolean {
   return token === '<' || token === '<<' || token === '0<' || token === '0<<';
 }
 
-/** Check if token is an output option expecting a value */
 export function isBashOutputOptionExpectingValue(token: string): boolean {
   return token === '-o' || token === '--output' || token === '--out' || token === '--outfile' || token === '--output-file';
 }
@@ -107,7 +103,6 @@ export function cleanPathToken(raw: string): string | null {
   let token = raw.trim();
   if (!token) return null;
 
-  // Strip surrounding quotes/backticks if present.
   if (
     (token.startsWith('"') && token.endsWith('"')) ||
     (token.startsWith("'") && token.endsWith("'")) ||
@@ -145,7 +140,6 @@ export function cleanPathToken(raw: string): string | null {
   return token;
 }
 
-/** Check if a token looks like a file path */
 export function isPathLikeToken(token: string): boolean {
   const cleaned = token.trim();
   if (!cleaned) return false;

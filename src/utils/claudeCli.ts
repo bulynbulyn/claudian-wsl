@@ -35,7 +35,6 @@ export class ClaudeCliResolver {
     const normalizedLegacy = (legacyPath ?? '').trim();
     const normalizedEnv = envText ?? '';
 
-    // Cache check
     if (
       this.resolvedPath &&
       hostnamePath === this.lastHostnamePath &&
@@ -49,7 +48,6 @@ export class ClaudeCliResolver {
     this.lastLegacyPath = normalizedLegacy;
     this.lastEnvText = normalizedEnv;
 
-    // Resolution priority: hostname-specific -> legacy -> auto-detect
     this.resolvedPath = resolveClaudeCliPath(hostnamePath, normalizedLegacy, normalizedEnv);
     return this.resolvedPath;
   }
@@ -73,7 +71,6 @@ export function resolveClaudeCliPath(
   legacyPath: string | undefined,
   envText: string
 ): string | null {
-  // Try hostname-specific path first (highest priority)
   const trimmedHostname = (hostnamePath ?? '').trim();
   if (trimmedHostname) {
     try {
@@ -85,11 +82,10 @@ export function resolveClaudeCliPath(
         }
       }
     } catch {
-      // Silently fall through to next resolution method
+      // Fall through to next resolution method
     }
   }
 
-  // Fall back to legacy path
   const trimmedLegacy = (legacyPath ?? '').trim();
   if (trimmedLegacy) {
     try {
@@ -101,11 +97,10 @@ export function resolveClaudeCliPath(
         }
       }
     } catch {
-      // Silently fall through to auto-detect
+      // Fall through to auto-detect
     }
   }
 
-  // Auto-detect
   const customEnv = parseEnvironmentVariables(envText || '');
   return findClaudeCLIPath(customEnv.PATH);
 }

@@ -1,7 +1,3 @@
-/**
- * Hooks barrel export.
- */
-
 export {
   type BlocklistContext,
   createBlocklistHook,

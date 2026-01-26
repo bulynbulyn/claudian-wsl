@@ -1,9 +1,3 @@
-/**
- * Agent module barrel export.
- *
- * Provides the Claude Agent SDK wrapper and supporting infrastructure.
- */
-
 export { type ApprovalCallback, ClaudianService, type QueryOptions } from './ClaudianService';
 export { MessageChannel } from './MessageChannel';
 export {

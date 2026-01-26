@@ -15,7 +15,6 @@ export interface SystemPromptSettings {
   userName?: string;
 }
 
-/** Returns the base system prompt with core instructions. */
 function getBaseSystemPrompt(vaultPath?: string, userName?: string): string {
   const vaultInfo = vaultPath ? `\n\nVault absolute path: ${vaultPath}` : '';
   const trimmedUserName = userName?.trim();
@@ -221,7 +220,6 @@ possibly multiple lines
 **When present:** The user selected this text before sending their message. Use this context to understand what they're referring to.`;
 }
 
-/** Returns instructions for handling embedded images in notes. */
 function getImageInstructions(mediaFolder: string): string {
   const folder = mediaFolder.trim();
   const mediaPath = folder ? './' + folder : '.';
@@ -256,7 +254,7 @@ Then read with \`Read file_path="${examplePath}$img_name"\`, and replace the mar
 
 /** Returns instructions for allowed export paths (write-only paths outside vault). */
 function getExportInstructions(allowedExportPaths: string[]): string {
-  if (!allowedExportPaths || allowedExportPaths.length === 0) {
+  if (allowedExportPaths.length === 0) {
     return '';
   }
 
@@ -284,7 +282,6 @@ cp ./note.md ~/Desktop/note.md
 }
 
 
-/** Builds the complete system prompt with optional custom settings. */
 export function buildSystemPrompt(settings: SystemPromptSettings = {}): string {
   let prompt = getBaseSystemPrompt(settings.vaultPath, settings.userName);
 

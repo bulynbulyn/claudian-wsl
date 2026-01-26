@@ -12,7 +12,6 @@ export interface McpStorageAdapter {
   load(): Promise<ClaudianMcpServer[]>;
 }
 
-/** Manages MCP server configurations. */
 export class McpServerManager {
   private servers: ClaudianMcpServer[] = [];
   private storage: McpStorageAdapter;
@@ -21,17 +20,14 @@ export class McpServerManager {
     this.storage = storage;
   }
 
-  /** Load servers from storage. */
   async loadServers(): Promise<void> {
     this.servers = await this.storage.load();
   }
 
-  /** Get all loaded servers. */
   getServers(): ClaudianMcpServer[] {
     return this.servers;
   }
 
-  /** Get enabled servers count. */
   getEnabledCount(): number {
     return this.servers.filter((s) => s.enabled).length;
   }
@@ -102,24 +98,19 @@ export class McpServerManager {
     const disallowed = new Set<string>();
 
     for (const server of this.servers) {
-      try {
-        if (!server.enabled) continue;
-        if (!server.disabledTools || server.disabledTools.length === 0) continue;
+      if (!server.enabled) continue;
+      if (!server.disabledTools || server.disabledTools.length === 0) continue;
 
-        for (const tool of server.disabledTools) {
-          const normalized = tool.trim();
-          if (!normalized) continue;
-          disallowed.add(`mcp__${server.name}__${normalized}`);
-        }
-      } catch {
-        // Skip malformed server configs
+      for (const tool of server.disabledTools) {
+        const normalized = tool.trim();
+        if (!normalized) continue;
+        disallowed.add(`mcp__${server.name}__${normalized}`);
       }
     }
 
     return Array.from(disallowed).sort();
   }
 
-  /** Check if any MCP servers are configured. */
   hasServers(): boolean {
     return this.servers.length > 0;
   }

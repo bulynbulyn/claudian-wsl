@@ -44,7 +44,6 @@ export interface AgentFolderMentionItem {
   name: string;
 }
 
-/** Provider interface for agent mentions in the dropdown. */
 export interface AgentMentionProvider {
   searchAgents: (query: string) => Array<{
     id: string;

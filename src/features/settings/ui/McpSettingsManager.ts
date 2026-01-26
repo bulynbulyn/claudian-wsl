@@ -1,10 +1,3 @@
-/**
- * Claudian - MCP Settings Manager
- *
- * Component for managing MCP servers in the settings tab.
- * Displays server list with status indicators and action buttons.
- */
-
 import { Notice, setIcon } from 'obsidian';
 
 import { testMcpServer } from '../../../core/mcp/McpTester';
@@ -15,7 +8,6 @@ import type ClaudianPlugin from '../../../main';
 import { McpServerModal } from './McpServerModal';
 import { McpTestModal } from './McpTestModal';
 
-/** Component for managing MCP servers in settings tab. */
 export class McpSettingsManager {
   private containerEl: HTMLElement;
   private plugin: ClaudianPlugin;
@@ -48,11 +40,9 @@ export class McpSettingsManager {
   private render() {
     this.containerEl.empty();
 
-    // Header with Add dropdown
     const headerEl = this.containerEl.createDiv({ cls: 'claudian-mcp-header' });
     headerEl.createSpan({ text: 'MCP Servers', cls: 'claudian-mcp-label' });
 
-    // Add button with dropdown
     const addContainer = headerEl.createDiv({ cls: 'claudian-mcp-add-container' });
     const addBtn = addContainer.createEl('button', {
       cls: 'claudian-settings-action-btn',
@@ -86,25 +76,21 @@ export class McpSettingsManager {
       this.importFromClipboard();
     });
 
-    // Toggle dropdown on button click
     addBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       dropdown.toggleClass('is-visible', !dropdown.hasClass('is-visible'));
     });
 
-    // Close dropdown when clicking outside
     document.addEventListener('click', () => {
       dropdown.removeClass('is-visible');
     });
 
-    // Empty state
     if (this.servers.length === 0) {
       const emptyEl = this.containerEl.createDiv({ cls: 'claudian-mcp-empty' });
       emptyEl.setText('No MCP servers configured. Click "Add" to add one.');
       return;
     }
 
-    // Server list
     const listEl = this.containerEl.createDiv({ cls: 'claudian-mcp-list' });
     for (const server of this.servers) {
       this.renderServerItem(listEl, server);
@@ -117,34 +103,28 @@ export class McpSettingsManager {
       itemEl.addClass('claudian-mcp-item-disabled');
     }
 
-    // Status indicator (colored dot)
     const statusEl = itemEl.createDiv({ cls: 'claudian-mcp-status' });
     statusEl.addClass(
       server.enabled ? 'claudian-mcp-status-enabled' : 'claudian-mcp-status-disabled'
     );
 
-    // Info section
     const infoEl = itemEl.createDiv({ cls: 'claudian-mcp-info' });
 
-    // Name row with badges
     const nameRow = infoEl.createDiv({ cls: 'claudian-mcp-name-row' });
 
     const nameEl = nameRow.createSpan({ cls: 'claudian-mcp-name' });
     nameEl.setText(server.name);
 
-    // Type badge
     const serverType = getMcpServerType(server.config);
     const typeEl = nameRow.createSpan({ cls: 'claudian-mcp-type-badge' });
     typeEl.setText(serverType);
 
-    // Context-saving badge
     if (server.contextSaving) {
       const csEl = nameRow.createSpan({ cls: 'claudian-mcp-context-saving-badge' });
       csEl.setText('@');
       csEl.setAttribute('title', 'Context-saving: mention with @' + server.name + ' to enable');
     }
 
-    // Description or command preview
     const previewEl = infoEl.createDiv({ cls: 'claudian-mcp-preview' });
     if (server.description) {
       previewEl.setText(server.description);
@@ -152,10 +132,8 @@ export class McpSettingsManager {
       previewEl.setText(this.getServerPreview(server, serverType));
     }
 
-    // Actions
     const actionsEl = itemEl.createDiv({ cls: 'claudian-mcp-actions' });
 
-    // Verify button (shows tools)
     const testBtn = actionsEl.createEl('button', {
       cls: 'claudian-mcp-action-btn',
       attr: { 'aria-label': 'Verify (show tools)' },
@@ -163,7 +141,6 @@ export class McpSettingsManager {
     setIcon(testBtn, 'zap');
     testBtn.addEventListener('click', () => this.testServer(server));
 
-    // Enable/disable toggle button
     const toggleBtn = actionsEl.createEl('button', {
       cls: 'claudian-mcp-action-btn',
       attr: { 'aria-label': server.enabled ? 'Disable' : 'Enable' },
@@ -171,7 +148,6 @@ export class McpSettingsManager {
     setIcon(toggleBtn, server.enabled ? 'toggle-right' : 'toggle-left');
     toggleBtn.addEventListener('click', () => this.toggleServer(server));
 
-    // Edit button
     const editBtn = actionsEl.createEl('button', {
       cls: 'claudian-mcp-action-btn',
       attr: { 'aria-label': 'Edit' },
@@ -179,7 +155,6 @@ export class McpSettingsManager {
     setIcon(editBtn, 'pencil');
     editBtn.addEventListener('click', () => this.openModal(server));
 
-    // Delete button
     const deleteBtn = actionsEl.createEl('button', {
       cls: 'claudian-mcp-action-btn claudian-mcp-delete-btn',
       attr: { 'aria-label': 'Delete' },
@@ -210,10 +185,7 @@ export class McpSettingsManager {
     }
   }
 
-  /**
-   * Helper to update server.disabledTools with save and reload.
-   * Rolls back on save failure; warns on reload failure (since save succeeded).
-   */
+  /** Rolls back on save failure; warns on reload failure (since save succeeded). */
   private async updateServerDisabledTools(
     server: ClaudianMcpServer,
     newDisabledTools: string[] | undefined
@@ -298,7 +270,6 @@ export class McpSettingsManager {
         return;
       }
 
-      // If needs name or single server, open modal with pre-filled data
       if (parsed.needsName || parsed.servers.length === 1) {
         const server = parsed.servers[0];
         const type = getMcpServerType(server.config);
@@ -319,7 +290,6 @@ export class McpSettingsManager {
         return;
       }
 
-      // Multiple servers - import them all
       await this.importServers(parsed.servers);
     } catch {
       new Notice('Failed to read clipboard');
@@ -328,10 +298,8 @@ export class McpSettingsManager {
 
   private async saveServer(server: ClaudianMcpServer, existing: ClaudianMcpServer | null) {
     if (existing) {
-      // Update existing server
       const index = this.servers.findIndex((s) => s.name === existing.name);
       if (index !== -1) {
-        // If name changed, check for conflicts
         if (server.name !== existing.name) {
           const conflict = this.servers.find((s) => s.name === server.name);
           if (conflict) {
@@ -342,7 +310,6 @@ export class McpSettingsManager {
         this.servers[index] = server;
       }
     } else {
-      // Add new server - check for name conflict
       const conflict = this.servers.find((s) => s.name === server.name);
       if (conflict) {
         new Notice(`Server "${server.name}" already exists`);

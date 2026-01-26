@@ -170,20 +170,14 @@ export class ClaudianService {
     });
   }
 
-  /**
-   * Load CC permissions from storage.
-   * Called during initialization and after permission changes.
-   */
   async loadCCPermissions(): Promise<void> {
     this.ccPermissions = await this.plugin.storage.getPermissions();
   }
 
-  /** Load MCP server configurations from storage. */
   async loadMcpServers(): Promise<void> {
     await this.mcpManager.loadServers();
   }
 
-  /** Reload MCP server configurations (call after settings change). */
   async reloadMcpServers(): Promise<void> {
     await this.mcpManager.loadServers();
   }
@@ -279,23 +273,18 @@ export class ClaudianService {
     this.shuttingDown = false;
     this.vaultPath = vaultPath;
 
-    // Create message channel
     this.messageChannel = new MessageChannel();
 
-    // Pre-set session ID on channel and sessionManager if resuming
     if (resumeSessionId) {
       this.messageChannel.setSessionId(resumeSessionId);
       this.sessionManager.setSessionId(resumeSessionId, this.plugin.settings.model);
     }
 
-    // Create abort controller for the persistent query
     this.queryAbortController = new AbortController();
 
-    // Build initial configuration
     const config = this.buildPersistentQueryConfig(vaultPath, cliPath, externalContextPaths);
     this.currentConfig = config;
 
-    // Build SDK options
     const options = await this.buildPersistentQueryOptions(
       vaultPath,
       cliPath,
@@ -303,14 +292,12 @@ export class ClaudianService {
       externalContextPaths
     );
 
-    // Create the persistent query with the message channel
     this.persistentQuery = agentQuery({
       prompt: this.messageChannel,
       options,
     });
     this.attachPersistentQueryStdinErrorHandler(this.persistentQuery);
 
-    // Start the response consumer loop
     this.startResponseConsumer();
   }
 
@@ -588,12 +575,7 @@ export class ClaudianService {
     })();
   }
 
-  /**
-   * Gets the transform options for SDK message transformation.
-   * Centralized helper to avoid duplication.
-   *
-   * @param modelOverride - Optional model override for cold-start queries
-   */
+  /** @param modelOverride - Optional model override for cold-start queries */
   private getTransformOptions(modelOverride?: string) {
     return {
       intendedModel: modelOverride ?? this.plugin.settings.model,
@@ -653,16 +635,10 @@ export class ClaudianService {
     }
   }
 
-  /**
-   * Registers a response handler for an active query.
-   */
   private registerResponseHandler(handler: ResponseHandler): void {
     this.responseHandlers.push(handler);
   }
 
-  /**
-   * Unregisters a response handler.
-   */
   private unregisterResponseHandler(handlerId: string): void {
     const idx = this.responseHandlers.findIndex(h => h.id === handlerId);
     if (idx >= 0) {
@@ -670,7 +646,6 @@ export class ClaudianService {
     }
   }
 
-  /** Check if persistent query is active. */
   isPersistentQueryActive(): boolean {
     return this.persistentQuery !== null && !this.shuttingDown;
   }
@@ -852,10 +827,6 @@ export class ClaudianService {
     };
   }
 
-  /**
-   * Determines if the persistent query should be used.
-   * Cold-start is only used when forceColdStart is set.
-   */
   private shouldUsePersistentQuery(queryOptions?: QueryOptions): boolean {
     if (queryOptions?.forceColdStart) return false;
     return true;
@@ -908,7 +879,6 @@ export class ClaudianService {
       return;
     }
 
-    // Build SDKUserMessage
     const message = this.buildSDKUserMessage(prompt, images);
 
     // Create a promise-based handler to yield chunks
@@ -1008,9 +978,6 @@ export class ClaudianService {
     }
   }
 
-  /**
-   * Builds an SDKUserMessage from prompt and images.
-   */
   private buildSDKUserMessage(prompt: string, images?: ImageAttachment[]): SDKUserMessage {
     const sessionId = this.sessionManager.getSessionId() || '';
 
@@ -1026,7 +993,6 @@ export class ClaudianService {
       };
     }
 
-    // Build content blocks with images
     const content: SDKContentBlock[] = [];
 
     for (const image of images) {
@@ -1068,7 +1034,6 @@ export class ClaudianService {
   ): Promise<void> {
     if (!this.persistentQuery) return;
 
-    // Guard against null vaultPath/cliPath (shouldn't happen if persistentQuery exists, but be safe)
     if (!this.vaultPath) {
       return;
     }
@@ -1184,9 +1149,6 @@ export class ClaudianService {
     return false;
   }
 
-  /**
-   * Build a prompt with images as content blocks
-   */
   private buildPromptWithImages(prompt: string, images?: ImageAttachment[]): string | AsyncGenerator<any> {
     if (!images || images.length === 0) {
       return prompt;
@@ -1194,7 +1156,7 @@ export class ClaudianService {
 
     const content: SDKContentBlock[] = [];
 
-    // Add image blocks first (Claude recommends images before text)
+    // Images before text (Claude recommendation for best quality)
     for (const image of images) {
       content.push({
         type: 'image',
@@ -1206,7 +1168,6 @@ export class ClaudianService {
       });
     }
 
-    // Add text block with the prompt
     if (prompt.trim()) {
       content.push({
         type: 'text',
@@ -1240,16 +1201,12 @@ export class ClaudianService {
     this.sessionManager.setPendingModel(selectedModel);
     this.vaultPath = cwd;
 
-    // Build the prompt - either a string or content blocks with images
     const queryPrompt = this.buildPromptWithImages(prompt, images);
-
-    // Build cold-start context
     const baseContext = this.buildQueryOptionsContext(cwd, cliPath);
     const externalContextPaths = queryOptions?.externalContextPaths || [];
     const hooks = this.buildHooks(externalContextPaths);
     const hasEditorContext = prompt.includes('<editor_selection');
 
-    // Prepare allowed tools with Skill tool included
     let allowedTools: string[] | undefined;
     if (queryOptions?.allowedTools !== undefined && queryOptions.allowedTools.length > 0) {
       const toolSet = new Set([...queryOptions.allowedTools, TOOL_SKILL]);
@@ -1321,9 +1278,7 @@ export class ClaudianService {
     yield { type: 'done' };
   }
 
-  /** Cancel the current query. */
   cancel() {
-    // Cancel cold-start query
     if (this.abortController) {
       this.abortController.abort();
       this.sessionManager.markInterrupted();
@@ -1352,7 +1307,6 @@ export class ClaudianService {
     this.approvalManager.clearSessionPermissions();
   }
 
-  /** Get the current session ID. */
   getSessionId(): string | null {
     return this.sessionManager.getSessionId();
   }
@@ -1437,7 +1391,6 @@ export class ClaudianService {
     this.resetSession();
   }
 
-  /** Sets the approval callback for UI prompts. */
   setApprovalCallback(callback: ApprovalCallback | null) {
     this.approvalCallback = callback;
   }
@@ -1486,10 +1439,8 @@ export class ClaudianService {
       };
     }
 
-    // Generate description for the user
     const description = getActionDescription(toolName, input);
 
-    // Request approval from the user
     try {
       const decision = await this.approvalCallback(toolName, input, description);
 

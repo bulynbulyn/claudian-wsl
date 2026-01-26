@@ -1,7 +1,3 @@
-/**
- * Type definitions for chat state management.
- */
-
 import type { EditorView } from '@codemirror/view';
 
 import type { TodoItem } from '../../../core/tools';

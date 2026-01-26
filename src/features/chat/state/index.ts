@@ -1,7 +1,3 @@
-/**
- * Chat state module exports.
- */
-
 export { ChatState, createInitialState } from './ChatState';
 export type {
   AsyncSubagentState,

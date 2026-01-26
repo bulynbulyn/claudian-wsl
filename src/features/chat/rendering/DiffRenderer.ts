@@ -1,10 +1,3 @@
-/**
- * DiffRenderer - Diff rendering utilities for Write/Edit tool visualization.
- *
- * Provides hunk-based rendering for showing only edited regions
- * with context lines and "..." separators.
- */
-
 import type { DiffLine } from '../../../core/types/diff';
 
 export interface DiffHunk {
@@ -13,7 +6,6 @@ export interface DiffHunk {
   newStart: number;
 }
 
-/** Split diff into hunks with context lines. */
 export function splitIntoHunks(diffLines: DiffLine[], contextLines = 3): DiffHunk[] {
   if (diffLines.length === 0) return [];
 
@@ -69,7 +61,6 @@ export function splitIntoHunks(diffLines: DiffLine[], contextLines = 3): DiffHun
 /** Max lines to render for all-inserts diffs (new file creation). */
 const NEW_FILE_DISPLAY_CAP = 20;
 
-/** Render diff content to a container element. */
 export function renderDiffContent(
   containerEl: HTMLElement,
   diffLines: DiffLine[],

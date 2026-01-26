@@ -34,17 +34,14 @@ export class MessageChannel implements AsyncIterable<SDKUserMessage> {
     this.onWarning = onWarning;
   }
 
-  /** Set the session ID for outgoing messages. */
   setSessionId(sessionId: string): void {
     this.currentSessionId = sessionId;
   }
 
-  /** Check if a turn is currently active. */
   isTurnActive(): boolean {
     return this.turnActive;
   }
 
-  /** Check if the channel is closed. */
   isClosed(): boolean {
     return this.closed;
   }
@@ -124,11 +121,9 @@ export class MessageChannel implements AsyncIterable<SDKUserMessage> {
     }
   }
 
-  /** Signal that the current turn has completed. */
   onTurnComplete(): void {
     this.turnActive = false;
 
-    // Check if there's a queued message to send
     if (this.queue.length > 0 && this.resolveNext) {
       const pending = this.queue.shift()!;
       this.turnActive = true;
@@ -138,7 +133,6 @@ export class MessageChannel implements AsyncIterable<SDKUserMessage> {
     }
   }
 
-  /** Close the channel. */
   close(): void {
     this.closed = true;
     this.queue = [];
@@ -149,7 +143,6 @@ export class MessageChannel implements AsyncIterable<SDKUserMessage> {
     }
   }
 
-  /** Reset the channel for reuse. */
   reset(): void {
     this.queue = [];
     this.turnActive = false;
@@ -157,12 +150,10 @@ export class MessageChannel implements AsyncIterable<SDKUserMessage> {
     this.resolveNext = null;
   }
 
-  /** Get the number of queued messages. */
   getQueueLength(): number {
     return this.queue.length;
   }
 
-  /** AsyncIterable implementation. */
   [Symbol.asyncIterator](): AsyncIterator<SDKUserMessage> {
     return {
       next: (): Promise<IteratorResult<SDKUserMessage>> => {
@@ -205,7 +196,6 @@ export class MessageChannel implements AsyncIterable<SDKUserMessage> {
       return pending.message;
     }
 
-    // Text-only - create a new SDKUserMessage
     return {
       type: 'user',
       message: {

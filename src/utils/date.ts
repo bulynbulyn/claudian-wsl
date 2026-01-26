@@ -19,7 +19,6 @@ export function getTodayDate(): string {
 
 /** Formats a duration in seconds as "1m 23s" or "45s". */
 export function formatDurationMmSs(seconds: number): string {
-  // Validate input - return safe fallback for invalid values
   if (!Number.isFinite(seconds) || seconds < 0) {
     return '0s';
   }

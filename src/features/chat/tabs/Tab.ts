@@ -1,14 +1,3 @@
-/**
- * Tab - Encapsulates all per-tab state for multi-tab support.
- *
- * Each Tab represents an independent chat session with its own:
- * - ClaudianService (for concurrent streaming)
- * - ChatState
- * - Controllers
- * - UI Components
- * - DOM Elements
- */
-
 import type { Component } from 'obsidian';
 
 import { ClaudianService } from '../../../core/agent';

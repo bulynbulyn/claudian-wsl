@@ -1,9 +1,3 @@
-/**
- * Claudian - Subagent renderer
- *
- * Renders sync and async subagent blocks with nested tool tracking.
- */
-
 import { setIcon } from 'obsidian';
 
 import { getToolIcon } from '../../../core/tools/toolIcons';
@@ -12,7 +6,6 @@ import type { SubagentInfo, ToolCallInfo } from '../../../core/types';
 import { setupCollapsible } from './collapsible';
 import { getToolLabel } from './ToolCallRenderer';
 
-/** State for a streaming subagent block. */
 export interface SubagentState {
   wrapperEl: HTMLElement;
   contentEl: HTMLElement;
@@ -25,19 +18,16 @@ export interface SubagentState {
   currentResultEl: HTMLElement | null;
 }
 
-/** Extract the description from Task tool input. */
 function extractTaskDescription(input: Record<string, unknown>): string {
   // Task tool has 'description' (short) and 'prompt' (detailed)
   return (input.description as string) || 'Subagent task';
 }
 
-/** Truncate description for display in header. */
 function truncateDescription(description: string, maxLength = 40): string {
   if (description.length <= maxLength) return description;
   return description.substring(0, maxLength) + '...';
 }
 
-/** Truncate result to max 2 lines. */
 function truncateResult(result: string): string {
   const lines = result.split(/\r?\n/).filter(line => line.trim());
   if (lines.length <= 2) {
@@ -46,7 +36,6 @@ function truncateResult(result: string): string {
   return lines.slice(0, 2).join('\n') + '...';
 }
 
-/** Create a status row with text (used for DONE, ERROR, and prompt displays). */
 function createStatusRow(
   parentEl: HTMLElement,
   text: string,

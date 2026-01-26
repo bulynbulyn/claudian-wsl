@@ -1,10 +1,3 @@
-/**
- * Message rendering for chat view.
- *
- * Handles DOM creation and updates for chat messages, following the triadic
- * pattern (streaming render, update, stored render).
- */
-
 import type { App, Component } from 'obsidian';
 import { MarkdownRenderer } from 'obsidian';
 
@@ -22,14 +15,8 @@ import { renderStoredThinkingBlock } from './ThinkingBlockRenderer';
 import { renderStoredToolCall } from './ToolCallRenderer';
 import { renderStoredWriteEdit } from './WriteEditRenderer';
 
-/** Render content function type for callbacks. */
 export type RenderContentFn = (el: HTMLElement, markdown: string) => Promise<void>;
 
-/**
- * MessageRenderer handles all message DOM rendering.
- *
- * Separates rendering concerns from view lifecycle and stream handling.
- */
 export class MessageRenderer {
   private app: App;
   private plugin: ClaudianPlugin;

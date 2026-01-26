@@ -1,10 +1,3 @@
-/**
- * TabManager - Manages multiple chat tabs.
- *
- * Handles tab lifecycle (create, switch, close), persistence,
- * and coordination between tabs.
- */
-
 import type { ClaudianService } from '../../../core/agent';
 import type { McpServerManager } from '../../../core/mcp';
 import type { SlashCommand } from '../../../core/types';

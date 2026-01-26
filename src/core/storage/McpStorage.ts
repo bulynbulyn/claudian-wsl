@@ -155,7 +155,6 @@ export class McpStorage {
     await this.adapter.write(MCP_CONFIG_PATH, content);
   }
 
-  /** Check if config file exists. */
   async exists(): Promise<boolean> {
     return this.adapter.exists(MCP_CONFIG_PATH);
   }

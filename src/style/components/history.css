@@ -1,4 +1,3 @@
-/* History dropdown container */
 .claudian-history-container {
   position: relative;
 }
@@ -57,7 +56,6 @@
   font-size: 13px;
 }
 
-/* History item */
 .claudian-history-item {
   display: flex;
   align-items: center;
@@ -162,7 +160,6 @@
   color: var(--color-red);
 }
 
-/* Rename input */
 .claudian-rename-input {
   width: 100%;
   padding: 2px 4px;

@@ -1,10 +1,3 @@
-/**
- * Claudian - Title generation service
- *
- * Lightweight Claude query service for generating conversation titles
- * based on the first user message.
- */
-
 import type { Options } from '@anthropic-ai/claude-agent-sdk';
 import { query as agentQuery } from '@anthropic-ai/claude-agent-sdk';
 

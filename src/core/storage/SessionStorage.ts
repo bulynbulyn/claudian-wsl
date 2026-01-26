@@ -51,7 +51,6 @@ type SessionRecord = SessionMetaRecord | SessionMessageRecord;
 export class SessionStorage {
   constructor(private adapter: VaultFileAdapter) { }
 
-  /** Load a conversation from its JSONL file. */
   async loadConversation(id: string): Promise<Conversation | null> {
     const filePath = this.getFilePath(id);
 
@@ -67,14 +66,12 @@ export class SessionStorage {
     }
   }
 
-  /** Save a conversation to its JSONL file. */
   async saveConversation(conversation: Conversation): Promise<void> {
     const filePath = this.getFilePath(conversation.id);
     const content = this.serializeToJSONL(conversation);
     await this.adapter.write(filePath, content);
   }
 
-  /** Delete a conversation's JSONL file. */
   async deleteConversation(id: string): Promise<void> {
     const filePath = this.getFilePath(id);
     await this.adapter.delete(filePath);
@@ -133,7 +130,6 @@ export class SessionStorage {
         }
       }
 
-      // Sort by updatedAt descending
       conversations.sort((a, b) => b.updatedAt - a.updatedAt);
     } catch {
       // Return empty list if directory listing fails
@@ -142,13 +138,11 @@ export class SessionStorage {
     return { conversations, failedCount };
   }
 
-  /** Check if any sessions exist. */
   async hasSessions(): Promise<boolean> {
     const files = await this.adapter.listFiles(SESSIONS_PATH);
     return files.some(f => f.endsWith('.jsonl'));
   }
 
-  /** Get the file path for a conversation. */
   getFilePath(id: string): string {
     return `${SESSIONS_PATH}/${id}.jsonl`;
   }
@@ -199,7 +193,6 @@ export class SessionStorage {
     }
   }
 
-  /** Parse JSONL content into a Conversation object. */
   private parseJSONL(content: string): Conversation | null {
     // Handle both Unix (LF) and Windows (CRLF) line endings
     const lines = content.split(/\r?\n/).filter(l => l.trim());
@@ -238,7 +231,6 @@ export class SessionStorage {
     };
   }
 
-  /** Serialize a Conversation to JSONL format. */
   private serializeToJSONL(conversation: Conversation): string {
     const lines: string[] = [];
 
@@ -270,7 +262,6 @@ export class SessionStorage {
     return lines.join('\n');
   }
 
-  /** Prepare a message for storage. */
   private prepareMessageForStorage(message: ChatMessage): ChatMessage {
     // Images are stored with their base64 data as single source of truth
     return message;
@@ -294,7 +285,6 @@ export class SessionStorage {
     return !legacyExists;
   }
 
-  /** Get the metadata file path for a session. */
   getMetadataPath(id: string): string {
     return `${SESSIONS_PATH}/${id}.meta.json`;
   }
@@ -322,7 +312,6 @@ export class SessionStorage {
     }
   }
 
-  /** Delete session metadata. */
   async deleteMetadata(id: string): Promise<void> {
     const filePath = this.getMetadataPath(id);
     await this.adapter.delete(filePath);
@@ -335,7 +324,6 @@ export class SessionStorage {
     try {
       const files = await this.adapter.listFiles(SESSIONS_PATH);
 
-      // Find .meta.json files
       const metaFiles = files.filter(f => f.endsWith('.meta.json'));
 
       for (const filePath of metaFiles) {

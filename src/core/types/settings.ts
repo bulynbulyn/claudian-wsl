@@ -5,7 +5,6 @@
 import type { Locale } from '../../i18n/types';
 import type { ClaudeModel, ThinkingBudget } from './models';
 
-/** Platform-specific blocked commands (Unix). */
 const UNIX_BLOCKED_COMMANDS = [
   'rm -rf',
   'chmod 777',
@@ -49,13 +48,11 @@ const WINDOWS_BLOCKED_COMMANDS = [
   'Remove-Partition',
 ];
 
-/** Platform-keyed blocked commands structure. */
 export interface PlatformBlockedCommands {
   unix: string[];
   windows: string[];
 }
 
-/** Get default blocked commands for all platforms. */
 export function getDefaultBlockedCommands(): PlatformBlockedCommands {
   return {
     unix: [...UNIX_BLOCKED_COMMANDS],
@@ -68,7 +65,6 @@ export function getCurrentPlatformKey(): keyof PlatformBlockedCommands {
   return process.platform === 'win32' ? 'windows' : 'unix';
 }
 
-/** Get blocked commands for the current platform. */
 export function getCurrentPlatformBlockedCommands(commands: PlatformBlockedCommands): string[] {
   return commands[getCurrentPlatformKey()];
 }
@@ -380,10 +376,6 @@ export interface InstructionRefineResult {
   clarification?: string;       // Agent's clarifying question (if any)
   error?: string;               // Error message (if failed)
 }
-
-// ============================================================================
-// Permission Conversion Utilities
-// ============================================================================
 
 /**
  * Convert a legacy permission to CC permission rule format.

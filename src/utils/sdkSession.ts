@@ -17,17 +17,13 @@ import type { ChatMessage, ContentBlock, ImageAttachment, ImageMediaType, ToolCa
 import { extractContentBeforeXmlContext } from './context';
 import { extractDiffData } from './diff';
 
-/** Result of reading an SDK session file. */
 export interface SDKSessionReadResult {
   messages: SDKNativeMessage[];
   skippedLines: number;
   error?: string;
 }
 
-/**
- * SDK native message structure (stored in session JSONL files).
- * Based on Claude Agent SDK internal format.
- */
+/** Stored in session JSONL files. Based on Claude Agent SDK internal format. */
 export interface SDKNativeMessage {
   type: 'user' | 'assistant' | 'system' | 'result' | 'file-history-snapshot' | 'queue-operation';
   parentUuid?: string | null;
@@ -54,9 +50,6 @@ export interface SDKNativeMessage {
   isMeta?: boolean;
 }
 
-/**
- * SDK native content block structure.
- */
 export interface SDKNativeContentBlock {
   type: 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'image';
   text?: string;
@@ -85,10 +78,6 @@ export function encodeVaultPathForSDK(vaultPath: string): string {
   return absolutePath.replace(/[^a-zA-Z0-9]/g, '-');
 }
 
-/**
- * Gets the SDK projects directory path.
- * Returns ~/.claude/projects/
- */
 export function getSDKProjectsPath(): string {
   return path.join(os.homedir(), '.claude', 'projects');
 }
@@ -127,9 +116,6 @@ export function getSDKSessionPath(vaultPath: string, sessionId: string): string 
   return path.join(projectsPath, encodedVault, `${sessionId}.jsonl`);
 }
 
-/**
- * Checks if an SDK session file exists.
- */
 export function sdkSessionExists(vaultPath: string, sessionId: string): boolean {
   try {
     const sessionPath = getSDKSessionPath(vaultPath, sessionId);
@@ -139,30 +125,16 @@ export function sdkSessionExists(vaultPath: string, sessionId: string): boolean 
   }
 }
 
-/**
- * Deletes an SDK session file.
- * Fails silently if the file doesn't exist or cannot be deleted.
- *
- * @param vaultPath - The vault's absolute path
- * @param sessionId - The session ID to delete
- */
 export async function deleteSDKSession(vaultPath: string, sessionId: string): Promise<void> {
   try {
     const sessionPath = getSDKSessionPath(vaultPath, sessionId);
     if (!existsSync(sessionPath)) return;
     await fs.unlink(sessionPath);
   } catch {
-    // Fail silently - file may have been deleted externally
+    // Best-effort deletion
   }
 }
 
-/**
- * Reads and parses an SDK session file asynchronously.
- *
- * @param vaultPath - The vault's absolute path
- * @param sessionId - The session ID
- * @returns Result object with messages, skipped line count, and any error
- */
 export async function readSDKSession(vaultPath: string, sessionId: string): Promise<SDKSessionReadResult> {
   try {
     const sessionPath = getSDKSessionPath(vaultPath, sessionId);
@@ -191,9 +163,6 @@ export async function readSDKSession(vaultPath: string, sessionId: string): Prom
   }
 }
 
-/**
- * Extracts text content from SDK content blocks.
- */
 function extractTextContent(content: string | SDKNativeContentBlock[] | undefined): string {
   if (!content) return '';
   if (typeof content === 'string') return content;
@@ -220,19 +189,10 @@ function isRebuiltContextContent(textContent: string): boolean {
          textContent.includes('\n\nA:');
 }
 
-/**
- * Extracts display content from user messages by removing XML context wrappers.
- * Uses shared extraction logic from context utilities.
- *
- * Returns undefined if no XML context found (plain user message).
- */
 function extractDisplayContent(textContent: string): string | undefined {
   return extractContentBeforeXmlContext(textContent);
 }
 
-/**
- * Extracts images from SDK content blocks.
- */
 function extractImages(content: string | SDKNativeContentBlock[] | undefined): ImageAttachment[] | undefined {
   if (!content || typeof content === 'string') return undefined;
 
@@ -303,9 +263,6 @@ function extractToolCalls(
   });
 }
 
-/**
- * Maps SDK content blocks to Claudian's ContentBlock format.
- */
 function mapContentBlocks(content: string | SDKNativeContentBlock[] | undefined): ContentBlock[] | undefined {
   if (!content || typeof content === 'string') return undefined;
 
@@ -314,8 +271,7 @@ function mapContentBlocks(content: string | SDKNativeContentBlock[] | undefined)
   for (const block of content) {
     switch (block.type) {
       case 'text':
-        // Skip empty or whitespace-only text blocks to avoid extra gaps
-        // Also trim the content to remove leading/trailing whitespace that causes visual gaps
+        // Trim to avoid visual gaps from leading/trailing whitespace
         if (block.text && block.text.trim()) {
           blocks.push({ type: 'text', content: block.text.trim() });
         }
@@ -333,7 +289,7 @@ function mapContentBlocks(content: string | SDKNativeContentBlock[] | undefined)
         }
         break;
 
-      // tool_result blocks are handled as part of tool calls, not content blocks
+      // tool_result blocks are part of tool calls, not content blocks
     }
   }
 
@@ -353,19 +309,15 @@ export function parseSDKMessageToChat(
   sdkMsg: SDKNativeMessage,
   toolResults?: Map<string, { content: string; isError: boolean }>
 ): ChatMessage | null {
-  // Skip non-conversation messages
   if (sdkMsg.type === 'file-history-snapshot') return null;
   if (sdkMsg.type === 'system') return null;
   if (sdkMsg.type === 'result') return null;
-
-  // Only process user and assistant messages
   if (sdkMsg.type !== 'user' && sdkMsg.type !== 'assistant') return null;
 
   const content = sdkMsg.message?.content;
   const textContent = extractTextContent(content);
   const images = sdkMsg.type === 'user' ? extractImages(content) : undefined;
 
-  // Skip empty messages (but allow messages with tool_use or images)
   const hasToolUse = Array.isArray(content) && content.some(b => b.type === 'tool_use');
   const hasImages = images && images.length > 0;
   if (!textContent && !hasToolUse && !hasImages && (!content || typeof content === 'string')) return null;
@@ -374,18 +326,15 @@ export function parseSDKMessageToChat(
     ? new Date(sdkMsg.timestamp).getTime()
     : Date.now();
 
-  // For user messages, extract displayContent from <query> tags if present
   const displayContent = sdkMsg.type === 'user'
     ? extractDisplayContent(textContent)
     : undefined;
 
-  // Detect interrupt messages from SDK (stored as user messages with specific content)
   const isInterrupt = sdkMsg.type === 'user' && (
     textContent === '[Request interrupted by user]' ||
     textContent === '[Request interrupted by user for tool use]'
   );
 
-  // Detect rebuilt context messages (history sent to SDK when session reset)
   const isRebuiltContext = sdkMsg.type === 'user' && isRebuiltContextContent(textContent);
 
   return {
@@ -402,11 +351,7 @@ export function parseSDKMessageToChat(
   };
 }
 
-/**
- * Collects all tool_result blocks from SDK messages.
- * Used for cross-message tool result matching (tool_result often in user message
- * following assistant's tool_use).
- */
+/** tool_result often appears in user message following assistant's tool_use. */
 function collectToolResults(sdkMessages: SDKNativeMessage[]): Map<string, { content: string; isError: boolean }> {
   const results = new Map<string, { content: string; isError: boolean }>();
 
@@ -430,17 +375,13 @@ function collectToolResults(sdkMessages: SDKNativeMessage[]): Map<string, { cont
   return results;
 }
 
-/**
- * Collects toolUseResult objects from SDK messages, keyed by tool_use_id.
- * These contain structuredPatch data for Write/Edit diff rendering.
- */
+/** Contains structuredPatch data for Write/Edit diff rendering. */
 function collectStructuredPatchResults(sdkMessages: SDKNativeMessage[]): Map<string, unknown> {
   const results = new Map<string, unknown>();
 
   for (const sdkMsg of sdkMessages) {
     if (sdkMsg.type !== 'user' || !sdkMsg.toolUseResult) continue;
 
-    // Find the tool_use_id from the content blocks
     const content = sdkMsg.message?.content;
     if (!content || typeof content === 'string') continue;
 
@@ -469,7 +410,6 @@ function isSystemInjectedMessage(sdkMsg: SDKNativeMessage): boolean {
          sdkMsg.isMeta === true;
 }
 
-/** Result of loading SDK session messages. */
 export interface SDKSessionLoadResult {
   messages: ChatMessage[];
   skippedLines: number;
@@ -523,31 +463,26 @@ export async function loadSDKSessionMessages(vaultPath: string, sessionId: strin
     return { messages: [], skippedLines: result.skippedLines, error: result.error };
   }
 
-  // First pass: collect all tool results and toolUseResults for cross-message matching
   const toolResults = collectToolResults(result.messages);
   const toolUseResults = collectStructuredPatchResults(result.messages);
 
   const chatMessages: ChatMessage[] = [];
   let pendingAssistant: ChatMessage | null = null;
 
-  // Second pass: convert messages, merging consecutive assistant messages
-  // Assistant messages are merged until an actual user message (not tool_result) appears
+  // Merge consecutive assistant messages until an actual user message appears
   for (const sdkMsg of result.messages) {
-    // Skip system-injected messages (tool results, skill prompts, meta messages)
     if (isSystemInjectedMessage(sdkMsg)) continue;
 
     const chatMsg = parseSDKMessageToChat(sdkMsg, toolResults);
     if (!chatMsg) continue;
 
     if (chatMsg.role === 'assistant') {
-      // Merge all consecutive assistant messages into one bubble
       if (pendingAssistant) {
         mergeAssistantMessage(pendingAssistant, chatMsg);
       } else {
         pendingAssistant = chatMsg;
       }
     } else {
-      // Actual user message (not tool_result) - push any pending assistant first
       if (pendingAssistant) {
         chatMessages.push(pendingAssistant);
         pendingAssistant = null;
@@ -556,12 +491,10 @@ export async function loadSDKSessionMessages(vaultPath: string, sessionId: strin
     }
   }
 
-  // Don't forget the last pending assistant message
   if (pendingAssistant) {
     chatMessages.push(pendingAssistant);
   }
 
-  // Third pass: attach diff data from toolUseResults to tool calls
   if (toolUseResults.size > 0) {
     for (const msg of chatMessages) {
       if (msg.role !== 'assistant' || !msg.toolCalls) continue;
@@ -574,7 +507,6 @@ export async function loadSDKSessionMessages(vaultPath: string, sessionId: strin
     }
   }
 
-  // Sort by timestamp ascending
   chatMessages.sort((a, b) => a.timestamp - b.timestamp);
 
   return { messages: chatMessages, skippedLines: result.skippedLines };

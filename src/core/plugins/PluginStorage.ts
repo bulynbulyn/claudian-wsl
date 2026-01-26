@@ -34,9 +34,6 @@ const MARKETPLACE_MANIFEST_FILE = 'marketplace.json';
 /** Plugin directory name. */
 const PLUGIN_DIR_NAME = '.claude-plugin';
 
-/**
- * Validate a single plugin entry from the registry.
- */
 function isValidPluginEntry(entry: unknown): entry is InstalledPluginEntry {
   if (typeof entry !== 'object' || entry === null) return false;
   const e = entry as Record<string, unknown>;
@@ -65,7 +62,6 @@ function parseInstalledPluginsFile(content: string): { data: InstalledPluginsFil
       return { data: null, error: 'Invalid format: missing or invalid plugins field' };
     }
 
-    // Validate and filter individual plugin entries
     for (const [pluginId, entries] of Object.entries(data.plugins)) {
       if (!Array.isArray(entries)) {
         continue;
@@ -225,9 +221,6 @@ function determineScope(entry: InstalledPluginEntry): PluginScope {
   return entry.scope ?? 'project';
 }
 
-/**
- * Determine plugin status based on install path and manifest validity.
- */
 function determinePluginStatus(
   installPathExists: boolean,
   manifestError: string | undefined
@@ -277,7 +270,6 @@ function loadPluginManifest(installPath: string, pluginId: string): {
 } {
   const pluginDir = path.join(installPath, PLUGIN_DIR_NAME);
 
-  // Check if plugin directory exists
   if (!fs.existsSync(pluginDir)) {
     return {
       manifest: null,
@@ -378,7 +370,6 @@ export class PluginStorage {
    * Filters by projectPath against the current vault.
    */
   loadPlugins(): ClaudianPlugin[] {
-    // Read the global registry
     const content = this.readInstalledPluginsFile();
     if (!content) {
       return [];
@@ -392,7 +383,6 @@ export class PluginStorage {
     const plugins: ClaudianPlugin[] = [];
 
     for (const [pluginId, entries] of Object.entries(pluginsFile.plugins)) {
-      // Filter entries for this vault
       const applicableEntries = entries.filter((entry) =>
         shouldIncludeEntry(entry, this.vaultPath)
       );
@@ -401,16 +391,11 @@ export class PluginStorage {
         continue;
       }
 
-      // Pick the newest entry
       const entry = pickNewestEntry(applicableEntries);
       if (!entry) continue;
 
-      // Load manifest and determine plugin path
       const { manifest, pluginPath, error } = loadPluginManifest(entry.installPath, pluginId);
-
       const scope = determineScope(entry);
-
-      // Check if install path exists
       const installPathExists = fs.existsSync(entry.installPath);
 
       const status = determinePluginStatus(installPathExists, error);
@@ -438,9 +423,6 @@ export class PluginStorage {
     });
   }
 
-  /**
-   * Read the installed_plugins.json file.
-   */
   private readInstalledPluginsFile(): string | null {
     try {
       if (!fs.existsSync(INSTALLED_PLUGINS_PATH)) {
@@ -489,9 +471,6 @@ export function loadPluginCommands(
   return commands;
 }
 
-/**
- * List all .md files recursively in a directory.
- */
 function listMarkdownFilesRecursive(dir: string): string[] {
   const files: string[] = [];
 
@@ -513,9 +492,6 @@ function listMarkdownFilesRecursive(dir: string): string[] {
   return files;
 }
 
-/**
- * Parse a plugin command file into a SlashCommand object.
- */
 function parsePluginCommandFile(
   content: string,
   filePath: string,
@@ -524,7 +500,6 @@ function parsePluginCommandFile(
 ): SlashCommand | null {
   const parsed = parseSlashCommandContent(content);
 
-  // Get relative path from commands dir
   const relativePath = path.relative(commandsDir, filePath);
   const nameWithoutExt = relativePath.replace(/\.md$/, '').replace(/\\/g, '/');
 

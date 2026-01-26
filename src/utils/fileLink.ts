@@ -44,7 +44,6 @@ export function extractLinkTarget(fullMatch: string): string {
  * Sorted by index descending for end-to-start processing.
  */
 function findWikilinks(app: App, text: string): WikilinkMatch[] {
-  // Create fresh regex instance to avoid global state mutation issues
   const pattern = createWikilinkPattern();
   const matches: WikilinkMatch[] = [];
 
@@ -65,23 +64,17 @@ function findWikilinks(app: App, text: string): WikilinkMatch[] {
   return matches.sort((a, b) => b.index - a.index);
 }
 
-/**
- * Checks if a file exists in the vault.
- */
 function fileExistsInVault(app: App, linkPath: string): boolean {
-  // Try to find the file using metadataCache (handles aliases, partial matches)
   const file = app.metadataCache.getFirstLinkpathDest(linkPath, '');
   if (file) {
     return true;
   }
 
-  // Also try direct path lookup
   const directFile = app.vault.getFileByPath(linkPath);
   if (directFile) {
     return true;
   }
 
-  // Try with .md extension if not present
   if (!linkPath.endsWith('.md')) {
     const withExt = app.vault.getFileByPath(linkPath + '.md');
     if (withExt) {
@@ -133,9 +126,6 @@ export function registerFileLinkHandler(
   });
 }
 
-/**
- * Builds a document fragment with wikilinks replaced by clickable links.
- */
 function buildFragmentWithLinks(text: string, matches: WikilinkMatch[]): DocumentFragment {
   const fragment = document.createDocumentFragment();
   let currentIndex = text.length;
@@ -164,10 +154,6 @@ function buildFragmentWithLinks(text: string, matches: WikilinkMatch[]): Documen
   return fragment;
 }
 
-/**
- * Processes a text node and replaces wikilinks with clickable links.
- * Returns true if any replacements were made.
- */
 function processTextNode(app: App, node: Text): boolean {
   const text = node.textContent;
   if (!text || !text.includes('[[')) return false;
@@ -180,21 +166,13 @@ function processTextNode(app: App, node: Text): boolean {
 }
 
 /**
- * Processes rendered content to make wikilinks clickable.
- * This should be called after MarkdownRenderer.renderMarkdown().
- *
- * Obsidian's MarkdownRenderer may not process wikilinks in code blocks
- * or certain contexts, so this function catches those cases.
- *
- * @param app Obsidian App instance
- * @param container The container element with rendered markdown
+ * Call after MarkdownRenderer.renderMarkdown().
+ * Catches wikilinks that Obsidian's renderer doesn't process (e.g., in code blocks).
  */
 export function processFileLinks(app: App, container: HTMLElement): void {
-  // Skip if no app or container
   if (!app || !container) return;
 
-  // Process text within inline code elements
-  // (wikilinks in inline code aren't rendered by Obsidian's MarkdownRenderer)
+  // Wikilinks in inline code aren't rendered by Obsidian's MarkdownRenderer
   container.querySelectorAll('code').forEach((codeEl) => {
     if (codeEl.parentElement?.tagName === 'PRE') return;
 
@@ -208,13 +186,11 @@ export function processFileLinks(app: App, container: HTMLElement): void {
     codeEl.appendChild(buildFragmentWithLinks(text, matches));
   });
 
-  // Process regular text nodes (not in code blocks or already-rendered links)
   const walker = document.createTreeWalker(
     container,
     NodeFilter.SHOW_TEXT,
     {
       acceptNode(node) {
-        // Skip nodes inside <pre>, <code>, <a>, or already processed links
         const parent = node.parentElement;
         if (!parent) return NodeFilter.FILTER_REJECT;
 
@@ -223,7 +199,6 @@ export function processFileLinks(app: App, container: HTMLElement): void {
           return NodeFilter.FILTER_REJECT;
         }
 
-        // Skip if parent or ancestor is a code block or link
         if (parent.closest('pre, code, a, .claudian-file-link, .internal-link')) {
           return NodeFilter.FILTER_REJECT;
         }
@@ -233,14 +208,13 @@ export function processFileLinks(app: App, container: HTMLElement): void {
     }
   );
 
-  // Collect text nodes first (modifying while walking causes issues)
+  // Modifying DOM while walking causes issues, so collect first
   const textNodes: Text[] = [];
   let node: Node | null;
   while ((node = walker.nextNode())) {
     textNodes.push(node as Text);
   }
 
-  // Process each text node
   for (const textNode of textNodes) {
     processTextNode(app, textNode);
   }

@@ -1,13 +1,3 @@
-/**
- * TabBar - Minimal numbered badge UI for tab navigation.
- *
- * Renders numbered badges [1][2][3] with border colors indicating status:
- * - Accent: Active (currently viewing)
- * - Brand (orange): Streaming (Claude working in background)
- * - Red: Needs attention (approval pending, error)
- * - Muted: Idle
- */
-
 import type { TabBarItem, TabId } from './types';
 
 /** Callbacks for TabBar interactions. */

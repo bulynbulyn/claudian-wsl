@@ -1,9 +1,3 @@
-/**
- * Claudian - Environment snippet manager
- *
- * Manages saving and restoring environment variable configurations.
- */
-
 import type { App } from 'obsidian';
 import { Modal, Notice, setIcon, Setting } from 'obsidian';
 
@@ -13,7 +7,6 @@ import type ClaudianPlugin from '../../../main';
 import { formatContextLimit, getCustomModelIds, parseContextLimit, parseEnvironmentVariables } from '../../../utils/env';
 import type { ClaudianView } from '../../chat/ClaudianView';
 
-/** Modal for creating/editing environment variable snippets. */
 export class EnvSnippetModal extends Modal {
   plugin: ClaudianPlugin;
   snippet: EnvSnippet | null;
@@ -30,7 +23,6 @@ export class EnvSnippetModal extends Modal {
     const { contentEl } = this;
     this.setTitle(this.snippet ? t('settings.envSnippets.modal.titleEdit') : t('settings.envSnippets.modal.titleSave'));
 
-    // Make modal more compact
     this.modalEl.addClass('claudian-env-snippet-modal');
 
     let nameEl: HTMLInputElement;
@@ -39,8 +31,7 @@ export class EnvSnippetModal extends Modal {
     const contextLimitInputs: Map<string, HTMLInputElement> = new Map();
     let contextLimitsContainer: HTMLElement | null = null;
 
-    // Add keyboard shortcuts for name/description fields
-    // Check !e.isComposing for IME support (Chinese, Japanese, Korean, etc.)
+    // !e.isComposing for IME support (Chinese, Japanese, Korean, etc.)
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && !e.isComposing) {
         e.preventDefault();
@@ -58,7 +49,6 @@ export class EnvSnippetModal extends Modal {
         return;
       }
 
-      // Collect context limits from inputs
       const contextLimits: Record<string, number> = {};
       for (const [modelId, input] of contextLimitInputs) {
         const value = input.value.trim();
@@ -82,13 +72,11 @@ export class EnvSnippetModal extends Modal {
       this.close();
     };
 
-    // Function to render context limit fields based on env vars
     const renderContextLimitFields = () => {
       if (!contextLimitsContainer) return;
       contextLimitsContainer.empty();
       contextLimitInputs.clear();
 
-      // Parse env vars to detect custom models
       const envVars = parseEnvironmentVariables(envVarsEl.value);
       const uniqueModelIds = getCustomModelIds(envVars);
 
@@ -99,7 +87,6 @@ export class EnvSnippetModal extends Modal {
 
       contextLimitsContainer.style.display = 'block';
 
-      // Get existing context limits (from snippet or current settings)
       const existingLimits = this.snippet?.contextLimits ?? this.plugin.settings.customContextLimits ?? {};
 
       contextLimitsContainer.createEl('div', {
@@ -144,7 +131,6 @@ export class EnvSnippetModal extends Modal {
                 text.inputEl.addEventListener('keydown', handleKeyDown);
       });
 
-    // Editable environment variables - full width layout
     const envVarsSetting = new Setting(contentEl)
       .setName(t('settings.envSnippets.modal.envVars'))
       .setDesc(t('settings.envSnippets.modal.envVarsPlaceholder'))
@@ -153,18 +139,14 @@ export class EnvSnippetModal extends Modal {
         const envVarsToShow = this.snippet?.envVars ?? this.plugin.settings.environmentVariables;
         text.setValue(envVarsToShow);
         text.inputEl.rows = 8;
-        // Refresh context limit fields when env vars change
         text.inputEl.addEventListener('blur', () => renderContextLimitFields());
       });
-    // Make textarea full width under the label
     envVarsSetting.settingEl.addClass('claudian-env-snippet-setting');
     envVarsSetting.controlEl.addClass('claudian-env-snippet-control');
 
-    // Editable context limits section
     contextLimitsContainer = contentEl.createDiv({ cls: 'claudian-snippet-context-limits' });
     renderContextLimitFields();
 
-    // Compact button container
     const buttonContainer = contentEl.createDiv({ cls: 'claudian-snippet-buttons' });
 
     const cancelBtn = buttonContainer.createEl('button', {
@@ -189,7 +171,6 @@ export class EnvSnippetModal extends Modal {
   }
 }
 
-/** Component for managing environment variable snippets. */
 export class EnvSnippetManager {
   private containerEl: HTMLElement;
   private plugin: ClaudianPlugin;
@@ -205,7 +186,6 @@ export class EnvSnippetManager {
   private render() {
     this.containerEl.empty();
 
-    // Header with save button
     const headerEl = this.containerEl.createDiv({ cls: 'claudian-snippet-header' });
     headerEl.createSpan({ text: t('settings.envSnippets.name'), cls: 'claudian-snippet-label' });
 
@@ -241,7 +221,6 @@ export class EnvSnippetManager {
 
       const actionsEl = itemEl.createDiv({ cls: 'claudian-snippet-actions' });
 
-      // Restore button
       const restoreBtn = actionsEl.createEl('button', {
         cls: 'claudian-settings-action-btn',
         attr: { 'aria-label': 'Insert' },
@@ -255,7 +234,6 @@ export class EnvSnippetManager {
         }
       });
 
-      // Edit button
       const editBtn = actionsEl.createEl('button', {
         cls: 'claudian-settings-action-btn',
         attr: { 'aria-label': 'Edit' },
@@ -265,7 +243,6 @@ export class EnvSnippetManager {
         this.editSnippet(snippet);
       });
 
-      // Delete button
       const deleteBtn = actionsEl.createEl('button', {
         cls: 'claudian-settings-action-btn claudian-settings-delete-btn',
         attr: { 'aria-label': 'Delete' },
@@ -289,7 +266,6 @@ export class EnvSnippetManager {
       this.plugin,
       null,
       async (snippet) => {
-        // Context limits are now handled by the modal itself
         this.plugin.settings.envSnippets.push(snippet);
         await this.plugin.saveSettings();
         this.render();
@@ -302,7 +278,6 @@ export class EnvSnippetManager {
   private async insertSnippet(snippet: EnvSnippet) {
     const snippetContent = snippet.envVars.trim();
 
-    // Update textarea if found, otherwise re-render the snippet list
     const envTextarea = document.querySelector('.claudian-settings-env-textarea') as HTMLTextAreaElement;
     if (envTextarea) {
       envTextarea.value = snippetContent;
@@ -310,9 +285,8 @@ export class EnvSnippetManager {
       this.render();
     }
 
-    // Apply environment variables and context limits
     await this.plugin.applyEnvironmentVariables(snippetContent);
-    // Merge snippet limits into existing (legacy snippets without contextLimits don't modify limits)
+    // Legacy snippets without contextLimits don't modify limits
     if (snippet.contextLimits) {
       this.plugin.settings.customContextLimits = {
         ...this.plugin.settings.customContextLimits,
@@ -321,7 +295,6 @@ export class EnvSnippetManager {
     }
     await this.plugin.saveSettings();
 
-    // Refresh UI components
     this.onContextLimitsChange?.();
     const view = this.plugin.app.workspace.getLeavesOfType('claudian-view')[0]?.view as ClaudianView | undefined;
     view?.refreshModelSelector();

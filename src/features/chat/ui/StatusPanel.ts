@@ -1,17 +1,3 @@
-/**
- * StatusPanel component.
- *
- * A persistent panel at the bottom of the messages area that shows
- * async subagent status and todos.
- *
- * Subagent display:
- * - Running: "X background tasks" (count only)
- * - Done: "✓ description" for each completed task
- * - Done entries cleared on next user query
- *
- * Flows seamlessly with the chat - no borders or backgrounds.
- */
-
 import { setIcon } from 'obsidian';
 
 import type { TodoItem } from '../../../core/tools';

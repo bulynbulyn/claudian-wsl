@@ -5,10 +5,8 @@
  * These are handled separately from user-defined slash commands.
  */
 
-/** Built-in command action types. */
 export type BuiltInCommandAction = 'clear' | 'add-dir';
 
-/** Built-in command definition. */
 export interface BuiltInCommand {
   name: string;
   aliases?: string[];
@@ -20,14 +18,12 @@ export interface BuiltInCommand {
   argumentHint?: string;
 }
 
-/** Result from detecting a built-in command. */
 export interface BuiltInCommandResult {
   command: BuiltInCommand;
   /** Arguments passed to the command (trimmed, after command name). */
   args: string;
 }
 
-/** All built-in commands. */
 export const BUILT_IN_COMMANDS: BuiltInCommand[] = [
   {
     name: 'clear',
@@ -47,7 +43,6 @@ export const BUILT_IN_COMMANDS: BuiltInCommand[] = [
 /** Map of command names/aliases to their definitions. */
 const commandMap = new Map<string, BuiltInCommand>();
 
-// Build lookup map including aliases
 for (const cmd of BUILT_IN_COMMANDS) {
   commandMap.set(cmd.name.toLowerCase(), cmd);
   if (cmd.aliases) {
@@ -73,7 +68,6 @@ export function detectBuiltInCommand(input: string): BuiltInCommandResult | null
   const command = commandMap.get(cmdName);
   if (!command) return null;
 
-  // Extract arguments (everything after command name)
   const args = (match[2] || '').trim();
 
   return { command, args };

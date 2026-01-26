@@ -1,7 +1,3 @@
-/**
- * SDK module - barrel export.
- */
-
 export type { TransformOptions } from './transformSDKMessage';
 export { transformSDKMessage } from './transformSDKMessage';
 export { isSessionInitEvent, isStreamChunk } from './typeGuards';
