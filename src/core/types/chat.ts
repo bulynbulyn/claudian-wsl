@@ -2,7 +2,8 @@
  * Chat and conversation type definitions.
  */
 
-import type { SubagentInfo, SubagentMode, ToolCallInfo, ToolDiffData } from './tools';
+import type { SDKToolUseResult } from './diff';
+import type { SubagentInfo, SubagentMode, ToolCallInfo } from './tools';
 
 /** View type identifier for Obsidian. */
 export const VIEW_TYPE_CLAUDIAN = 'claudian-view';
@@ -91,21 +92,10 @@ export interface Conversation {
   /** Internal flag to avoid reloading SDK history repeatedly. */
   sdkMessagesLoaded?: boolean;
   /**
-   * Cached tool diff data for Write/Edit operations.
-   * Loaded from metadata for native sessions to restore +/- stats on reload.
-   */
-  toolDiffData?: Record<string, ToolDiffData>;
-  /**
    * Cached subagent data for Task tool operations.
    * Loaded from metadata for native sessions to restore tool count and status on reload.
    */
   subagentData?: Record<string, SubagentInfo>;
-  /**
-   * Cached display content for user messages with slash commands.
-   * Maps content hash to displayContent (e.g., "/tests" instead of expanded prompt).
-   * Loaded from metadata for native sessions to restore slash command display on reload.
-   */
-  displayContentMap?: Record<string, string>;
 }
 
 /** Lightweight conversation metadata for the history dropdown. */
@@ -156,23 +146,11 @@ export interface SessionMetadata {
   /** Timestamp of the last legacy JSONL message (used to merge SDK history). */
   legacyCutoffAt?: number;
   /**
-   * Tool diff data for Write/Edit operations.
-   * Maps toolUseId to diff data (original/new content for rendering +/- stats).
-   * Stored here because SDK session files don't preserve this Claudian-specific data.
-   */
-  toolDiffData?: Record<string, ToolDiffData>;
-  /**
    * Subagent data for Task tool operations.
    * Maps toolUseId to subagent info (tool count, status, result).
    * Stored here because SDK session files don't preserve this Claudian-specific data.
    */
   subagentData?: Record<string, SubagentInfo>;
-  /**
-   * Display content for user messages with slash commands.
-   * Maps content hash to displayContent (e.g., "/tests" instead of expanded prompt).
-   * Stored here because SDK session files don't preserve this Claudian-specific data.
-   */
-  displayContentMap?: Record<string, string>;
 }
 
 /** Normalized stream chunk from the Claude Agent SDK. */
@@ -180,7 +158,7 @@ export type StreamChunk =
   | { type: 'text'; content: string; parentToolUseId?: string | null }
   | { type: 'thinking'; content: string; parentToolUseId?: string | null }
   | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown>; parentToolUseId?: string | null }
-  | { type: 'tool_result'; id: string; content: string; isError?: boolean; parentToolUseId?: string | null }
+  | { type: 'tool_result'; id: string; content: string; isError?: boolean; parentToolUseId?: string | null; toolUseResult?: SDKToolUseResult }
   | { type: 'error'; content: string }
   | { type: 'blocked'; content: string }
   | { type: 'done' }

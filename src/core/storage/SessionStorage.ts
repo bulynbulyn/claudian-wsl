@@ -12,14 +12,12 @@
  * ```
  */
 
-import { hashContent } from '../../utils/session';
 import type {
   ChatMessage,
   Conversation,
   ConversationMeta,
   SessionMetadata,
   SubagentInfo,
-  ToolDiffData,
   UsageInfo,
 } from '../types';
 import type { VaultFileAdapter } from './VaultFileAdapter';
@@ -409,10 +407,7 @@ export class SessionStorage {
 
   /** Convert a Conversation to SessionMetadata for native storage. */
   toSessionMetadata(conversation: Conversation): SessionMetadata {
-    // Extract toolDiffData, subagentData, and displayContentMap from all messages for persistence
-    const toolDiffData = this.extractToolDiffData(conversation.messages);
     const subagentData = this.extractSubagentData(conversation.messages);
-    const displayContentMap = this.extractDisplayContentMap(conversation.messages);
 
     return {
       id: conversation.id,
@@ -429,30 +424,8 @@ export class SessionStorage {
       enabledMcpServers: conversation.enabledMcpServers,
       usage: conversation.usage,
       legacyCutoffAt: conversation.legacyCutoffAt,
-      toolDiffData: Object.keys(toolDiffData).length > 0 ? toolDiffData : undefined,
       subagentData: Object.keys(subagentData).length > 0 ? subagentData : undefined,
-      displayContentMap: Object.keys(displayContentMap).length > 0 ? displayContentMap : undefined,
     };
-  }
-
-  /**
-   * Extracts toolDiffData from messages for persistence.
-   * Only collects diffData from Write/Edit tool calls that have it.
-   */
-  private extractToolDiffData(messages: ChatMessage[]): Record<string, ToolDiffData> {
-    const result: Record<string, ToolDiffData> = {};
-
-    for (const msg of messages) {
-      if (msg.role !== 'assistant' || !msg.toolCalls) continue;
-
-      for (const toolCall of msg.toolCalls) {
-        if (toolCall.diffData) {
-          result[toolCall.id] = toolCall.diffData;
-        }
-      }
-    }
-
-    return result;
   }
 
   /**
@@ -473,22 +446,4 @@ export class SessionStorage {
     return result;
   }
 
-  /**
-   * Extracts displayContentMap from messages for persistence.
-   * Collects displayContent from user messages where it differs from content (e.g., slash commands).
-   * Uses content hash as key - the only reliable match since SDK stores exact content we send.
-   */
-  private extractDisplayContentMap(messages: ChatMessage[]): Record<string, string> {
-    const result: Record<string, string> = {};
-
-    for (const msg of messages) {
-      // Only save if displayContent differs from content (slash command was expanded)
-      if (msg.role !== 'user' || !msg.displayContent || msg.displayContent === msg.content) continue;
-      // Use content hash as key - guaranteed to match SDK-stored content
-      const key = hashContent(msg.content);
-      result[key] = msg.displayContent;
-    }
-
-    return result;
-  }
 }

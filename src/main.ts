@@ -9,7 +9,6 @@ import type { Editor, MarkdownView } from 'obsidian';
 import { Notice, Plugin } from 'obsidian';
 
 import { AgentManager } from './core/agents';
-import { clearDiffState } from './core/hooks';
 import { McpServerManager } from './core/mcp';
 import { McpService } from './core/mcp/McpService';
 import { loadPluginCommands, PluginManager, PluginStorage } from './core/plugins';
@@ -21,7 +20,6 @@ import type {
   ConversationMeta,
   SlashCommand,
   SubagentInfo,
-  ToolDiffData,
 } from './core/types';
 import {
   DEFAULT_CLAUDE_MODELS,
@@ -39,7 +37,6 @@ import { buildCursorContext } from './utils/editor';
 import { getCurrentModelFromEnvironment, getModelsFromEnvironment, parseEnvironmentVariables } from './utils/env';
 import { getVaultPath } from './utils/path';
 import { deleteSDKSession, loadSDKSessionMessages, sdkSessionExists, type SDKSessionLoadResult } from './utils/sdkSession';
-import { hashContent } from './utils/session';
 
 /**
  * Main plugin class for Claudian.
@@ -325,9 +322,7 @@ export default class ClaudianPlugin extends Plugin {
           titleGenerationStatus: meta.titleGenerationStatus,
           legacyCutoffAt: meta.legacyCutoffAt,
           isNative: true,
-          toolDiffData: meta.toolDiffData, // Preserve for applying to loaded messages
           subagentData: meta.subagentData, // Preserve for applying to loaded messages
-          displayContentMap: meta.displayContentMap, // Preserve for applying to loaded messages
         };
       });
 
@@ -557,8 +552,6 @@ export default class ClaudianPlugin extends Plugin {
 
     // Hash changed - model or provider may have changed.
     // Session invalidation is now handled per-tab by TabManager.
-    clearDiffState(); // Clear UI diff state (not SDK-related)
-
     // Clear resume sessionId from all conversations since they belong to the old provider.
     // Sessions are provider-specific (contain signed thinking blocks, etc.).
     // NOTE: sdkSessionId is retained for loading SDK-stored history.
@@ -672,40 +665,13 @@ export default class ClaudianPlugin extends Plugin {
       ...afterCutoff,
     ]).sort((a, b) => a.timestamp - b.timestamp);
 
-    // Apply cached toolDiffData to loaded messages (for Write/Edit +/- stats)
-    if (conversation.toolDiffData) {
-      this.applyToolDiffData(merged, conversation.toolDiffData);
-    }
-
     // Apply cached subagentData to loaded messages (for Task tool count and status)
     if (conversation.subagentData) {
       this.applySubagentData(merged, conversation.subagentData);
     }
 
-    // Apply cached displayContentMap to loaded messages (for slash command display)
-    if (conversation.displayContentMap) {
-      this.applyDisplayContentMap(merged, conversation.displayContentMap);
-    }
-
     conversation.messages = merged;
     conversation.sdkMessagesLoaded = true;
-  }
-
-  /**
-   * Applies cached toolDiffData to messages.
-   * Restores diffData on tool calls so Write/Edit can show +/- stats.
-   */
-  private applyToolDiffData(messages: ChatMessage[], toolDiffData: Record<string, ToolDiffData>): void {
-    for (const msg of messages) {
-      if (msg.role !== 'assistant' || !msg.toolCalls) continue;
-
-      for (const toolCall of msg.toolCalls) {
-        const diffData = toolDiffData[toolCall.id];
-        if (diffData && !toolCall.diffData) {
-          toolCall.diffData = diffData;
-        }
-      }
-    }
   }
 
   /**
@@ -761,26 +727,6 @@ export default class ClaudianPlugin extends Plugin {
     }
   }
 
-  /**
-   * Applies cached displayContentMap to messages.
-   * Restores displayContent on user messages so slash commands show "/command" instead of expanded prompt.
-   * Takes precedence over SDK-extracted displayContent since metadata stores the original user input.
-   * Uses content hash as key - guaranteed to match SDK-stored content.
-   */
-  private applyDisplayContentMap(messages: ChatMessage[], displayContentMap: Record<string, string>): void {
-    for (const msg of messages) {
-      if (msg.role !== 'user') continue;
-
-      // Match by content hash - the only reliable key since SDK stores exact content we send
-      const key = hashContent(msg.content);
-      const displayContent = displayContentMap[key];
-      if (displayContent) {
-        // Override SDK-extracted displayContent with saved original user input
-        msg.displayContent = displayContent;
-      }
-    }
-  }
-
   private dedupeMessages(messages: ChatMessage[]): ChatMessage[] {
     const seen = new Set<string>();
     const result: ChatMessage[] = [];
@@ -816,9 +762,6 @@ export default class ClaudianPlugin extends Plugin {
     };
 
     this.conversations.unshift(conversation);
-    // Session management is now per-tab in TabManager
-    clearDiffState(); // Clear UI diff state (not SDK-related)
-
     // Save new conversation (metadata only - SDK handles messages)
     await this.storage.sessions.saveMetadata(
       this.storage.sessions.toSessionMetadata(conversation)
@@ -837,9 +780,6 @@ export default class ClaudianPlugin extends Plugin {
     if (!conversation) return null;
 
     await this.loadSdkMessagesForConversation(conversation);
-
-    // Session management is now per-tab in TabManager
-    clearDiffState(); // Clear UI diff state when switching conversations
 
     return conversation;
   }

@@ -6,12 +6,13 @@
  */
 
 import type { ClaudianService } from '../../../core/agent';
-import { getDiffData } from '../../../core/hooks';
 import { parseTodoInput } from '../../../core/tools';
 import { isWriteEditTool, TOOL_AGENT_OUTPUT, TOOL_TASK, TOOL_TODO_WRITE } from '../../../core/tools/toolNames';
 import type { ChatMessage, StreamChunk, SubagentInfo, ToolCallInfo } from '../../../core/types';
+import type { SDKToolUseResult } from '../../../core/types/diff';
 import type ClaudianPlugin from '../../../main';
 import { formatDurationMmSs } from '../../../utils/date';
+import { extractDiffData } from '../../../utils/diff';
 import { FLAVOR_TEXTS } from '../constants';
 import {
   addSubagentToolCall,
@@ -283,7 +284,7 @@ export class StreamController {
 
   /** Handles tool_result chunks. */
   private handleToolResult(
-    chunk: { type: 'tool_result'; id: string; content: string; isError?: boolean },
+    chunk: { type: 'tool_result'; id: string; content: string; isError?: boolean; toolUseResult?: SDKToolUseResult },
     msg: ChatMessage
   ): void {
     const { state } = this.deps;
@@ -329,7 +330,7 @@ export class StreamController {
       const writeEditState = state.writeEditStates.get(chunk.id);
       if (writeEditState && isWriteEditTool(existingToolCall.name)) {
         if (!chunk.isError && !isBlocked) {
-          const diffData = getDiffData(chunk.id);
+          const diffData = extractDiffData(chunk.toolUseResult, existingToolCall);
           if (diffData) {
             existingToolCall.diffData = diffData;
             updateWriteEditWithDiff(writeEditState, diffData);
@@ -602,7 +603,6 @@ export class StreamController {
           toolCall.status = isBlocked ? 'blocked' : (chunk.isError ? 'error' : 'completed');
           toolCall.result = chunk.content;
           updateSubagentToolResult(subagentState, chunk.id, toolCall);
-          getDiffData(chunk.id);
         }
         break;
       }

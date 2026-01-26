@@ -13,7 +13,7 @@
  * - 'error' - error messages
  */
 
-import type { SDKMessage, UsageInfo } from '../types';
+import type { SDKMessage, SDKToolUseResult, UsageInfo } from '../types';
 import { getContextWindowSize } from '../types';
 import type { TransformEvent } from './types';
 
@@ -127,6 +127,7 @@ export function* transformSDKMessage(
             : JSON.stringify(message.tool_use_result, null, 2),
           isError: false,
           parentToolUseId,
+          toolUseResult: (message.tool_use_result ?? undefined) as SDKToolUseResult | undefined,
         };
       }
       // Also check message.message.content for tool_result blocks
@@ -141,6 +142,7 @@ export function* transformSDKMessage(
                 : JSON.stringify(block.content, null, 2),
               isError: block.is_error || false,
               parentToolUseId,
+              toolUseResult: (message.tool_use_result ?? undefined) as SDKToolUseResult | undefined,
             };
           }
         }

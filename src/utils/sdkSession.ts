@@ -15,6 +15,7 @@ import * as path from 'path';
 
 import type { ChatMessage, ContentBlock, ImageAttachment, ImageMediaType, ToolCallInfo } from '../core/types';
 import { extractContentBeforeXmlContext } from './context';
+import { extractDiffData } from './diff';
 
 /** Result of reading an SDK session file. */
 export interface SDKSessionReadResult {
@@ -345,7 +346,7 @@ function mapContentBlocks(content: string | SDKNativeContentBlock[] | undefined)
  * @param sdkMsg - The SDK native message
  * @param toolResults - Optional pre-collected tool results for cross-message matching.
  *   If not provided, only matches tool_result in the same message as tool_use.
- *   For full cross-message matching, use loadSDKSessionMessages() which performs two-pass parsing.
+ *   For full cross-message matching, use loadSDKSessionMessages() which performs three-pass parsing.
  * @returns ChatMessage or null if the message should be skipped
  */
 export function parseSDKMessageToChat(
@@ -430,6 +431,30 @@ function collectToolResults(sdkMessages: SDKNativeMessage[]): Map<string, { cont
 }
 
 /**
+ * Collects toolUseResult objects from SDK messages, keyed by tool_use_id.
+ * These contain structuredPatch data for Write/Edit diff rendering.
+ */
+function collectStructuredPatchResults(sdkMessages: SDKNativeMessage[]): Map<string, unknown> {
+  const results = new Map<string, unknown>();
+
+  for (const sdkMsg of sdkMessages) {
+    if (sdkMsg.type !== 'user' || !sdkMsg.toolUseResult) continue;
+
+    // Find the tool_use_id from the content blocks
+    const content = sdkMsg.message?.content;
+    if (!content || typeof content === 'string') continue;
+
+    for (const block of content) {
+      if (block.type === 'tool_result' && block.tool_use_id) {
+        results.set(block.tool_use_id, sdkMsg.toolUseResult);
+      }
+    }
+  }
+
+  return results;
+}
+
+/**
  * Checks if a user message is system-injected (not actual user input).
  * These include:
  * - Tool result messages (`toolUseResult` field)
@@ -479,9 +504,10 @@ function mergeAssistantMessage(target: ChatMessage, source: ChatMessage): void {
 /**
  * Loads and converts all messages from an SDK native session.
  *
- * Uses two-pass approach:
- * 1. First pass: collect all tool_result from all messages
+ * Uses three-pass approach:
+ * 1. First pass: collect all tool_result and toolUseResult from all messages
  * 2. Second pass: convert messages and attach results to tool calls
+ * 3. Third pass: attach diff data from toolUseResults to tool calls
  *
  * Consecutive assistant messages with the same requestId are merged into one,
  * as the SDK stores multiple JSONL entries for a single API turn (text, then tool_use, etc).
@@ -497,8 +523,9 @@ export async function loadSDKSessionMessages(vaultPath: string, sessionId: strin
     return { messages: [], skippedLines: result.skippedLines, error: result.error };
   }
 
-  // First pass: collect all tool results for cross-message matching
+  // First pass: collect all tool results and toolUseResults for cross-message matching
   const toolResults = collectToolResults(result.messages);
+  const toolUseResults = collectStructuredPatchResults(result.messages);
 
   const chatMessages: ChatMessage[] = [];
   let pendingAssistant: ChatMessage | null = null;
@@ -532,6 +559,19 @@ export async function loadSDKSessionMessages(vaultPath: string, sessionId: strin
   // Don't forget the last pending assistant message
   if (pendingAssistant) {
     chatMessages.push(pendingAssistant);
+  }
+
+  // Third pass: attach diff data from toolUseResults to tool calls
+  if (toolUseResults.size > 0) {
+    for (const msg of chatMessages) {
+      if (msg.role !== 'assistant' || !msg.toolCalls) continue;
+      for (const toolCall of msg.toolCalls) {
+        const toolUseResult = toolUseResults.get(toolCall.id);
+        if (toolUseResult && !toolCall.diffData) {
+          toolCall.diffData = extractDiffData(toolUseResult, toolCall);
+        }
+      }
+    }
   }
 
   // Sort by timestamp ascending

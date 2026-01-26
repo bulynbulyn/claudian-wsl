@@ -36,10 +36,7 @@ import {
 } from '../../utils/session';
 import {
   createBlocklistHook,
-  createFileHashPostHook,
-  createFileHashPreHook,
   createVaultRestrictionHook,
-  type FileEditPostCallback,
 } from '../hooks';
 import type { McpServerManager } from '../mcp';
 import { isSessionInitEvent, isStreamChunk, transformSDKMessage } from '../sdk';
@@ -449,7 +446,7 @@ export class ClaudianService {
     externalContextPaths?: string[]
   ): Options {
     const baseContext = this.buildQueryOptionsContext(vaultPath, cliPath);
-    const hooks = this.buildHooks(vaultPath);
+    const hooks = this.buildHooks();
     const permissionMode = this.plugin.settings.permissionMode;
 
     const ctx: PersistentQueryContext = {
@@ -468,12 +465,11 @@ export class ClaudianService {
    * Builds the hooks for SDK options.
    * Hooks need access to `this` for dynamic settings, so they're built here.
    *
-   * @param vaultPath - The vault path for file operations.
    * @param externalContextPaths - Optional external context paths for cold-start queries.
    *        If not provided, the closure reads this.currentExternalContextPaths at execution
    *        time (for persistent queries where the value may change dynamically).
    */
-  private buildHooks(vaultPath: string, externalContextPaths?: string[]) {
+  private buildHooks(externalContextPaths?: string[]) {
     const blocklistHook = createBlocklistHook(() => ({
       blockedCommands: this.plugin.settings.blockedCommands,
       enableBlocklist: this.plugin.settings.enableBlocklist,
@@ -495,18 +491,8 @@ export class ClaudianService {
       },
     });
 
-    const postCallback: FileEditPostCallback = {
-      trackEditedFile: async () => {
-        // File tracking is delegated to PreToolUse/PostToolUse hooks
-      },
-    };
-
-    const fileHashPreHook = createFileHashPreHook(vaultPath);
-    const fileHashPostHook = createFileHashPostHook(vaultPath, postCallback);
-
     return {
-      PreToolUse: [blocklistHook, vaultRestrictionHook, fileHashPreHook],
-      PostToolUse: [fileHashPostHook],
+      PreToolUse: [blocklistHook, vaultRestrictionHook],
     };
   }
 
@@ -1260,7 +1246,7 @@ export class ClaudianService {
     // Build cold-start context
     const baseContext = this.buildQueryOptionsContext(cwd, cliPath);
     const externalContextPaths = queryOptions?.externalContextPaths || [];
-    const hooks = this.buildHooks(cwd, externalContextPaths);
+    const hooks = this.buildHooks(externalContextPaths);
     const hasEditorContext = prompt.includes('<editor_selection');
 
     // Prepare allowed tools with Skill tool included

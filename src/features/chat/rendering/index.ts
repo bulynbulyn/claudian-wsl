@@ -2,15 +2,6 @@
  * Chat rendering module exports.
  */
 
-export {
-  computeLineDiff,
-  countLineChanges,
-  type DiffHunk,
-  type DiffLine,
-  type DiffStats,
-  renderDiffContent,
-  splitIntoHunks,
-} from './DiffRenderer';
 export { MessageRenderer } from './MessageRenderer';
 export {
   addSubagentToolCall,
