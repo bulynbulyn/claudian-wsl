@@ -22,7 +22,7 @@ An Obsidian plugin that embeds Claude Code as an AI collaborator in your vault. 
 - **MCP Support**: Connect external tools and data sources via Model Context Protocol servers (stdio, SSE, HTTP) with context-saving mode and `@`-mention activation.
 - **Advanced Model Control**: Select between Haiku, Sonnet, and Opus, configure custom models via environment variables, fine-tune thinking budget, and enable Sonnet with 1M context window (requires Max subscription).
 - **Security**: Permission modes (YOLO/Safe), safety blocklist, and vault confinement with symlink-safe checks.
-- **Multi-Tab Support**: Run multiple concurrent chat sessions with independent streaming, lazy service initialization, and configurable tab limits (3-10 tabs).
+- **Claude in Chrome**: Allow Claude to interact with Chrome through the `claude-in-chrome` extension.
 
 > **Note**: `Plan Mode` has been temporarily removed. The SDK does not natively support `permissionMode: plan`, and the previous implementation had significant limitations. It will be re-added when there's a better approach.
 
@@ -113,9 +113,9 @@ Use it like Claude Code—read, write, edit, search files in your vault.
 
 - **Inline Edit**: Select text + hotkey to edit directly in notes with word-level diff preview
 - **Instruction Mode**: Type `#` to add refined instructions to system prompt
-- **Slash Commands**: Type `/` for custom prompt templates (Settings → Slash Commands)
-- **Skills**: Add `SKILL.md` files to `~/.claude/skills/` or `{vault}/.claude/skills/`, recommended to use Claude Code to manage skills
-- **Custom Agents**: Add agent `.md` files to `~/.claude/agents/` (global) or `{vault}/.claude/agents/` (vault-specific); select via `@Agents/` in chat, or prompt Claudian to invoke agents
+- **Slash Commands**: Type `/` for custom prompt templates or skills
+- **Skills**: Add `skill/SKILL.md` files to `~/.claude/skills/` or `{vault}/.claude/skills/`, recommended to use Claude Code to manage skills
+- **Custom Agents**: Add `agent.md` files to `~/.claude/agents/` (global) or `{vault}/.claude/agents/` (vault-specific); select via `@Agents/` in chat, or prompt Claudian to invoke agents
 - **Claude Code Plugins**: Enable plugins via Settings → Claude Code Plugins, recommended to use Claude Code to manage plugins
 - **MCP**: Add external tools via Settings → MCP Servers; use `@mcp-server` in chat to activate
 
@@ -248,6 +248,7 @@ src/
 
 - [x] Claude Code Plugin support
 - [x] Custom agent (subagent) support
+- [x] Claude in Chrome support
 - [ ] `/compact` command
 - [ ] Hooks and other advanced features
 - [ ] More to come!
