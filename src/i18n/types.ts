@@ -108,6 +108,8 @@ export type TranslationKey =
   | 'settings.advanced'
   | 'settings.show1MModel.name'
   | 'settings.show1MModel.desc'
+  | 'settings.enableChrome.name'
+  | 'settings.enableChrome.desc'
   | 'settings.maxTabs.name'
   | 'settings.maxTabs.desc'
   | 'settings.maxTabs.warning'

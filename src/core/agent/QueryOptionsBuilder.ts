@@ -130,6 +130,8 @@ export class QueryOptionsBuilder {
     // If it changes, restart is required.
     if (currentConfig.show1MModel !== newConfig.show1MModel) return true;
 
+    if (currentConfig.enableChrome !== newConfig.enableChrome) return true;
+
     // Export paths affect system prompt
     if (QueryOptionsBuilder.pathsChanged(currentConfig.allowedExportPaths, newConfig.allowedExportPaths)) {
       return true;
@@ -181,6 +183,7 @@ export class QueryOptionsBuilder {
       settingSources: ctx.settings.loadUserClaudeSettings ? 'user,project' : 'project',
       claudeCliPath: ctx.cliPath,
       show1MModel: ctx.settings.show1MModel,
+      enableChrome: ctx.settings.enableChrome,
     };
   }
 
@@ -217,6 +220,8 @@ export class QueryOptionsBuilder {
     if (resolved.betas) {
       options.betas = resolved.betas;
     }
+
+    QueryOptionsBuilder.applyExtraArgs(options, ctx.settings);
 
     options.disallowedTools = [
       ...ctx.mcpManager.getAllDisallowedMcpTools(),
@@ -282,6 +287,8 @@ export class QueryOptionsBuilder {
     if (resolved.betas) {
       options.betas = resolved.betas;
     }
+
+    QueryOptionsBuilder.applyExtraArgs(options, ctx.settings);
 
     const mcpMentions = ctx.mcpMentions || new Set<string>();
     const uiEnabledServers = ctx.enabledMcpServers || new Set<string>();
@@ -364,6 +371,12 @@ export class QueryOptionsBuilder {
       if (canUseTool) {
         options.canUseTool = canUseTool;
       }
+    }
+  }
+
+  private static applyExtraArgs(options: Options, settings: ClaudianSettings): void {
+    if (settings.enableChrome) {
+      options.extraArgs = { ...options.extraArgs, chrome: null };
     }
   }
 
