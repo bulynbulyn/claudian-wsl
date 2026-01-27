@@ -52,6 +52,41 @@
       "desc": "Um mapeamento por linha. Formato: \"map <tecla> <ação>\" (ações: scrollUp, scrollDown, focusInput)."
     },
     "hotkeys": "Atalhos",
+    "inlineEditHotkey": {
+      "name": "Edição em linha",
+      "descWithKey": "Atalho atual: {hotkey}",
+      "descNoKey": "Nenhum atalho definido",
+      "btnChange": "Alterar",
+      "btnSet": "Definir"
+    },
+    "openChatHotkey": {
+      "name": "Abrir chat",
+      "descWithKey": "Atalho atual: {hotkey}",
+      "descNoKey": "Nenhum atalho definido",
+      "btnChange": "Alterar",
+      "btnSet": "Definir"
+    },
+    "newSessionHotkey": {
+      "name": "Nova sessão",
+      "descWithKey": "Atalho atual: {hotkey}",
+      "descNoKey": "Nenhum atalho definido",
+      "btnChange": "Alterar",
+      "btnSet": "Definir"
+    },
+    "newTabHotkey": {
+      "name": "Nova aba",
+      "descWithKey": "Atalho atual: {hotkey}",
+      "descNoKey": "Nenhum atalho definido",
+      "btnChange": "Alterar",
+      "btnSet": "Definir"
+    },
+    "closeTabHotkey": {
+      "name": "Fechar aba",
+      "descWithKey": "Atalho atual: {hotkey}",
+      "descNoKey": "Nenhum atalho definido",
+      "btnChange": "Alterar",
+      "btnSet": "Definir"
+    },
     "slashCommands": {
       "name": "Comandos slash",
       "desc": "Crie modelos de prompts personalizados acionados por /command. Use $ARGUMENTS para todos os argumentos, $1/$2 para argumentos posicionais, @file para conteúdo de arquivo e !`bash` para saída de comando."

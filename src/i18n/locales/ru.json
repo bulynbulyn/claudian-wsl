@@ -52,6 +52,41 @@
       "desc": "По одному сопоставлению в строке. Формат: \"map <ключ> <действие>\" (действия: scrollUp, scrollDown, focusInput)."
     },
     "hotkeys": "Горячие клавиши",
+    "inlineEditHotkey": {
+      "name": "Инлайн-редактирование",
+      "descWithKey": "Текущая клавиша: {hotkey}",
+      "descNoKey": "Клавиша не назначена",
+      "btnChange": "Изменить",
+      "btnSet": "Назначить"
+    },
+    "openChatHotkey": {
+      "name": "Открыть чат",
+      "descWithKey": "Текущая клавиша: {hotkey}",
+      "descNoKey": "Клавиша не назначена",
+      "btnChange": "Изменить",
+      "btnSet": "Назначить"
+    },
+    "newSessionHotkey": {
+      "name": "Новая сессия",
+      "descWithKey": "Текущая клавиша: {hotkey}",
+      "descNoKey": "Клавиша не назначена",
+      "btnChange": "Изменить",
+      "btnSet": "Назначить"
+    },
+    "newTabHotkey": {
+      "name": "Новая вкладка",
+      "descWithKey": "Текущая клавиша: {hotkey}",
+      "descNoKey": "Клавиша не назначена",
+      "btnChange": "Изменить",
+      "btnSet": "Назначить"
+    },
+    "closeTabHotkey": {
+      "name": "Закрыть вкладку",
+      "descWithKey": "Текущая клавиша: {hotkey}",
+      "descNoKey": "Клавиша не назначена",
+      "btnChange": "Изменить",
+      "btnSet": "Назначить"
+    },
     "slashCommands": {
       "name": "Команды со слэшем",
       "desc": "Создавайте пользовательские шаблоны промптов, запускаемые через /command. Используйте $ARGUMENTS для всех аргументов, $1/$2 для позиционных аргументов, @file для содержимого файла и !`bash` для вывода команды."

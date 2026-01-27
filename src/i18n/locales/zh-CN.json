@@ -52,6 +52,41 @@
       "desc": "每行一个映射。格式：\"map <键> <动作>\"（动作：scrollUp, scrollDown, focusInput）。"
     },
     "hotkeys": "快捷键",
+    "inlineEditHotkey": {
+      "name": "内联编辑",
+      "descWithKey": "当前快捷键：{hotkey}",
+      "descNoKey": "未设置快捷键",
+      "btnChange": "更改",
+      "btnSet": "设置快捷键"
+    },
+    "openChatHotkey": {
+      "name": "打开聊天",
+      "descWithKey": "当前快捷键：{hotkey}",
+      "descNoKey": "未设置快捷键",
+      "btnChange": "更改",
+      "btnSet": "设置快捷键"
+    },
+    "newSessionHotkey": {
+      "name": "新会话",
+      "descWithKey": "当前快捷键：{hotkey}",
+      "descNoKey": "未设置快捷键",
+      "btnChange": "更改",
+      "btnSet": "设置快捷键"
+    },
+    "newTabHotkey": {
+      "name": "新标签页",
+      "descWithKey": "当前快捷键：{hotkey}",
+      "descNoKey": "未设置快捷键",
+      "btnChange": "更改",
+      "btnSet": "设置快捷键"
+    },
+    "closeTabHotkey": {
+      "name": "关闭标签页",
+      "descWithKey": "当前快捷键：{hotkey}",
+      "descNoKey": "未设置快捷键",
+      "btnChange": "更改",
+      "btnSet": "设置快捷键"
+    },
     "slashCommands": {
       "name": "斜杠命令",
       "desc": "创建由 /command 触发的自定义提示模板。使用 $ARGUMENTS 获取所有参数，$1/$2 获取位置参数，@file 获取文件内容，!`bash` 获取命令输出。"

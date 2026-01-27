@@ -52,6 +52,41 @@
       "desc": "每行一個映射。格式：\"map <鍵> <動作>\"（動作：scrollUp, scrollDown, focusInput）。"
     },
     "hotkeys": "快捷鍵",
+    "inlineEditHotkey": {
+      "name": "內嵌編輯",
+      "descWithKey": "目前快捷鍵：{hotkey}",
+      "descNoKey": "未設定快捷鍵",
+      "btnChange": "變更",
+      "btnSet": "設定快捷鍵"
+    },
+    "openChatHotkey": {
+      "name": "開啟聊天",
+      "descWithKey": "目前快捷鍵：{hotkey}",
+      "descNoKey": "未設定快捷鍵",
+      "btnChange": "變更",
+      "btnSet": "設定快捷鍵"
+    },
+    "newSessionHotkey": {
+      "name": "新工作階段",
+      "descWithKey": "目前快捷鍵：{hotkey}",
+      "descNoKey": "未設定快捷鍵",
+      "btnChange": "變更",
+      "btnSet": "設定快捷鍵"
+    },
+    "newTabHotkey": {
+      "name": "新分頁",
+      "descWithKey": "目前快捷鍵：{hotkey}",
+      "descNoKey": "未設定快捷鍵",
+      "btnChange": "變更",
+      "btnSet": "設定快捷鍵"
+    },
+    "closeTabHotkey": {
+      "name": "關閉分頁",
+      "descWithKey": "目前快捷鍵：{hotkey}",
+      "descNoKey": "未設定快捷鍵",
+      "btnChange": "變更",
+      "btnSet": "設定快捷鍵"
+    },
     "slashCommands": {
       "name": "斜線命令",
       "desc": "建立由 /command 觸發的自訂提示範本。使用 $ARGUMENTS 獲取所有參數，$1/$2 獲取位置參數，@file 獲取檔案內容，!`bash` 獲取命令輸出。"

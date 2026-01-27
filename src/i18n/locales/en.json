@@ -52,6 +52,41 @@
       "desc": "One mapping per line. Format: \"map <key> <action>\" (actions: scrollUp, scrollDown, focusInput)."
     },
     "hotkeys": "Hotkeys",
+    "inlineEditHotkey": {
+      "name": "Inline Edit",
+      "descWithKey": "Current hotkey: {hotkey}",
+      "descNoKey": "No hotkey set",
+      "btnChange": "Change",
+      "btnSet": "Set hotkey"
+    },
+    "openChatHotkey": {
+      "name": "Open Chat",
+      "descWithKey": "Current hotkey: {hotkey}",
+      "descNoKey": "No hotkey set",
+      "btnChange": "Change",
+      "btnSet": "Set hotkey"
+    },
+    "newSessionHotkey": {
+      "name": "New Session",
+      "descWithKey": "Current hotkey: {hotkey}",
+      "descNoKey": "No hotkey set",
+      "btnChange": "Change",
+      "btnSet": "Set hotkey"
+    },
+    "newTabHotkey": {
+      "name": "New Tab",
+      "descWithKey": "Current hotkey: {hotkey}",
+      "descNoKey": "No hotkey set",
+      "btnChange": "Change",
+      "btnSet": "Set hotkey"
+    },
+    "closeTabHotkey": {
+      "name": "Close Tab",
+      "descWithKey": "Current hotkey: {hotkey}",
+      "descNoKey": "No hotkey set",
+      "btnChange": "Change",
+      "btnSet": "Set hotkey"
+    },
     "slashCommands": {
       "name": "Slash Commands",
       "desc": "Create custom prompt templates triggered by /command. Use $ARGUMENTS for all arguments, $1/$2 for positional args, @file for file content, and !`bash` for command output."

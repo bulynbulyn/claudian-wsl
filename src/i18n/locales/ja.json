@@ -52,6 +52,41 @@
       "desc": "1行に1つのマッピング。形式：\"map <キー> <アクション>\"（アクション：scrollUp, scrollDown, focusInput）。"
     },
     "hotkeys": "ホットキー",
+    "inlineEditHotkey": {
+      "name": "インライン編集",
+      "descWithKey": "現在のホットキー: {hotkey}",
+      "descNoKey": "ホットキー未設定",
+      "btnChange": "変更",
+      "btnSet": "設定"
+    },
+    "openChatHotkey": {
+      "name": "チャットを開く",
+      "descWithKey": "現在のホットキー: {hotkey}",
+      "descNoKey": "ホットキー未設定",
+      "btnChange": "変更",
+      "btnSet": "設定"
+    },
+    "newSessionHotkey": {
+      "name": "新規セッション",
+      "descWithKey": "現在のホットキー: {hotkey}",
+      "descNoKey": "ホットキー未設定",
+      "btnChange": "変更",
+      "btnSet": "設定"
+    },
+    "newTabHotkey": {
+      "name": "新規タブ",
+      "descWithKey": "現在のホットキー: {hotkey}",
+      "descNoKey": "ホットキー未設定",
+      "btnChange": "変更",
+      "btnSet": "設定"
+    },
+    "closeTabHotkey": {
+      "name": "タブを閉じる",
+      "descWithKey": "現在のホットキー: {hotkey}",
+      "descNoKey": "ホットキー未設定",
+      "btnChange": "変更",
+      "btnSet": "設定"
+    },
     "slashCommands": {
       "name": "スラッシュコマンド",
       "desc": "/command でトリガーされるカスタムプロンプトテンプレートを作成します。$ARGUMENTS ですべての引数、$1/$2 で位置引数、@file でファイル内容、!`bash` でコマンド出力を取得できます。"

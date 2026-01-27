@@ -52,6 +52,41 @@
       "desc": "Un mappage par ligne. Format : \"map <touche> <action>\" (actions : scrollUp, scrollDown, focusInput)."
     },
     "hotkeys": "Raccourcis clavier",
+    "inlineEditHotkey": {
+      "name": "Édition en ligne",
+      "descWithKey": "Raccourci actuel : {hotkey}",
+      "descNoKey": "Aucun raccourci défini",
+      "btnChange": "Modifier",
+      "btnSet": "Définir"
+    },
+    "openChatHotkey": {
+      "name": "Ouvrir le chat",
+      "descWithKey": "Raccourci actuel : {hotkey}",
+      "descNoKey": "Aucun raccourci défini",
+      "btnChange": "Modifier",
+      "btnSet": "Définir"
+    },
+    "newSessionHotkey": {
+      "name": "Nouvelle session",
+      "descWithKey": "Raccourci actuel : {hotkey}",
+      "descNoKey": "Aucun raccourci défini",
+      "btnChange": "Modifier",
+      "btnSet": "Définir"
+    },
+    "newTabHotkey": {
+      "name": "Nouvel onglet",
+      "descWithKey": "Raccourci actuel : {hotkey}",
+      "descNoKey": "Aucun raccourci défini",
+      "btnChange": "Modifier",
+      "btnSet": "Définir"
+    },
+    "closeTabHotkey": {
+      "name": "Fermer l'onglet",
+      "descWithKey": "Raccourci actuel : {hotkey}",
+      "descNoKey": "Aucun raccourci défini",
+      "btnChange": "Modifier",
+      "btnSet": "Définir"
+    },
     "slashCommands": {
       "name": "Commandes slash",
       "desc": "Créez des modèles de prompts personnalisés déclenchés par /command. Utilisez $ARGUMENTS pour tous les arguments, $1/$2 pour les arguments positionnels, @file pour le contenu du fichier et !`bash` pour la sortie de commande."

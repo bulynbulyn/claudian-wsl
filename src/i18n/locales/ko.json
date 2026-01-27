@@ -52,6 +52,41 @@
       "desc": "한 줄에 하나의 매핑. 형식: \"map <키> <동작>\" (동작: scrollUp, scrollDown, focusInput)."
     },
     "hotkeys": "단축키",
+    "inlineEditHotkey": {
+      "name": "인라인 편집",
+      "descWithKey": "현재 단축키: {hotkey}",
+      "descNoKey": "단축키 미설정",
+      "btnChange": "변경",
+      "btnSet": "단축키 설정"
+    },
+    "openChatHotkey": {
+      "name": "채팅 열기",
+      "descWithKey": "현재 단축키: {hotkey}",
+      "descNoKey": "단축키 미설정",
+      "btnChange": "변경",
+      "btnSet": "단축키 설정"
+    },
+    "newSessionHotkey": {
+      "name": "새 세션",
+      "descWithKey": "현재 단축키: {hotkey}",
+      "descNoKey": "단축키 미설정",
+      "btnChange": "변경",
+      "btnSet": "단축키 설정"
+    },
+    "newTabHotkey": {
+      "name": "새 탭",
+      "descWithKey": "현재 단축키: {hotkey}",
+      "descNoKey": "단축키 미설정",
+      "btnChange": "변경",
+      "btnSet": "단축키 설정"
+    },
+    "closeTabHotkey": {
+      "name": "탭 닫기",
+      "descWithKey": "현재 단축키: {hotkey}",
+      "descNoKey": "단축키 미설정",
+      "btnChange": "변경",
+      "btnSet": "단축키 설정"
+    },
     "slashCommands": {
       "name": "슬래시 명령어",
       "desc": "/command로 트리거되는 커스텀 프롬프트 템플릿을 생성합니다. $ARGUMENTS로 모든 인자, $1/$2로 위치 인자, @file로 파일 내용, !`bash`로 명령어 출력을 가져올 수 있습니다."

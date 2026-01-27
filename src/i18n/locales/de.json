@@ -52,6 +52,41 @@
       "desc": "Eine Zuordnung pro Zeile. Format: \"map <Taste> <Aktion>\" (Aktionen: scrollUp, scrollDown, focusInput)."
     },
     "hotkeys": "Tastenkürzel",
+    "inlineEditHotkey": {
+      "name": "Inline-Bearbeitung",
+      "descWithKey": "Aktuelles Tastenkürzel: {hotkey}",
+      "descNoKey": "Kein Tastenkürzel festgelegt",
+      "btnChange": "Ändern",
+      "btnSet": "Festlegen"
+    },
+    "openChatHotkey": {
+      "name": "Chat öffnen",
+      "descWithKey": "Aktuelles Tastenkürzel: {hotkey}",
+      "descNoKey": "Kein Tastenkürzel festgelegt",
+      "btnChange": "Ändern",
+      "btnSet": "Festlegen"
+    },
+    "newSessionHotkey": {
+      "name": "Neue Sitzung",
+      "descWithKey": "Aktuelles Tastenkürzel: {hotkey}",
+      "descNoKey": "Kein Tastenkürzel festgelegt",
+      "btnChange": "Ändern",
+      "btnSet": "Festlegen"
+    },
+    "newTabHotkey": {
+      "name": "Neuer Tab",
+      "descWithKey": "Aktuelles Tastenkürzel: {hotkey}",
+      "descNoKey": "Kein Tastenkürzel festgelegt",
+      "btnChange": "Ändern",
+      "btnSet": "Festlegen"
+    },
+    "closeTabHotkey": {
+      "name": "Tab schließen",
+      "descWithKey": "Aktuelles Tastenkürzel: {hotkey}",
+      "descNoKey": "Kein Tastenkürzel festgelegt",
+      "btnChange": "Ändern",
+      "btnSet": "Festlegen"
+    },
     "slashCommands": {
       "name": "Schrägstrich-Befehle",
       "desc": "Erstelle benutzerdefinierte Prompt-Vorlagen, die durch /command ausgelöst werden. Verwende $ARGUMENTS für alle Argumente, $1/$2 für Positionsargumente, @file für Dateiinhalt und !`bash` für Befehlsausgabe."

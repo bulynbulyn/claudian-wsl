@@ -52,6 +52,41 @@
       "desc": "Un mapeo por línea. Formato: \"map <tecla> <acción>\" (acciones: scrollUp, scrollDown, focusInput)."
     },
     "hotkeys": "Atajos de teclado",
+    "inlineEditHotkey": {
+      "name": "Edición en línea",
+      "descWithKey": "Atajo actual: {hotkey}",
+      "descNoKey": "Sin atajo configurado",
+      "btnChange": "Cambiar",
+      "btnSet": "Configurar"
+    },
+    "openChatHotkey": {
+      "name": "Abrir chat",
+      "descWithKey": "Atajo actual: {hotkey}",
+      "descNoKey": "Sin atajo configurado",
+      "btnChange": "Cambiar",
+      "btnSet": "Configurar"
+    },
+    "newSessionHotkey": {
+      "name": "Nueva sesión",
+      "descWithKey": "Atajo actual: {hotkey}",
+      "descNoKey": "Sin atajo configurado",
+      "btnChange": "Cambiar",
+      "btnSet": "Configurar"
+    },
+    "newTabHotkey": {
+      "name": "Nueva pestaña",
+      "descWithKey": "Atajo actual: {hotkey}",
+      "descNoKey": "Sin atajo configurado",
+      "btnChange": "Cambiar",
+      "btnSet": "Configurar"
+    },
+    "closeTabHotkey": {
+      "name": "Cerrar pestaña",
+      "descWithKey": "Atajo actual: {hotkey}",
+      "descNoKey": "Sin atajo configurado",
+      "btnChange": "Cambiar",
+      "btnSet": "Configurar"
+    },
     "slashCommands": {
       "name": "Comandos slash",
       "desc": "Crea plantillas de prompts personalizadas activadas por /command. Usa $ARGUMENTS para todos los argumentos, $1/$2 para argumentos posicionales, @file para contenido de archivo y !`bash` para salida de comandos."
