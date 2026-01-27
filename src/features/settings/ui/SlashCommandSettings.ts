@@ -2,23 +2,31 @@ import type { App} from 'obsidian';
 import { Modal, Notice, setIcon, Setting } from 'obsidian';
 
 import type { SlashCommand } from '../../../core/types';
+import { t } from '../../../i18n';
 import type ClaudianPlugin from '../../../main';
-import { parseSlashCommandContent } from '../../../utils/slashCommand';
+import { extractFirstParagraph, isSkill, isUserCommand, parseSlashCommandContent, validateCommandName } from '../../../utils/slashCommand';
 
-function isUserCommand(cmd: SlashCommand): boolean {
-  return !cmd.id.startsWith('plugin-');
+function resolveAllowedTools(inputValue: string, parsedTools?: string[]): string[] | undefined {
+  const trimmed = inputValue.trim();
+  if (trimmed) {
+    return trimmed.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  if (parsedTools && parsedTools.length > 0) {
+    return parsedTools;
+  }
+  return undefined;
 }
 
 export class SlashCommandModal extends Modal {
   private plugin: ClaudianPlugin;
   private existingCmd: SlashCommand | null;
-  private onSave: (cmd: SlashCommand) => void;
+  private onSave: (cmd: SlashCommand) => Promise<void>;
 
   constructor(
     app: App,
     plugin: ClaudianPlugin,
     existingCmd: SlashCommand | null,
-    onSave: (cmd: SlashCommand) => void
+    onSave: (cmd: SlashCommand) => Promise<void>
   ) {
     super(app);
     this.plugin = plugin;
@@ -27,7 +35,12 @@ export class SlashCommandModal extends Modal {
   }
 
   onOpen() {
-    this.setTitle(this.existingCmd ? 'Edit Slash Command' : 'Add Slash Command');
+    const existingIsSkill = this.existingCmd ? isSkill(this.existingCmd) : false;
+    let selectedType: 'command' | 'skill' = existingIsSkill ? 'skill' : 'command';
+
+    const typeLabel = () => selectedType === 'skill' ? 'Skill' : 'Slash Command';
+
+    this.setTitle(this.existingCmd ? `Edit ${typeLabel()}` : `Add ${typeLabel()}`);
     this.modalEl.addClass('claudian-slash-modal');
 
     const { contentEl } = this;
@@ -37,6 +50,27 @@ export class SlashCommandModal extends Modal {
     let hintInput: HTMLInputElement;
     let modelInput: HTMLInputElement;
     let toolsInput: HTMLInputElement;
+    let disableModelToggle: boolean = this.existingCmd?.disableModelInvocation ?? false;
+    let disableUserInvocation: boolean = this.existingCmd?.userInvocable === false;
+    let contextValue: 'fork' | '' = this.existingCmd?.context ?? '';
+    let agentInput: HTMLInputElement;
+
+    new Setting(contentEl)
+      .setName('Type')
+      .setDesc('Command or skill')
+      .addDropdown(dropdown => {
+        dropdown
+          .addOption('command', 'Command')
+          .addOption('skill', 'Skill')
+          .setValue(selectedType)
+          .onChange(value => {
+            selectedType = value as 'command' | 'skill';
+            this.setTitle(this.existingCmd ? `Edit ${typeLabel()}` : `Add ${typeLabel()}`);
+          });
+        if (this.existingCmd) {
+          dropdown.setDisabled(true);
+        }
+      });
 
     new Setting(contentEl)
       .setName('Command name')
@@ -55,7 +89,18 @@ export class SlashCommandModal extends Modal {
         text.setValue(this.existingCmd?.description || '');
       });
 
-    new Setting(contentEl)
+    const details = contentEl.createEl('details', { cls: 'claudian-slash-advanced-section' });
+    details.createEl('summary', {
+      text: 'Advanced options',
+      cls: 'claudian-slash-advanced-summary',
+    });
+    if (this.existingCmd?.argumentHint || this.existingCmd?.model || this.existingCmd?.allowedTools?.length ||
+        this.existingCmd?.disableModelInvocation || this.existingCmd?.userInvocable === false ||
+        this.existingCmd?.context || this.existingCmd?.agent) {
+      details.open = true;
+    }
+
+    new Setting(details)
       .setName('Argument hint')
       .setDesc('Placeholder text for arguments (e.g., "[file] [focus]")')
       .addText(text => {
@@ -63,7 +108,7 @@ export class SlashCommandModal extends Modal {
         text.setValue(this.existingCmd?.argumentHint || '');
       });
 
-    new Setting(contentEl)
+    new Setting(details)
       .setName('Model override')
       .setDesc('Optional model to use for this command')
       .addText(text => {
@@ -72,13 +117,50 @@ export class SlashCommandModal extends Modal {
           .setPlaceholder('claude-sonnet-4-5');
       });
 
-    new Setting(contentEl)
+    new Setting(details)
       .setName('Allowed tools')
       .setDesc('Comma-separated list of tools to allow (empty = all)')
       .addText(text => {
         toolsInput = text.inputEl;
         text.setValue(this.existingCmd?.allowedTools?.join(', ') || '');
       });
+
+    new Setting(details)
+      .setName('Disable model invocation')
+      .setDesc('Prevent the model from invoking this command itself')
+      .addToggle(toggle => {
+        toggle.setValue(disableModelToggle)
+          .onChange(value => { disableModelToggle = value; });
+      });
+
+    new Setting(details)
+      .setName('Disable user invocation')
+      .setDesc('Prevent the user from invoking this command directly')
+      .addToggle(toggle => {
+        toggle.setValue(disableUserInvocation)
+          .onChange(value => { disableUserInvocation = value; });
+      });
+
+    new Setting(details)
+      .setName('Context')
+      .setDesc('Run in a subagent (fork)')
+      .addToggle(toggle => {
+        toggle.setValue(contextValue === 'fork')
+          .onChange(value => {
+            contextValue = value ? 'fork' : '';
+            agentSetting.settingEl.style.display = value ? '' : 'none';
+          });
+      });
+
+    const agentSetting = new Setting(details)
+      .setName('Agent')
+      .setDesc('Subagent type when context is fork')
+      .addText(text => {
+        agentInput = text.inputEl;
+        text.setValue(this.existingCmd?.agent || '')
+          .setPlaceholder('code-reviewer');
+      });
+    agentSetting.settingEl.style.display = contextValue === 'fork' ? '' : 'none';
 
     new Setting(contentEl)
       .setName('Prompt template')
@@ -110,20 +192,15 @@ export class SlashCommandModal extends Modal {
     });
     saveBtn.addEventListener('click', async () => {
       const name = nameInput.value.trim();
-      if (!name) {
-        new Notice('Command name is required');
+      const nameError = validateCommandName(name);
+      if (nameError) {
+        new Notice(nameError);
         return;
       }
 
       const content = contentArea.value;
       if (!content.trim()) {
         new Notice('Prompt template is required');
-        return;
-      }
-
-      // Validate name (alphanumeric, hyphens, underscores, slashes only - colons reserved for plugins)
-      if (!/^[a-zA-Z0-9_/-]+$/.test(name)) {
-        new Notice('Command name can only contain letters, numbers, hyphens, underscores, and slashes');
         return;
       }
 
@@ -139,21 +216,34 @@ export class SlashCommandModal extends Modal {
       const parsed = parseSlashCommandContent(content);
       const promptContent = parsed.promptContent;
 
+      const isSkillType = selectedType === 'skill';
+      const id = this.existingCmd?.id ||
+        (isSkillType
+          ? `skill-${name}`
+          : `cmd-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`);
+
       const cmd: SlashCommand = {
-        id: this.existingCmd?.id || `cmd-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+        id,
         name,
         description: descInput.value.trim() || parsed.description || undefined,
         argumentHint: hintInput.value.trim() || parsed.argumentHint || undefined,
         model: modelInput.value.trim() || parsed.model || undefined,
-        allowedTools: toolsInput.value.trim()
-          ? toolsInput.value.split(',').map(s => s.trim()).filter(Boolean)
-          : parsed.allowedTools && parsed.allowedTools.length > 0
-            ? parsed.allowedTools
-            : undefined,
+        allowedTools: resolveAllowedTools(toolsInput.value, parsed.allowedTools),
         content: promptContent,
+        source: isSkillType ? 'user' : undefined,
+        disableModelInvocation: disableModelToggle || undefined,
+        userInvocable: disableUserInvocation ? false : undefined,
+        context: contextValue || undefined,
+        agent: contextValue === 'fork' ? (agentInput.value.trim() || undefined) : undefined,
       };
 
-      this.onSave(cmd);
+      try {
+        await this.onSave(cmd);
+      } catch {
+        const label = isSkillType ? 'skill' : 'slash command';
+        new Notice(`Failed to save ${label}`);
+        return;
+      }
       this.close();
     });
 
@@ -185,23 +275,9 @@ export class SlashCommandSettings {
     this.containerEl.empty();
 
     const headerEl = this.containerEl.createDiv({ cls: 'claudian-slash-header' });
-    headerEl.createSpan({ text: 'Slash Commands', cls: 'claudian-slash-label' });
+    headerEl.createSpan({ text: t('settings.slashCommands.name'), cls: 'claudian-slash-label' });
 
     const actionsEl = headerEl.createDiv({ cls: 'claudian-slash-header-actions' });
-
-    const importBtn = actionsEl.createEl('button', {
-      cls: 'claudian-settings-action-btn',
-      attr: { 'aria-label': 'Import' },
-    });
-    setIcon(importBtn, 'download');
-    importBtn.addEventListener('click', () => this.importCommands());
-
-    const exportBtn = actionsEl.createEl('button', {
-      cls: 'claudian-settings-action-btn',
-      attr: { 'aria-label': 'Export' },
-    });
-    setIcon(exportBtn, 'upload');
-    exportBtn.addEventListener('click', () => this.exportCommands());
 
     const addBtn = actionsEl.createEl('button', {
       cls: 'claudian-settings-action-btn',
@@ -214,7 +290,7 @@ export class SlashCommandSettings {
 
     if (commands.length === 0) {
       const emptyEl = this.containerEl.createDiv({ cls: 'claudian-slash-empty-state' });
-      emptyEl.setText('No slash commands configured. Click "Add" to create one.');
+      emptyEl.setText('No commands or skills configured. Click + to create one.');
       return;
     }
 
@@ -235,6 +311,10 @@ export class SlashCommandSettings {
     const nameEl = headerRow.createSpan({ cls: 'claudian-slash-item-name' });
     nameEl.setText(`/${cmd.name}`);
 
+    if (isSkill(cmd)) {
+      headerRow.createSpan({ text: 'skill', cls: 'claudian-slash-item-badge' });
+    }
+
     if (cmd.argumentHint) {
       const hintEl = headerRow.createSpan({ cls: 'claudian-slash-item-hint' });
       hintEl.setText(cmd.argumentHint);
@@ -254,6 +334,21 @@ export class SlashCommandSettings {
     setIcon(editBtn, 'pencil');
     editBtn.addEventListener('click', () => this.openCommandModal(cmd));
 
+    if (!isSkill(cmd)) {
+      const convertBtn = actionsEl.createEl('button', {
+        cls: 'claudian-settings-action-btn',
+        attr: { 'aria-label': 'Convert to skill' },
+      });
+      setIcon(convertBtn, 'package');
+      convertBtn.addEventListener('click', async () => {
+        try {
+          await this.transformToSkill(cmd);
+        } catch {
+          new Notice('Failed to convert to skill');
+        }
+      });
+    }
+
     const deleteBtn = actionsEl.createEl('button', {
       cls: 'claudian-settings-action-btn claudian-settings-delete-btn',
       attr: { 'aria-label': 'Delete' },
@@ -263,7 +358,8 @@ export class SlashCommandSettings {
       try {
         await this.deleteCommand(cmd);
       } catch {
-        new Notice('Failed to delete slash command');
+        const label = isSkill(cmd) ? 'skill' : 'slash command';
+        new Notice(`Failed to delete ${label}`);
       }
     });
   }
@@ -280,138 +376,67 @@ export class SlashCommandSettings {
     modal.open();
   }
 
+  private storageFor(cmd: SlashCommand) {
+    return isSkill(cmd) ? this.plugin.storage.skills : this.plugin.storage.commands;
+  }
+
   private async saveCommand(cmd: SlashCommand, existing: SlashCommand | null): Promise<void> {
     // Save new file first (safer: if this fails, old file still exists)
-    await this.plugin.storage.commands.save(cmd);
+    await this.storageFor(cmd).save(cmd);
 
     // Delete old file only after successful save (if name changed)
     if (existing && existing.name !== cmd.name) {
-      await this.plugin.storage.commands.delete(existing.id);
+      await this.storageFor(existing).delete(existing.id);
     }
 
-    // Reload commands from storage
     await this.reloadCommands();
 
     this.render();
-    new Notice(`Slash command "/${cmd.name}" ${existing ? 'updated' : 'created'}`);
+    const label = isSkill(cmd) ? 'Skill' : 'Slash command';
+    new Notice(`${label} "/${cmd.name}" ${existing ? 'updated' : 'created'}`);
   }
 
   private async deleteCommand(cmd: SlashCommand): Promise<void> {
-    // Delete from file storage
-    await this.plugin.storage.commands.delete(cmd.id);
+    await this.storageFor(cmd).delete(cmd.id);
 
-    // Reload commands from storage
     await this.reloadCommands();
 
     this.render();
-    new Notice(`Slash command "/${cmd.name}" deleted`);
+    const label = isSkill(cmd) ? 'Skill' : 'Slash command';
+    new Notice(`${label} "/${cmd.name}" deleted`);
   }
 
-  private async reloadCommands(): Promise<void> {
-    const commands = await this.plugin.storage.commands.loadAll();
-    this.plugin.settings.slashCommands = commands;
-  }
+  private async transformToSkill(cmd: SlashCommand): Promise<void> {
+    const skillName = cmd.name.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 64);
 
-  private exportCommands(): void {
-    const commands = this.plugin.settings.slashCommands.filter(isUserCommand);
-    if (commands.length === 0) {
-      new Notice('No slash commands to export');
+    const existingSkill = this.plugin.settings.slashCommands.find(
+      c => isSkill(c) && c.name === skillName
+    );
+    if (existingSkill) {
+      new Notice(`A skill named "/${skillName}" already exists`);
       return;
     }
 
-    const json = JSON.stringify(commands, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'claudian-slash-commands.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    new Notice(`Exported ${commands.length} slash command(s)`);
+    const description = cmd.description || extractFirstParagraph(cmd.content);
+
+    const skill: SlashCommand = {
+      ...cmd,
+      id: `skill-${skillName}`,
+      name: skillName,
+      description,
+      source: 'user',
+    };
+
+    await this.plugin.storage.skills.save(skill);
+    await this.plugin.storage.commands.delete(cmd.id);
+
+    await this.reloadCommands();
+    this.render();
+    new Notice(`Converted "/${cmd.name}" to skill`);
   }
 
-  private importCommands(): void {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.addEventListener('change', async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      try {
-        const text = await file.text();
-        const commands = JSON.parse(text) as SlashCommand[];
-
-        if (!Array.isArray(commands)) {
-          throw new Error('Invalid format: expected an array');
-        }
-
-        const existingCommands = await this.plugin.storage.commands.loadAll();
-        const existingNames = new Set(existingCommands.map(c => c.name.toLowerCase()));
-
-        let imported = 0;
-        for (const cmd of commands) {
-          if (!cmd.name || !cmd.content) {
-            continue;
-          }
-
-          if (typeof cmd.name !== 'string' || typeof cmd.content !== 'string') {
-            continue;
-          }
-
-          // Validate name (alphanumeric, hyphens, underscores, slashes, colons)
-          if (!/^[a-zA-Z0-9_/:-]+$/.test(cmd.name)) {
-            continue;
-          }
-
-          cmd.id = `cmd-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-
-          if (cmd.allowedTools && !Array.isArray(cmd.allowedTools)) {
-            cmd.allowedTools = undefined;
-          }
-
-          if (Array.isArray(cmd.allowedTools)) {
-            cmd.allowedTools = cmd.allowedTools.filter((t) => typeof t === 'string' && t.trim().length > 0);
-            if (cmd.allowedTools.length === 0) {
-              cmd.allowedTools = undefined;
-            }
-          }
-
-          if (cmd.description && typeof cmd.description !== 'string') {
-            cmd.description = undefined;
-          }
-          if (cmd.argumentHint && typeof cmd.argumentHint !== 'string') {
-            cmd.argumentHint = undefined;
-          }
-          if (cmd.model && typeof cmd.model !== 'string') {
-            cmd.model = undefined;
-          }
-
-          const parsed = parseSlashCommandContent(cmd.content);
-          cmd.description = cmd.description || parsed.description;
-          cmd.argumentHint = cmd.argumentHint || parsed.argumentHint;
-          cmd.model = cmd.model || parsed.model;
-          cmd.allowedTools = cmd.allowedTools || parsed.allowedTools;
-          cmd.content = parsed.promptContent;
-
-          if (existingNames.has(cmd.name.toLowerCase())) {
-            continue;
-          }
-
-          await this.plugin.storage.commands.save(cmd);
-          existingNames.add(cmd.name.toLowerCase());
-          imported++;
-        }
-
-        await this.reloadCommands();
-
-        this.render();
-        new Notice(`Imported ${imported} slash command(s)`);
-      } catch {
-        new Notice('Failed to import slash commands. Check file format.');
-      }
-    });
-    input.click();
+  private async reloadCommands(): Promise<void> {
+    this.plugin.settings.slashCommands = await this.plugin.storage.loadAllSlashCommands();
   }
 
   public refresh(): void {

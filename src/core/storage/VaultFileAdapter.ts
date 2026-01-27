@@ -45,6 +45,17 @@ export class VaultFileAdapter {
     }
   }
 
+  /** Fails silently if non-empty or missing. */
+  async deleteFolder(path: string): Promise<void> {
+    try {
+      if (await this.exists(path)) {
+        await this.app.vault.adapter.rmdir(path, false);
+      }
+    } catch {
+      // Non-critical: directory may not be empty
+    }
+  }
+
   async listFiles(folder: string): Promise<string[]> {
     if (!(await this.exists(folder))) {
       return [];
