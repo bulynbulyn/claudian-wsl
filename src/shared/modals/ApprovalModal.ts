@@ -2,13 +2,15 @@ import type { App } from 'obsidian';
 import { Modal, setIcon } from 'obsidian';
 
 import { getToolIcon } from '../../core/tools';
+import type { ApprovalDecision } from '../../core/types';
 
-export type ApprovalDecision = 'allow' | 'allow-always' | 'deny' | 'deny-always' | 'cancel';
+export type { ApprovalDecision };
 
 export interface ApprovalModalOptions {
   showAlwaysAllow?: boolean;
-  showAlwaysDeny?: boolean;
   title?: string;
+  decisionReason?: string;
+  blockedPath?: string;
 }
 
 export class ApprovalModal extends Modal {
@@ -49,6 +51,16 @@ export class ApprovalModal extends Modal {
     setIcon(iconEl, getToolIcon(this.toolName));
     toolEl.createSpan({ text: this.toolName, cls: 'claudian-approval-tool-name' });
 
+    if (this.options.decisionReason) {
+      const reasonEl = infoEl.createDiv({ cls: 'claudian-approval-reason' });
+      reasonEl.setText(this.options.decisionReason);
+    }
+
+    if (this.options.blockedPath) {
+      const pathEl = infoEl.createDiv({ cls: 'claudian-approval-blocked-path' });
+      pathEl.setText(this.options.blockedPath);
+    }
+
     const descEl = contentEl.createDiv({ cls: 'claudian-approval-desc' });
     descEl.setText(this.description);
 
@@ -60,16 +72,6 @@ export class ApprovalModal extends Modal {
       attr: { 'aria-label': `Deny ${this.toolName} action` }
     });
     denyBtn.addEventListener('click', () => this.handleDecision('deny'));
-
-    let alwaysDenyBtn: HTMLButtonElement | null = null;
-    if (this.options.showAlwaysDeny ?? true) {
-      alwaysDenyBtn = buttonsEl.createEl('button', {
-        text: 'Always deny',
-        cls: 'claudian-approval-btn claudian-always-deny-btn',
-        attr: { 'aria-label': `Always deny ${this.toolName} actions` }
-      });
-      alwaysDenyBtn.addEventListener('click', () => this.handleDecision('deny-always'));
-    }
 
     const allowBtn = buttonsEl.createEl('button', {
       text: 'Allow once',
@@ -88,11 +90,7 @@ export class ApprovalModal extends Modal {
       alwaysAllowBtn.addEventListener('click', () => this.handleDecision('allow-always'));
     }
 
-    this.buttons = [denyBtn];
-    if (alwaysDenyBtn) {
-      this.buttons.push(alwaysDenyBtn);
-    }
-    this.buttons.push(allowBtn);
+    this.buttons = [denyBtn, allowBtn];
     if (alwaysAllowBtn) {
       this.buttons.push(alwaysAllowBtn);
     }

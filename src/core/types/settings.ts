@@ -120,6 +120,9 @@ export type HostnameCliPaths = Record<string, string>;
 /** Permission mode for tool execution. */
 export type PermissionMode = 'yolo' | 'normal';
 
+/** User decision from the approval modal. */
+export type ApprovalDecision = 'allow' | 'allow-always' | 'deny' | 'cancel';
+
 /**
  * Legacy permission format (pre-CC compatibility).
  * @deprecated Use CCPermissions instead
@@ -140,7 +143,7 @@ export type PermissionRule = string & { readonly __brand: 'PermissionRule' };
 
 /**
  * Create a PermissionRule from a string.
- * @internal Use generatePermissionRule or legacyPermissionToCCRule instead.
+ * @internal Use legacyPermissionToCCRule instead.
  */
 export function createPermissionRule(rule: string): PermissionRule {
   return rule as PermissionRule;

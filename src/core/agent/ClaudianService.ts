@@ -22,7 +22,6 @@ import type {
   SlashCommand as SDKSlashCommand,
 } from '@anthropic-ai/claude-agent-sdk';
 import { query as agentQuery } from '@anthropic-ai/claude-agent-sdk';
-import { Notice } from 'obsidian';
 
 import type ClaudianPlugin from '../../main';
 import { stripCurrentNoteContext } from '../../utils/context';
@@ -41,12 +40,12 @@ import {
 import type { McpServerManager } from '../mcp';
 import { isSessionInitEvent, isStreamChunk, transformSDKMessage } from '../sdk';
 import {
-  ApprovalManager,
+  buildPermissionUpdates,
   getActionDescription,
 } from '../security';
 import { TOOL_SKILL } from '../tools/toolNames';
 import type {
-  CCPermissions,
+  ApprovalDecision,
   ChatMessage,
   ImageAttachment,
   SlashCommand,
@@ -70,11 +69,15 @@ import {
   type SDKContentBlock,
 } from './types';
 
+export type { ApprovalDecision };
+
 export type ApprovalCallback = (
   toolName: string,
   input: Record<string, unknown>,
-  description: string
-) => Promise<'allow' | 'allow-always' | 'deny' | 'deny-always' | 'cancel'>;
+  description: string,
+  decisionReason?: string,
+  blockedPath?: string,
+) => Promise<ApprovalDecision>;
 
 export interface QueryOptions {
   allowedTools?: string[];
@@ -109,9 +112,7 @@ export class ClaudianService {
 
   // Modular components
   private sessionManager = new SessionManager();
-  private approvalManager: ApprovalManager;
   private mcpManager: McpServerManager;
-  private ccPermissions: CCPermissions = { allow: [], deny: [], ask: [] };
 
   // ============================================
   // Persistent Query State (Phase 1)
@@ -139,36 +140,6 @@ export class ClaudianService {
   constructor(plugin: ClaudianPlugin, mcpManager: McpServerManager) {
     this.plugin = plugin;
     this.mcpManager = mcpManager;
-
-    // Initialize approval manager with access to CC permissions
-    this.approvalManager = new ApprovalManager(
-      () => this.ccPermissions
-    );
-
-    // Set up callbacks for persisting permissions to CC settings
-    this.approvalManager.setAddAllowRuleCallback(async (rule) => {
-      try {
-        await this.plugin.storage.addAllowRule(rule);
-        await this.loadCCPermissions();
-      } catch {
-        // Rule is still in session permissions via ApprovalManager, so action continues.
-        new Notice('Failed to save permission rule');
-      }
-    });
-
-    this.approvalManager.setAddDenyRuleCallback(async (rule) => {
-      try {
-        await this.plugin.storage.addDenyRule(rule);
-        await this.loadCCPermissions();
-      } catch {
-        // Rule is still in session permissions via ApprovalManager, so action continues.
-        new Notice('Failed to save permission rule');
-      }
-    });
-  }
-
-  async loadCCPermissions(): Promise<void> {
-    this.ccPermissions = await this.plugin.storage.getPermissions();
   }
 
   async loadMcpServers(): Promise<void> {
@@ -1074,7 +1045,7 @@ export class ClaudianService {
     // Since we always start with allowDangerouslySkipPermissions: true,
     // we can dynamically switch between modes without restarting
     if (this.currentConfig && permissionMode !== this.currentConfig.permissionMode) {
-      const sdkMode = permissionMode === 'yolo' ? 'bypassPermissions' : 'default';
+      const sdkMode = permissionMode === 'yolo' ? 'bypassPermissions' : 'acceptEdits';
       try {
         await this.persistentQuery.setPermissionMode(sdkMode);
         this.currentConfig.permissionMode = permissionMode;
@@ -1301,7 +1272,6 @@ export class ClaudianService {
     this.crashRecoveryAttempted = false;
 
     this.sessionManager.reset();
-    this.approvalManager.clearSessionPermissions();
   }
 
   getSessionId(): string | null {
@@ -1392,13 +1362,8 @@ export class ClaudianService {
     this.approvalCallback = callback;
   }
 
-  /**
-   * Create approval callback for normal mode.
-   * Enforces tool restrictions and handles approval flow.
-   */
   private createApprovalCallback(): CanUseTool {
-    return async (toolName, input): Promise<PermissionResult> => {
-      // Enforce allowedTools restriction
+    return async (toolName, input, options): Promise<PermissionResult> => {
       if (this.currentAllowedTools !== null) {
         if (!this.currentAllowedTools.includes(toolName) && toolName !== TOOL_SKILL) {
           const allowedList = this.currentAllowedTools.length > 0
@@ -1411,79 +1376,39 @@ export class ClaudianService {
         }
       }
 
-      // Use approval flow for normal mode
-      return this.handleNormalModeApproval(toolName, input);
+      // No pre-check — SDK already checked permanent rules before calling canUseTool
+      if (!this.approvalCallback) {
+        return { behavior: 'deny', message: 'No approval handler available.' };
+      }
+
+      try {
+        const description = getActionDescription(toolName, input);
+        const decision = await this.approvalCallback(
+          toolName, input, description,
+          options.decisionReason, options.blockedPath
+        );
+
+        if (decision === 'cancel') {
+          return { behavior: 'deny', message: 'User interrupted.', interrupt: true };
+        }
+
+        if (decision === 'allow' || decision === 'allow-always') {
+          const updatedPermissions = buildPermissionUpdates(
+            toolName, input, decision, options.suggestions
+          );
+          return { behavior: 'allow', updatedInput: input, updatedPermissions };
+        }
+
+        return { behavior: 'deny', message: 'User denied this action.', interrupt: false };
+      } catch (error) {
+        // Don't interrupt session — the deny message is sufficient for Claude
+        // to try an alternative approach or ask the user.
+        return {
+          behavior: 'deny',
+          message: `Approval request failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          interrupt: false,
+        };
+      }
     };
-  }
-
-  /**
-   * Handle normal mode approval - check approved actions, then prompt user.
-   */
-  private async handleNormalModeApproval(
-    toolName: string,
-    input: Record<string, unknown>
-  ): Promise<PermissionResult> {
-    // Check if action is pre-approved
-    if (this.approvalManager.isActionApproved(toolName, input)) {
-      return { behavior: 'allow', updatedInput: input };
-    }
-
-    // If no approval callback is set, deny the action
-    if (!this.approvalCallback) {
-      return {
-        behavior: 'deny',
-        message: 'No approval handler available. Please enable YOLO mode or configure permissions.',
-      };
-    }
-
-    const description = getActionDescription(toolName, input);
-
-    try {
-      const decision = await this.approvalCallback(toolName, input, description);
-
-      if (decision === 'cancel') {
-        // User pressed Escape - interrupt the stream like in Claude Code
-        return {
-          behavior: 'deny',
-          message: 'User interrupted.',
-          interrupt: true,
-        };
-      }
-
-      if (decision === 'deny') {
-        // User explicitly clicked Deny button - continue with denial (session only)
-        await this.approvalManager.denyAction(toolName, input, 'session');
-        return {
-          behavior: 'deny',
-          message: 'User denied this action.',
-          interrupt: false,
-        };
-      }
-
-      if (decision === 'deny-always') {
-        // User clicked Always Deny - persist the denial
-        await this.approvalManager.denyAction(toolName, input, 'always');
-        return {
-          behavior: 'deny',
-          message: 'User denied this action.',
-          interrupt: false,
-        };
-      }
-
-      // Approve the action and potentially save to memory
-      if (decision === 'allow-always') {
-        await this.approvalManager.approveAction(toolName, input, 'always');
-      } else if (decision === 'allow') {
-        await this.approvalManager.approveAction(toolName, input, 'session');
-      }
-
-      return { behavior: 'allow', updatedInput: input };
-    } catch (error) {
-      return {
-        behavior: 'deny',
-        message: `Approval request failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        interrupt: true,
-      };
-    }
   }
 }

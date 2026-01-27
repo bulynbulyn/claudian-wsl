@@ -1,6 +1,5 @@
 import { ClaudianService } from '@/core/agent/ClaudianService';
 import type { McpServerManager } from '@/core/mcp';
-import { createPermissionRule } from '@/core/types';
 import type ClaudianPlugin from '@/main';
 
 type MockMcpServerManager = jest.Mocked<McpServerManager>;
@@ -117,21 +116,6 @@ describe('ClaudianService', () => {
         sessionId: 'test-session',
         externalContextPaths: undefined,
       });
-    });
-  });
-
-  describe('CC Permissions Loading', () => {
-    it('should load CC permissions from storage', async () => {
-      const permissions = { allow: ['tool1'], deny: ['tool2'], ask: ['tool3'] };
-      mockPlugin.storage!.getPermissions = jest.fn().mockResolvedValue(permissions);
-
-      await service.loadCCPermissions();
-
-      expect(mockPlugin.storage!.getPermissions).toHaveBeenCalled();
-    });
-
-    it('should handle permissions loading errors gracefully', async () => {
-      await expect(service.loadCCPermissions()).resolves.not.toThrow();
     });
   });
 
@@ -337,32 +321,6 @@ describe('ClaudianService', () => {
     });
   });
 
-  describe('Deny-Always Flow', () => {
-    it('should persist deny rule when deny-always is selected', async () => {
-      const approvalManager = (service as any).approvalManager;
-      const rule = createPermissionRule('test-tool::{"arg":"val"}');
-
-      const callback = (approvalManager as any).addDenyRuleCallback;
-      await callback(rule);
-
-      expect(mockPlugin.storage!.addDenyRule).toHaveBeenCalledWith('test-tool::{"arg":"val"}');
-      expect(mockPlugin.storage!.getPermissions).toHaveBeenCalled();
-    });
-  });
-
-  describe('Allow-Always Flow', () => {
-    it('should persist allow rule when allow-always is selected', async () => {
-      const approvalManager = (service as any).approvalManager;
-      const rule = createPermissionRule('test-tool::{"arg":"val"}');
-
-      const callback = (approvalManager as any).addAllowRuleCallback;
-      await callback(rule);
-
-      expect(mockPlugin.storage!.addAllowRule).toHaveBeenCalledWith('test-tool::{"arg":"val"}');
-      expect(mockPlugin.storage!.getPermissions).toHaveBeenCalled();
-    });
-  });
-
   describe('Approval Callback', () => {
     // approvalCallback is private with no observable side effect from setApprovalCallback alone.
     // Verifying the stored value requires direct access.
@@ -379,6 +337,121 @@ describe('ClaudianService', () => {
       service.setApprovalCallback(null);
 
       expect((service as any).approvalCallback).toBeNull();
+    });
+
+    describe('createApprovalCallback permission flow', () => {
+      const canUseToolOptions = {
+        signal: new AbortController().signal,
+        toolUseID: 'test-tool-use-id',
+      };
+
+      it('should deny when no approvalCallback is set', async () => {
+        const canUseTool = (service as any).createApprovalCallback();
+        const result = await canUseTool('Bash', { command: 'ls' }, canUseToolOptions);
+
+        expect(result.behavior).toBe('deny');
+        expect(result.message).toBe('No approval handler available.');
+      });
+
+      it('should return deny when user denies', async () => {
+        const callback = jest.fn().mockResolvedValue('deny');
+        service.setApprovalCallback(callback);
+
+        const canUseTool = (service as any).createApprovalCallback();
+        const result = await canUseTool('Bash', { command: 'ls' }, canUseToolOptions);
+
+        expect(result.behavior).toBe('deny');
+        expect(result.message).toBe('User denied this action.');
+        expect(result).not.toHaveProperty('updatedPermissions');
+      });
+
+      it('should return deny without interrupt when approvalCallback throws', async () => {
+        const callback = jest.fn().mockRejectedValue(new Error('Modal render failed'));
+        service.setApprovalCallback(callback);
+
+        const canUseTool = (service as any).createApprovalCallback();
+        const result = await canUseTool('Bash', { command: 'ls' }, canUseToolOptions);
+
+        expect(result.behavior).toBe('deny');
+        expect(result.message).toContain('Modal render failed');
+        expect(result.interrupt).toBe(false);
+      });
+
+      it('should return deny with interrupt for cancel decisions', async () => {
+        const callback = jest.fn().mockResolvedValue('cancel');
+        service.setApprovalCallback(callback);
+
+        const canUseTool = (service as any).createApprovalCallback();
+        const result = await canUseTool('Bash', { command: 'ls' }, canUseToolOptions);
+
+        expect(result.behavior).toBe('deny');
+        expect(result.message).toBe('User interrupted.');
+        expect(result.interrupt).toBe(true);
+      });
+
+      it('should prompt again after deny (no session cache)', async () => {
+        const callback = jest.fn().mockResolvedValue('deny');
+        service.setApprovalCallback(callback);
+
+        const canUseTool = (service as any).createApprovalCallback();
+
+        await canUseTool('Bash', { command: 'rm -rf /tmp' }, canUseToolOptions);
+        await canUseTool('Bash', { command: 'rm -rf /tmp' }, canUseToolOptions);
+
+        expect(callback).toHaveBeenCalledTimes(2);
+      });
+
+      it('should forward decisionReason and blockedPath to approvalCallback', async () => {
+        const callback = jest.fn().mockResolvedValue('allow');
+        service.setApprovalCallback(callback);
+
+        const canUseTool = (service as any).createApprovalCallback();
+        await canUseTool('Read', { file_path: '/etc/passwd' }, {
+          ...canUseToolOptions,
+          decisionReason: 'Path is outside allowed directories',
+          blockedPath: '/etc/passwd',
+        });
+
+        expect(callback).toHaveBeenCalledWith(
+          'Read',
+          { file_path: '/etc/passwd' },
+          'Read file: /etc/passwd',
+          'Path is outside allowed directories',
+          '/etc/passwd',
+        );
+      });
+
+      it('should return updatedPermissions with session destination for allow decisions', async () => {
+        const callback = jest.fn().mockResolvedValue('allow');
+        service.setApprovalCallback(callback);
+
+        const canUseTool = (service as any).createApprovalCallback();
+        const result = await canUseTool('Bash', { command: 'git status' }, canUseToolOptions);
+
+        expect(result.behavior).toBe('allow');
+        expect(result.updatedPermissions).toBeDefined();
+        expect(result.updatedPermissions[0]).toMatchObject({
+          type: 'addRules',
+          behavior: 'allow',
+          destination: 'session',
+        });
+      });
+
+      it('should return updatedPermissions for allow-always decisions', async () => {
+        const callback = jest.fn().mockResolvedValue('allow-always');
+        service.setApprovalCallback(callback);
+
+        const canUseTool = (service as any).createApprovalCallback();
+        const result = await canUseTool('Bash', { command: 'git status' }, canUseToolOptions);
+
+        expect(result.behavior).toBe('allow');
+        expect(result.updatedPermissions).toBeDefined();
+        expect(result.updatedPermissions[0]).toMatchObject({
+          type: 'addRules',
+          behavior: 'allow',
+          destination: 'projectSettings',
+        });
+      });
     });
   });
 

@@ -4,7 +4,7 @@ import type { ClaudianService } from '../../../core/agent';
 import { detectBuiltInCommand } from '../../../core/commands';
 import type { ChatMessage } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
-import { ApprovalModal } from '../../../shared/modals/ApprovalModal';
+import { type ApprovalDecision, ApprovalModal } from '../../../shared/modals/ApprovalModal';
 import { InstructionModal } from '../../../shared/modals/InstructionConfirmModal';
 import { appendCurrentNote } from '../../../utils/context';
 import { formatDurationMmSs } from '../../../utils/date';
@@ -608,11 +608,16 @@ export class InputController {
   async handleApprovalRequest(
     toolName: string,
     input: Record<string, unknown>,
-    description: string
-  ): Promise<'allow' | 'allow-always' | 'deny' | 'deny-always' | 'cancel'> {
+    description: string,
+    decisionReason?: string,
+    blockedPath?: string,
+  ): Promise<ApprovalDecision> {
     const { plugin } = this.deps;
     return new Promise((resolve) => {
-      const modal = new ApprovalModal(plugin.app, toolName, input, description, resolve);
+      const modal = new ApprovalModal(plugin.app, toolName, input, description, resolve, {
+        decisionReason,
+        blockedPath,
+      });
       modal.open();
     });
   }
