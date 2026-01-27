@@ -1,3 +1,5 @@
+import { createMockEl } from '@test/helpers/mockElement';
+
 import { TOOL_TASK, TOOL_TODO_WRITE } from '@/core/tools/toolNames';
 import type { ChatMessage } from '@/core/types';
 import { StreamController, type StreamControllerDeps } from '@/features/chat/controllers/StreamController';
@@ -41,71 +43,10 @@ jest.mock('@/features/chat/rendering', () => {
   };
 });
 
-// Helper to create mock DOM element with full properties needed for rendering
-function createMockElement() {
-  const children: any[] = [];
-  const classList = new Set<string>();
-  const dataset: Record<string, string> = {};
-  const attributes: Record<string, string> = {};
-
-  const element: any = {
-    children,
-    classList: {
-      add: (cls: string) => classList.add(cls),
-      remove: (cls: string) => classList.delete(cls),
-      contains: (cls: string) => classList.has(cls),
-    },
-    addClass: (cls: string) => classList.add(cls),
-    removeClass: (cls: string) => classList.delete(cls),
-    hasClass: (cls: string) => classList.has(cls),
-    style: { display: '' },
-    scrollTop: 0,
-    scrollHeight: 0,
-    dataset,
-    empty: () => { children.length = 0; },
-    createDiv: (opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      if (opts?.cls) child.addClass(opts.cls);
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    },
-    createSpan: (opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      if (opts?.cls) child.addClass(opts.cls);
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    },
-    createEl: (tag: string, opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      child.tagName = tag.toUpperCase();
-      if (opts?.cls) child.addClass(opts.cls);
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    },
-    appendChild: (child: any) => { children.push(child); return child; },
-    querySelector: jest.fn().mockReturnValue(null),
-    querySelectorAll: jest.fn().mockReturnValue([]),
-    remove: jest.fn(),
-    setText: jest.fn((text: string) => { element.textContent = text; }),
-    setAttr: jest.fn(),
-    setAttribute: (name: string, value: string) => { attributes[name] = value; },
-    getAttribute: (name: string) => attributes[name],
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    textContent: '',
-    tagName: 'DIV',
-  };
-
-  return element;
-}
-
 // Helper to create mock dependencies with minimal UI rendering
 function createMockDeps(): StreamControllerDeps {
   const state = new ChatState();
-  const messagesEl = createMockElement();
+  const messagesEl = createMockEl();
   const agentService = {
     getSessionId: jest.fn().mockReturnValue('session-1'),
   };
@@ -180,7 +121,7 @@ describe('StreamController - Text Content', () => {
     jest.useFakeTimers();
     deps = createMockDeps();
     controller = new StreamController(deps);
-    deps.state.currentContentEl = createMockElement();
+    deps.state.currentContentEl = createMockEl();
   });
 
   afterEach(() => {
@@ -194,7 +135,7 @@ describe('StreamController - Text Content', () => {
       const msg = createTestMessage();
 
       // Set up text element for text streaming
-      deps.state.currentTextEl = createMockElement();
+      deps.state.currentTextEl = createMockEl();
 
       await controller.handleStreamChunk({ type: 'text', content: 'Hello ' }, msg);
       await controller.handleStreamChunk({ type: 'text', content: 'World' }, msg);
@@ -204,7 +145,7 @@ describe('StreamController - Text Content', () => {
 
     it('should accumulate text across multiple chunks', async () => {
       const msg = createTestMessage();
-      deps.state.currentTextEl = createMockElement();
+      deps.state.currentTextEl = createMockEl();
 
       const chunks = ['This ', 'is ', 'a ', 'test.'];
       for (const chunk of chunks) {
@@ -218,7 +159,7 @@ describe('StreamController - Text Content', () => {
   describe('Text block finalization', () => {
     it('should add copy button when finalizing text block with content', () => {
       const msg = createTestMessage();
-      deps.state.currentTextEl = createMockElement();
+      deps.state.currentTextEl = createMockEl();
       deps.state.currentTextContent = 'Hello World';
 
       controller.finalizeCurrentTextBlock(msg);
@@ -250,7 +191,7 @@ describe('StreamController - Text Content', () => {
 
     it('should not add copy button when no text content exists', () => {
       const msg = createTestMessage();
-      deps.state.currentTextEl = createMockElement();
+      deps.state.currentTextEl = createMockEl();
       deps.state.currentTextContent = '';
 
       controller.finalizeCurrentTextBlock(msg);
@@ -261,7 +202,7 @@ describe('StreamController - Text Content', () => {
 
     it('should reset text state after finalization', () => {
       const msg = createTestMessage();
-      deps.state.currentTextEl = createMockElement();
+      deps.state.currentTextEl = createMockEl();
       deps.state.currentTextContent = 'Test content';
 
       controller.finalizeCurrentTextBlock(msg);
@@ -274,7 +215,7 @@ describe('StreamController - Text Content', () => {
   describe('Error and blocked handling', () => {
     it('should append error message on error chunk', async () => {
       const msg = createTestMessage();
-      deps.state.currentTextEl = createMockElement();
+      deps.state.currentTextEl = createMockEl();
 
       await controller.handleStreamChunk(
         { type: 'error', content: 'Something went wrong' },
@@ -286,7 +227,7 @@ describe('StreamController - Text Content', () => {
 
     it('should append blocked message on blocked chunk', async () => {
       const msg = createTestMessage();
-      deps.state.currentTextEl = createMockElement();
+      deps.state.currentTextEl = createMockEl();
 
       await controller.handleStreamChunk(
         { type: 'blocked', content: 'Tool was blocked' },
@@ -300,7 +241,7 @@ describe('StreamController - Text Content', () => {
   describe('Done chunk handling', () => {
     it('should handle done chunk without error', async () => {
       const msg = createTestMessage();
-      deps.state.currentTextEl = createMockElement();
+      deps.state.currentTextEl = createMockEl();
 
       // Should not throw
       await expect(
@@ -348,7 +289,7 @@ describe('StreamController - Text Content', () => {
   describe('Tool handling', () => {
     it('should record tool_use and add to content blocks', async () => {
       const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       await controller.handleStreamChunk(
         { type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: 'notes/test.md' } },
@@ -376,7 +317,7 @@ describe('StreamController - Text Content', () => {
           status: 'running',
         } as any,
       ];
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       await controller.handleStreamChunk(
         { type: 'tool_result', id: 'tool-1', content: 'ok' },
@@ -389,7 +330,7 @@ describe('StreamController - Text Content', () => {
 
     it('should add subagent entry to contentBlocks for Task tool', async () => {
       const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       // Configure mock to return created_sync when run_in_background is known
       (deps.subagentManager.handleTaskToolUse as jest.Mock).mockReturnValueOnce({
@@ -422,7 +363,7 @@ describe('StreamController - Text Content', () => {
       parseTodoInput.mockReturnValue(mockTodos);
 
       const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       await controller.handleStreamChunk(
         {
@@ -453,7 +394,7 @@ describe('StreamController - Text Content', () => {
     it('should flush pending tools before rendering text content', async () => {
       const { renderToolCall } = jest.requireMock('@/features/chat/rendering');
       const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       // Add a tool - should be buffered
       await controller.handleStreamChunk(
@@ -464,7 +405,7 @@ describe('StreamController - Text Content', () => {
       expect(renderToolCall).not.toHaveBeenCalled();
 
       // Text chunk should flush pending tools first
-      deps.state.currentTextEl = createMockElement();
+      deps.state.currentTextEl = createMockEl();
       await controller.handleStreamChunk({ type: 'text', content: 'Hello' }, msg);
 
       expect(deps.state.pendingTools.size).toBe(0);
@@ -478,7 +419,7 @@ describe('StreamController - Text Content', () => {
     it('should flush pending tools before rendering thinking content', async () => {
       const { renderToolCall } = jest.requireMock('@/features/chat/rendering');
       const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       // Add a tool - should be buffered
       await controller.handleStreamChunk(
@@ -498,7 +439,7 @@ describe('StreamController - Text Content', () => {
     it('should render pending tool when tool_result arrives before flush', async () => {
       const { renderToolCall } = jest.requireMock('@/features/chat/rendering');
       const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       // Add a tool - should be buffered
       await controller.handleStreamChunk(
@@ -522,10 +463,10 @@ describe('StreamController - Text Content', () => {
 
     it('should buffer Write tool and use createWriteEditBlock on flush', async () => {
       const { createWriteEditBlock, renderToolCall } = jest.requireMock('@/features/chat/rendering');
-      createWriteEditBlock.mockReturnValue({ wrapperEl: createMockElement() });
+      createWriteEditBlock.mockReturnValue({ wrapperEl: createMockEl() });
 
       const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       // Add Write tool - should be buffered
       await controller.handleStreamChunk(
@@ -551,10 +492,10 @@ describe('StreamController - Text Content', () => {
 
     it('should buffer Edit tool and use createWriteEditBlock on flush', async () => {
       const { createWriteEditBlock } = jest.requireMock('@/features/chat/rendering');
-      createWriteEditBlock.mockReturnValue({ wrapperEl: createMockElement() });
+      createWriteEditBlock.mockReturnValue({ wrapperEl: createMockEl() });
 
       const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       // Add Edit tool - should be buffered
       await controller.handleStreamChunk(
@@ -566,7 +507,7 @@ describe('StreamController - Text Content', () => {
       expect(createWriteEditBlock).not.toHaveBeenCalled();
 
       // Flush via text chunk
-      deps.state.currentTextEl = createMockElement();
+      deps.state.currentTextEl = createMockEl();
       await controller.handleStreamChunk({ type: 'text', content: 'Done editing' }, msg);
 
       expect(deps.state.pendingTools.size).toBe(0);
@@ -576,7 +517,7 @@ describe('StreamController - Text Content', () => {
     it('should flush pending tools before rendering blocked message', async () => {
       const { renderToolCall } = jest.requireMock('@/features/chat/rendering');
       const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       // Add a tool - should be buffered
       await controller.handleStreamChunk(
@@ -595,7 +536,7 @@ describe('StreamController - Text Content', () => {
     it('should flush pending tools before rendering error message', async () => {
       const { renderToolCall } = jest.requireMock('@/features/chat/rendering');
       const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       // Add a tool - should be buffered
       await controller.handleStreamChunk(
@@ -614,7 +555,7 @@ describe('StreamController - Text Content', () => {
     it('should flush pending tools before Task tool renders', async () => {
       const { renderToolCall } = jest.requireMock('@/features/chat/rendering');
       const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       // Configure mock to return created_sync
       (deps.subagentManager.handleTaskToolUse as jest.Mock).mockReturnValueOnce({
@@ -660,7 +601,7 @@ describe('StreamController - Text Content', () => {
       parseTodoInput.mockReturnValueOnce(null);
 
       const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       await controller.handleStreamChunk(
         {
@@ -694,7 +635,7 @@ describe('StreamController - Text Content', () => {
 
     it('should clear pendingTools on resetStreamingState', async () => {
       const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       // Add some pending tools
       await controller.handleStreamChunk(
@@ -780,7 +721,7 @@ describe('StreamController - Text Content', () => {
     it('should handle multiple pending tools and flush in order', async () => {
       const { renderToolCall } = jest.requireMock('@/features/chat/rendering');
       const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       // Add multiple tools - should all be buffered
       await controller.handleStreamChunk(
@@ -816,7 +757,7 @@ describe('StreamController - Text Content', () => {
   describe('Pending Task tool handling', () => {
     it('should render pending Task as sync when child chunk arrives', async () => {
       const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       // Task without run_in_background - manager returns buffered
       await controller.handleStreamChunk(
@@ -858,7 +799,7 @@ describe('StreamController - Text Content', () => {
 
     it('should not crash stream when pending Task rendering returns null via child chunk', async () => {
       const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       // Task without run_in_background - manager returns buffered
       await controller.handleStreamChunk(
@@ -882,7 +823,7 @@ describe('StreamController - Text Content', () => {
 
     it('should not crash stream when pending Task rendering returns null via tool_result', async () => {
       const msg = createTestMessage();
-      deps.state.currentContentEl = createMockElement();
+      deps.state.currentContentEl = createMockEl();
 
       // Task without run_in_background - manager returns buffered
       await controller.handleStreamChunk(

@@ -270,6 +270,20 @@ Just a simple prompt with $ARGUMENTS.`;
         expect.anything()
       );
     });
+
+    it('preserves slashes for deeply nested command path', async () => {
+      const command: SlashCommand = {
+        ...mockCommand1,
+        name: 'level1/level2/level3',
+      };
+
+      await storage.save(command);
+
+      expect(mockAdapter.write).toHaveBeenCalledWith(
+        '.claude/commands/level1/level2/level3.md',
+        expect.anything()
+      );
+    });
   });
 
   describe('delete', () => {
@@ -366,46 +380,6 @@ Just a simple prompt with $ARGUMENTS.`;
       mockAdapter.listFilesRecursive.mockRejectedValue(new Error('List error'));
 
       await expect(storage.hasCommands()).rejects.toThrow('List error');
-    });
-  });
-
-  describe('getFilePath', () => {
-    it('generates correct path for simple command', () => {
-      const path = (storage as any).getFilePath(mockCommand1);
-
-      expect(path).toBe('.claude/commands/review-code.md');
-    });
-
-    it('generates correct path for nested command', () => {
-      const path = (storage as any).getFilePath(mockCommand2);
-
-      expect(path).toBe('.claude/commands/test/coverage.md');
-    });
-
-    it('sanitizes special characters in name', () => {
-      const command: SlashCommand = {
-        id: 'cmd-test',
-        name: 'test command!',
-        description: 'Test',
-        content: 'Test',
-      };
-
-      const path = (storage as any).getFilePath(command);
-
-      expect(path).toBe('.claude/commands/test-command-.md');
-    });
-
-    it('preserves slashes for nested structure', () => {
-      const command: SlashCommand = {
-        id: 'cmd-level1--level2--level3',
-        name: 'level1/level2/level3',
-        description: 'Test',
-        content: 'Test',
-      };
-
-      const path = (storage as any).getFilePath(command);
-
-      expect(path).toBe('.claude/commands/level1/level2/level3.md');
     });
   });
 

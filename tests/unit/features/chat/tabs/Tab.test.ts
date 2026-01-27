@@ -1,3 +1,5 @@
+import { createMockEl } from '@test/helpers/mockElement';
+
 import { ChatState } from '@/features/chat/state/ChatState';
 import {
   activateTab,
@@ -251,78 +253,6 @@ jest.mock('@/utils/path', () => ({
   getVaultPath: jest.fn().mockReturnValue('/test/vault'),
 }));
 
-// Type for event handlers
-type EventHandler = (...args: unknown[]) => void;
-
-// Helper to create mock DOM element
-function createMockElement(): any {
-  const style: Record<string, string> = {};
-  const classList = new Set<string>();
-  const children: any[] = [];
-  const eventListeners: Map<string, EventHandler[]> = new Map();
-
-  const el: any = {
-    style,
-    classList: {
-      add: (cls: string) => classList.add(cls),
-      remove: (cls: string) => classList.delete(cls),
-      contains: (cls: string) => classList.has(cls),
-      toggle: (cls: string, force?: boolean) => {
-        if (force === undefined) {
-          if (classList.has(cls)) {
-            classList.delete(cls);
-            return false;
-          } else {
-            classList.add(cls);
-            return true;
-          }
-        }
-        if (force) {
-          classList.add(cls);
-        } else {
-          classList.delete(cls);
-        }
-        return force;
-      },
-    },
-    empty: () => { children.length = 0; },
-    createDiv: (opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      if (opts?.cls) child.classList.add(opts.cls);
-      children.push(child);
-      return child;
-    },
-    createEl: (tag: string, opts?: { cls?: string; attr?: Record<string, string> }) => {
-      const child = createMockElement();
-      child.tagName = tag.toUpperCase();
-      if (opts?.cls) child.classList.add(opts.cls);
-      children.push(child);
-      return child;
-    },
-    querySelector: jest.fn().mockReturnValue(null),
-    closest: jest.fn().mockReturnValue({ clientHeight: 600 }),
-    insertBefore: jest.fn(),
-    remove: jest.fn(),
-    addEventListener: (event: string, handler: EventHandler) => {
-      if (!eventListeners.has(event)) {
-        eventListeners.set(event, []);
-      }
-      eventListeners.get(event)!.push(handler);
-    },
-    removeEventListener: (event: string, handler: EventHandler) => {
-      const handlers = eventListeners.get(event);
-      if (handlers) {
-        const index = handlers.indexOf(handler);
-        if (index > -1) handlers.splice(index, 1);
-      }
-    },
-    getEventListeners: () => eventListeners,
-    value: '',
-  };
-
-  return el;
-}
-
 // Helper to create mock plugin
 function createMockPlugin(overrides: Record<string, any> = {}): any {
   return {
@@ -366,7 +296,7 @@ function createMockOptions(overrides: Partial<TabCreateOptions> = {}): TabCreate
   return {
     plugin: createMockPlugin(),
     mcpManager: createMockMcpManager(),
-    containerEl: createMockElement(),
+    containerEl: createMockEl(),
     ...overrides,
   };
 }
@@ -435,7 +365,7 @@ describe('Tab - Creation', () => {
     });
 
     it('should create DOM structure with hidden content', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const options = createMockOptions({ containerEl });
       const tab = createTab(options);
 
@@ -681,10 +611,11 @@ describe('Tab - Destruction', () => {
     it('should remove DOM element', async () => {
       const options = createMockOptions();
       const tab = createTab(options);
+      const removeSpy = jest.spyOn(tab.dom.contentEl, 'remove');
 
       await destroyTab(tab);
 
-      expect(tab.dom.contentEl.remove).toHaveBeenCalled();
+      expect(removeSpy).toHaveBeenCalled();
     });
 
     it('should cleanup subagents', async () => {

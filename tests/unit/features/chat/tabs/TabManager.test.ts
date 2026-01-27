@@ -1,3 +1,5 @@
+import { createMockEl } from '@test/helpers/mockElement';
+
 import { TabManager } from '@/features/chat/tabs/TabManager';
 import {
   DEFAULT_MAX_TABS,
@@ -29,20 +31,6 @@ jest.mock('@/features/chat/tabs/Tab', () => ({
   getTabTitle: (...args: any[]) => mockGetTabTitle(...args),
   setupApprovalCallback: (...args: any[]) => mockSetupApprovalCallback(...args),
 }));
-
-// Helper to create mock DOM element
-function createMockElement(): any {
-  const children: any[] = [];
-  return {
-    style: {},
-    createDiv: () => {
-      const child = createMockElement();
-      children.push(child);
-      return child;
-    },
-    remove: jest.fn(),
-  };
-}
 
 // Helper to create mock plugin
 function createMockPlugin(overrides: Record<string, any> = {}): any {
@@ -112,7 +100,7 @@ function createMockTabData(overrides: Record<string, any> = {}): any {
       ...(controllersOverrides || {}),
     },
     dom: {
-      contentEl: createMockElement(),
+      contentEl: createMockEl(),
     },
     ...restOverrides,
   };
@@ -129,7 +117,7 @@ describe('TabManager - Tab Lifecycle', () => {
     jest.clearAllMocks();
     plugin = createMockPlugin();
     mcpManager = createMockMcpManager();
-    containerEl = createMockElement();
+    containerEl = createMockEl();
     view = createMockView();
     callbacks = {
       onTabCreated: jest.fn(),
@@ -442,7 +430,7 @@ describe('TabManager - Tab Queries', () => {
     manager = new TabManager(
       createMockPlugin(),
       createMockMcpManager(),
-      createMockElement(),
+      createMockEl(),
       createMockView()
     );
     await manager.createTab();
@@ -529,7 +517,7 @@ describe('TabManager - Tab Bar Data', () => {
     manager = new TabManager(
       createMockPlugin(),
       createMockMcpManager(),
-      createMockElement(),
+      createMockEl(),
       createMockView()
     );
   });
@@ -591,7 +579,7 @@ describe('TabManager - Conversation Management', () => {
     manager = new TabManager(
       plugin,
       createMockMcpManager(),
-      createMockElement(),
+      createMockEl(),
       createMockView()
     );
     await manager.createTab();
@@ -666,7 +654,7 @@ describe('TabManager - Persistence', () => {
     manager = new TabManager(
       createMockPlugin(),
       createMockMcpManager(),
-      createMockElement(),
+      createMockEl(),
       createMockView()
     );
   });
@@ -774,7 +762,7 @@ describe('TabManager - Broadcast', () => {
     manager = new TabManager(
       createMockPlugin(),
       createMockMcpManager(),
-      createMockElement(),
+      createMockEl(),
       createMockView()
     );
     await manager.createTab();
@@ -829,7 +817,7 @@ describe('TabManager - Cleanup', () => {
     manager = new TabManager(
       createMockPlugin(),
       createMockMcpManager(),
-      createMockElement(),
+      createMockEl(),
       createMockView()
     );
     await manager.createTab();
@@ -874,7 +862,7 @@ describe('TabManager - Callback Wiring', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     plugin = createMockPlugin();
-    containerEl = createMockElement();
+    containerEl = createMockEl();
     view = createMockView();
     mcpManager = createMockMcpManager();
   });
@@ -977,7 +965,7 @@ describe('TabManager - openConversation Current Tab Path', () => {
     manager = new TabManager(
       plugin,
       createMockMcpManager(),
-      createMockElement(),
+      createMockEl(),
       createMockView()
     );
     await manager.createTab();
@@ -1059,7 +1047,7 @@ describe('TabManager - Service Initialization Errors', () => {
     const manager = new TabManager(
       createMockPlugin(),
       createMockMcpManager(),
-      createMockElement(),
+      createMockEl(),
       createMockView()
     );
 

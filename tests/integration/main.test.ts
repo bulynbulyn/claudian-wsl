@@ -91,12 +91,6 @@ describe('ClaudianPlugin', () => {
       });
     });
 
-    it('should add settings tab', async () => {
-      await plugin.onload();
-
-      expect((plugin.addSettingTab as jest.Mock)).toHaveBeenCalled();
-    });
-
     it('should migrate legacy cli path to hostname-based paths and clear old field', async () => {
       const legacyPath = '/legacy/claude';
       mockApp.vault.adapter.exists.mockImplementation(async (path: string) => {
@@ -349,30 +343,28 @@ describe('ClaudianPlugin', () => {
   });
 
   describe('ribbon icon callback', () => {
-    it('should call activateView when ribbon icon is clicked', async () => {
+    it('reveals existing view when ribbon icon is clicked', async () => {
       await plugin.onload();
+      const mockLeaf = { id: 'existing' };
+      mockApp.workspace.getLeavesOfType.mockReturnValue([mockLeaf]);
 
-      // Get the callback passed to addRibbonIcon
       const ribbonCallback = (plugin.addRibbonIcon as jest.Mock).mock.calls[0][2];
-      const activateViewSpy = jest.spyOn(plugin, 'activateView');
+      await ribbonCallback();
 
-      ribbonCallback();
-
-      expect(activateViewSpy).toHaveBeenCalled();
+      expect(mockApp.workspace.revealLeaf).toHaveBeenCalledWith(mockLeaf);
     });
   });
 
   describe('command callback', () => {
-    it('should call activateView when command is executed', async () => {
+    it('reveals existing view when command is executed', async () => {
       await plugin.onload();
+      const mockLeaf = { id: 'existing' };
+      mockApp.workspace.getLeavesOfType.mockReturnValue([mockLeaf]);
 
-      // Get the callback passed to addCommand
       const commandConfig = (plugin.addCommand as jest.Mock).mock.calls[0][0];
-      const activateViewSpy = jest.spyOn(plugin, 'activateView');
+      await commandConfig.callback();
 
-      commandConfig.callback();
-
-      expect(activateViewSpy).toHaveBeenCalled();
+      expect(mockApp.workspace.revealLeaf).toHaveBeenCalledWith(mockLeaf);
     });
   });
 

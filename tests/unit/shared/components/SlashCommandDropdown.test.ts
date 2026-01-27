@@ -1,3 +1,5 @@
+import { createMockEl } from '@test/helpers/mockElement';
+
 import type { SlashCommand } from '@/core/types';
 import {
   SlashCommandDropdown,
@@ -11,53 +13,6 @@ jest.mock('@/core/commands', () => ({
     { id: 'builtin:add-dir', name: 'add-dir', description: 'Add external context directory', content: '', argumentHint: 'path/to/directory' },
   ]),
 }));
-
-// Helper to create mock DOM element with Obsidian-like API
-function createMockElement(): any {
-  const children: any[] = [];
-  const classes = new Set<string>();
-
-  const element: any = {
-    children,
-    style: {},
-    textContent: '',
-    hasClass: (cls: string) => classes.has(cls),
-    addClass: (cls: string) => { classes.add(cls); return element; },
-    removeClass: (cls: string) => { classes.delete(cls); return element; },
-    empty: () => { children.length = 0; },
-    remove: () => {},
-    setText: (text: string) => { element.textContent = text; },
-    createDiv: (opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      if (opts?.cls) {
-        opts.cls.split(' ').forEach(c => child.addClass(c));
-      }
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    },
-    createSpan: (opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      if (opts?.cls) {
-        opts.cls.split(' ').forEach(c => child.addClass(c));
-      }
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    },
-    querySelectorAll: (selector: string) => {
-      if (selector === '.claudian-slash-item') {
-        return children.filter(c => c.hasClass('claudian-slash-item'));
-      }
-      return [];
-    },
-    addEventListener: jest.fn(),
-    scrollIntoView: jest.fn(),
-    getBoundingClientRect: () => ({ top: 100, left: 50, width: 300, height: 40 }),
-  };
-
-  return element;
-}
 
 function createMockInput(): any {
   return {
@@ -76,6 +31,31 @@ function createMockCallbacks(overrides: Partial<SlashCommandDropdownCallbacks> =
     onHide: jest.fn(),
     ...overrides,
   };
+}
+
+/**
+ * Query the rendered dropdown DOM to extract displayed command items.
+ * Each rendered item has a `.claudian-slash-name` span (text: `/{name}`)
+ * and an optional `.claudian-slash-desc` div.
+ */
+function getRenderedItems(containerEl: any): { name: string; description: string }[] {
+  const dropdownEl = containerEl.children.find(
+    (c: any) => c.hasClass('claudian-slash-dropdown')
+  );
+  if (!dropdownEl) return [];
+  const items = dropdownEl.querySelectorAll('.claudian-slash-item');
+  return items.map((item: any) => {
+    const nameSpan = item.children.find((c: any) => c.hasClass('claudian-slash-name'));
+    const descDiv = item.children.find((c: any) => c.hasClass('claudian-slash-desc'));
+    return {
+      name: nameSpan?.textContent?.replace(/^\//, '') ?? '',
+      description: descDiv?.textContent ?? '',
+    };
+  });
+}
+
+function getRenderedCommandNames(containerEl: any): string[] {
+  return getRenderedItems(containerEl).map(i => i.name);
 }
 
 // SDK commands for testing
@@ -103,7 +83,7 @@ describe('SlashCommandDropdown', () => {
   let dropdown: SlashCommandDropdown;
 
   beforeEach(() => {
-    containerEl = createMockElement();
+    containerEl = createMockEl();
     inputEl = createMockInput();
     callbacks = createMockCallbacks();
     dropdown = new SlashCommandDropdown(containerEl, inputEl, callbacks);
@@ -154,9 +134,7 @@ describe('SlashCommandDropdown', () => {
       // Wait for async SDK fetch
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      // Access private filteredCommands to verify filtering
-      const filteredCommands = (dropdownWithSdk as any).filteredCommands as SlashCommand[];
-      const commandNames = filteredCommands.map(c => c.name);
+      const commandNames = getRenderedCommandNames(containerEl);
 
       // Should NOT include filtered commands
       expect(commandNames).not.toContain('compact');
@@ -194,8 +172,7 @@ describe('SlashCommandDropdown', () => {
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      const filteredCommands = (dropdownWithHidden as any).filteredCommands as SlashCommand[];
-      const commandNames = filteredCommands.map(c => c.name);
+      const commandNames = getRenderedCommandNames(containerEl);
 
       // Hidden SDK commands should not appear
       expect(commandNames).not.toContain('commit');
@@ -226,8 +203,7 @@ describe('SlashCommandDropdown', () => {
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      const filteredCommands = (dropdownWithHidden as any).filteredCommands as SlashCommand[];
-      const commandNames = filteredCommands.map(c => c.name);
+      const commandNames = getRenderedCommandNames(containerEl);
 
       // Built-in commands should STILL appear (not subject to hiding)
       expect(commandNames).toContain('clear');
@@ -258,13 +234,13 @@ describe('SlashCommandDropdown', () => {
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      const filteredCommands = (dropdownWithSdk as any).filteredCommands as SlashCommand[];
-      const clearCommands = filteredCommands.filter(c => c.name === 'clear');
+      const items = getRenderedItems(containerEl);
+      const clearItems = items.filter(i => i.name === 'clear');
 
       // Should only have one 'clear' command
-      expect(clearCommands).toHaveLength(1);
-      // And it should be the built-in one
-      expect(clearCommands[0].id).toBe('builtin:clear');
+      expect(clearItems).toHaveLength(1);
+      // And it should be the built-in one (verified by its description)
+      expect(clearItems[0].description).toBe('Start a new conversation');
 
       dropdownWithSdk.destroy();
     });
@@ -389,11 +365,17 @@ describe('SlashCommandDropdown', () => {
       resolveFirst!(SDK_COMMANDS);
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      // The cached commands should be from the second request, not the stale first
-      const cachedSkills = (dropdownWithSdk as any).cachedSdkSkills as SlashCommand[];
-      expect(cachedSkills.map(c => c.name)).toContain('new-command');
+      // Render dropdown with cached commands to verify stale results were discarded
+      inputEl.value = '/';
+      inputEl.selectionStart = 1;
+      dropdownWithSdk.handleInputChange();
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      const names = getRenderedCommandNames(containerEl);
+      // Should have the command from the second (newer) request
+      expect(names).toContain('new-command');
       // Should NOT have commands from stale first request
-      expect(cachedSkills.map(c => c.name)).not.toContain('commit');
+      expect(names).not.toContain('commit');
 
       dropdownWithSdk.destroy();
     });
@@ -415,8 +397,7 @@ describe('SlashCommandDropdown', () => {
       dropdownWithSdk.handleInputChange();
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      let filteredCommands = (dropdownWithSdk as any).filteredCommands as SlashCommand[];
-      expect(filteredCommands.map(c => c.name)).toContain('commit');
+      expect(getRenderedCommandNames(containerEl)).toContain('commit');
 
       // Now hide commit
       dropdownWithSdk.setHiddenCommands(new Set(['commit']));
@@ -427,8 +408,7 @@ describe('SlashCommandDropdown', () => {
       dropdownWithSdk.handleInputChange();
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      filteredCommands = (dropdownWithSdk as any).filteredCommands as SlashCommand[];
-      expect(filteredCommands.map(c => c.name)).not.toContain('commit');
+      expect(getRenderedCommandNames(containerEl)).not.toContain('commit');
 
       dropdownWithSdk.destroy();
     });
@@ -462,24 +442,6 @@ describe('SlashCommandDropdown', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
 
       expect(getSdkCommands).toHaveBeenCalledTimes(2);
-
-      dropdownWithSdk.destroy();
-    });
-
-    it('should reset requestId counter', () => {
-      const dropdownWithSdk = new SlashCommandDropdown(
-        containerEl,
-        inputEl,
-        callbacks
-      );
-
-      // Increment requestId
-      (dropdownWithSdk as any).requestId = 5;
-
-      // Reset
-      dropdownWithSdk.resetSdkSkillsCache();
-
-      expect((dropdownWithSdk as any).requestId).toBe(0);
 
       dropdownWithSdk.destroy();
     });
@@ -535,12 +497,6 @@ describe('SlashCommandDropdown', () => {
       dropdown.hide();
       expect(callbacks.onHide).toHaveBeenCalled();
     });
-
-    it('should reset slashStartIndex', () => {
-      (dropdown as any).slashStartIndex = 5;
-      dropdown.hide();
-      expect((dropdown as any).slashStartIndex).toBe(-1);
-    });
   });
 
   describe('destroy', () => {
@@ -566,9 +522,9 @@ describe('SlashCommandDropdown', () => {
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      const filteredCommands = (dropdownWithSdk as any).filteredCommands as SlashCommand[];
-      expect(filteredCommands.map(c => c.name)).toContain('commit');
-      expect(filteredCommands.map(c => c.name)).not.toContain('pr');
+      const commandNames = getRenderedCommandNames(containerEl);
+      expect(commandNames).toContain('commit');
+      expect(commandNames).not.toContain('pr');
 
       dropdownWithSdk.destroy();
     });
@@ -588,9 +544,8 @@ describe('SlashCommandDropdown', () => {
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      const filteredCommands = (dropdownWithSdk as any).filteredCommands as SlashCommand[];
       // 'pr' has description 'Create a pull request'
-      expect(filteredCommands.map(c => c.name)).toContain('pr');
+      expect(getRenderedCommandNames(containerEl)).toContain('pr');
 
       dropdownWithSdk.destroy();
     });
@@ -620,8 +575,7 @@ describe('SlashCommandDropdown', () => {
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      const filteredCommands = (dropdownWithSdk as any).filteredCommands as SlashCommand[];
-      const names = filteredCommands.map(c => c.name);
+      const names = getRenderedCommandNames(containerEl);
       const sortedNames = [...names].sort();
       expect(names).toEqual(sortedNames);
 

@@ -107,6 +107,10 @@ export class FileContextManager {
     return this.currentNotePath;
   }
 
+  getAttachedFiles(): Set<string> {
+    return this.state.getAttachedFiles();
+  }
+
   /** Checks whether current note should be sent for this session. */
   shouldSendCurrentNote(notePath?: string | null): boolean {
     const resolvedPath = notePath ?? this.currentNotePath;

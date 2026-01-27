@@ -1,3 +1,4 @@
+import { createMockEl } from '@test/helpers/mockElement';
 import { Notice } from 'obsidian';
 
 import { InputController, type InputControllerDeps } from '@/features/chat/controllers/InputController';
@@ -5,20 +6,6 @@ import { ChatState } from '@/features/chat/state/ChatState';
 
 // Get reference to the mocked Notice from global mock
 const mockNotice = Notice as jest.Mock;
-
-// Helper to create mock DOM element
-function createMockElement() {
-  const style: Record<string, string> = { display: 'none' };
-  return {
-    style,
-    setText: jest.fn((text: string) => {
-      (createMockElement as any).lastText = text;
-    }),
-    get textContent() {
-      return (createMockElement as any).lastText || '';
-    },
-  };
-}
 
 // Helper to create mock input element
 function createMockInputEl() {
@@ -63,7 +50,9 @@ function createMockAgentService() {
 function createMockDeps(overrides: Partial<InputControllerDeps> = {}): InputControllerDeps & { mockAgentService: ReturnType<typeof createMockAgentService> } {
   const state = new ChatState();
   const inputEl = createMockInputEl();
-  const queueIndicatorEl = createMockElement();
+  const queueIndicatorEl = createMockEl();
+  queueIndicatorEl.style.display = 'none';
+  jest.spyOn(queueIndicatorEl, 'setText');
   state.queueIndicatorEl = queueIndicatorEl as any;
 
   // Store image context manager so tests can access it
@@ -94,7 +83,7 @@ function createMockDeps(overrides: Partial<InputControllerDeps> = {}): InputCont
     state,
     renderer: {
       addMessage: jest.fn().mockReturnValue({
-        querySelector: jest.fn().mockReturnValue(createMockElement()),
+        querySelector: jest.fn().mockReturnValue(createMockEl()),
       }),
     } as any,
     streamController: {
@@ -116,7 +105,7 @@ function createMockDeps(overrides: Partial<InputControllerDeps> = {}): InputCont
     } as any,
     getInputEl: () => inputEl,
     getWelcomeEl: () => null,
-    getMessagesEl: () => createMockElement() as any,
+    getMessagesEl: () => createMockEl() as any,
     getFileContextManager: () => ({
       startSession: jest.fn(),
       getCurrentNotePath: jest.fn().mockReturnValue(null),

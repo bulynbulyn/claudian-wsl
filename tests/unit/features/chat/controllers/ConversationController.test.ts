@@ -1,58 +1,15 @@
+import { createMockEl } from '@test/helpers/mockElement';
+
 import { ConversationController, type ConversationControllerDeps } from '@/features/chat/controllers/ConversationController';
 import { ChatState } from '@/features/chat/state/ChatState';
-
-// Helper to create mock DOM element
-function createMockElement(): any {
-  const style: Record<string, string> = {};
-  const classList = new Set<string>();
-  const children: any[] = [];
-
-  const el: any = {
-    style,
-    classList: {
-      add: (cls: string) => classList.add(cls),
-      remove: (cls: string) => classList.delete(cls),
-      contains: (cls: string) => classList.has(cls),
-    },
-    addClass: (cls: string) => classList.add(cls),
-    removeClass: (cls: string) => classList.delete(cls),
-    hasClass: (cls: string) => classList.has(cls),
-    empty: () => { children.length = 0; },
-    createDiv: (opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      if (opts?.cls) child.addClass(opts.cls);
-      children.push(child);
-      return child;
-    },
-    createSpan: (opts?: { text?: string }) => {
-      const child = createMockElement();
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    },
-    createEl: (_tag: string, opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      if (opts?.cls) child.addClass(opts.cls);
-      children.push(child);
-      return child;
-    },
-    setAttribute: jest.fn(),
-    addEventListener: jest.fn(),
-    querySelector: jest.fn().mockReturnValue(null),
-    setText: jest.fn(),
-    textContent: '',
-  };
-
-  return el;
-}
 
 // Helper to create mock dependencies
 function createMockDeps(overrides: Partial<ConversationControllerDeps> = {}): ConversationControllerDeps {
   const state = new ChatState();
   const inputEl = { value: '' } as HTMLTextAreaElement;
-  const historyDropdown = createMockElement();
-  let welcomeEl: any = createMockElement();
-  const messagesEl = createMockElement();
+  const historyDropdown = createMockEl();
+  let welcomeEl: any = createMockEl();
+  const messagesEl = createMockEl();
 
   const fileContextManager = {
     resetForNewConversation: jest.fn(),
@@ -97,7 +54,7 @@ function createMockDeps(overrides: Partial<ConversationControllerDeps> = {}): Co
     } as any,
     state,
     renderer: {
-      renderMessages: jest.fn().mockReturnValue(createMockElement()),
+      renderMessages: jest.fn().mockReturnValue(createMockEl()),
     } as any,
     subagentManager: {
       orphanAllActive: jest.fn(),
@@ -354,7 +311,7 @@ describe('ConversationController - initializeWelcome', () => {
     expect(createDivSpy).toHaveBeenCalledTimes(1);
 
     // Mock querySelector to return an element (greeting already exists)
-    welcomeEl.querySelector = jest.fn().mockReturnValue(createMockElement());
+    welcomeEl.querySelector = jest.fn().mockReturnValue(createMockEl());
 
     // Second call should not add another greeting
     controller.initializeWelcome();

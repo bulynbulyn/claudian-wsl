@@ -1,93 +1,10 @@
+import { createMockEl } from '@test/helpers/mockElement';
+
 import {
   createThinkingBlock,
   finalizeThinkingBlock,
   renderStoredThinkingBlock,
 } from '@/features/chat/rendering/ThinkingBlockRenderer';
-
-// Create mock HTML element with Obsidian-like methods
-function createMockElement(tag = 'div'): any {
-  const children: any[] = [];
-  const classes = new Set<string>();
-  const attributes = new Map<string, string>();
-  const eventListeners = new Map<string, ((...args: unknown[]) => void)[]>();
-
-  const element: any = {
-    tagName: tag.toUpperCase(),
-    children,
-    style: {},
-    textContent: '',
-    innerHTML: '',
-    get className() {
-      return Array.from(classes).join(' ');
-    },
-    set className(value: string) {
-      classes.clear();
-      if (value) {
-        value.split(' ').filter(Boolean).forEach(c => classes.add(c));
-      }
-    },
-    addClass: (cls: string) => {
-      classes.add(cls);
-      return element;
-    },
-    removeClass: (cls: string) => {
-      classes.delete(cls);
-      return element;
-    },
-    hasClass: (cls: string) => classes.has(cls),
-    empty: () => {
-      children.length = 0;
-      element.innerHTML = '';
-      element.textContent = '';
-    },
-    setAttribute: (name: string, value: string) => attributes.set(name, value),
-    getAttribute: (name: string) => attributes.get(name),
-    querySelector: (selector: string) => {
-      const cls = selector.replace('.', '');
-      const findByClass = (el: any): any => {
-        if (el.hasClass && el.hasClass(cls)) return el;
-        for (const child of el.children || []) {
-          const found = findByClass(child);
-          if (found) return found;
-        }
-        return null;
-      };
-      return findByClass(element);
-    },
-    addEventListener: (event: string, handler: (...args: unknown[]) => void) => {
-      if (!eventListeners.has(event)) eventListeners.set(event, []);
-      eventListeners.get(event)!.push(handler);
-    },
-    createDiv: (opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement('div');
-      if (opts?.cls) {
-        opts.cls.split(' ').forEach(c => child.addClass(c));
-      }
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    },
-    createSpan: (opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement('span');
-      if (opts?.cls) {
-        opts.cls.split(' ').forEach(c => child.addClass(c));
-      }
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    },
-    setText: (text: string) => {
-      element.textContent = text;
-    },
-    // Test helpers
-    _classes: classes,
-    _attributes: attributes,
-    _eventListeners: eventListeners,
-    _children: children,
-  };
-
-  return element;
-}
 
 // Mock renderContent function
 const mockRenderContent = jest.fn().mockResolvedValue(undefined);
@@ -104,7 +21,7 @@ describe('ThinkingBlockRenderer', () => {
 
   describe('createThinkingBlock', () => {
     it('should start collapsed by default', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const state = createThinkingBlock(parentEl, mockRenderContent);
 
@@ -113,7 +30,7 @@ describe('ThinkingBlockRenderer', () => {
     });
 
     it('should set aria-expanded to false by default', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const state = createThinkingBlock(parentEl, mockRenderContent);
 
@@ -122,7 +39,7 @@ describe('ThinkingBlockRenderer', () => {
     });
 
     it('should set correct ARIA attributes for accessibility', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const state = createThinkingBlock(parentEl, mockRenderContent);
 
@@ -134,7 +51,7 @@ describe('ThinkingBlockRenderer', () => {
     });
 
     it('should toggle expand/collapse on header click', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const state = createThinkingBlock(parentEl, mockRenderContent);
 
@@ -159,7 +76,7 @@ describe('ThinkingBlockRenderer', () => {
     });
 
     it('should update aria-expanded on toggle', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const state = createThinkingBlock(parentEl, mockRenderContent);
       const header = (state.wrapperEl as any)._children[0];
@@ -178,7 +95,7 @@ describe('ThinkingBlockRenderer', () => {
     });
 
     it('should show timer label', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const state = createThinkingBlock(parentEl, mockRenderContent);
 
@@ -186,7 +103,7 @@ describe('ThinkingBlockRenderer', () => {
     });
 
     it('should clean up timer on finalize', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const state = createThinkingBlock(parentEl, mockRenderContent);
 
@@ -200,7 +117,7 @@ describe('ThinkingBlockRenderer', () => {
 
   describe('finalizeThinkingBlock', () => {
     it('should collapse the block when finalized', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const state = createThinkingBlock(parentEl, mockRenderContent);
 
@@ -215,7 +132,7 @@ describe('ThinkingBlockRenderer', () => {
     });
 
     it('should update label with final duration', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const state = createThinkingBlock(parentEl, mockRenderContent);
 
@@ -229,7 +146,7 @@ describe('ThinkingBlockRenderer', () => {
     });
 
     it('should sync isExpanded state so toggle works correctly after finalize', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const state = createThinkingBlock(parentEl, mockRenderContent);
       const header = (state.wrapperEl as any)._children[0];
@@ -253,7 +170,7 @@ describe('ThinkingBlockRenderer', () => {
     });
 
     it('should update aria-expanded on finalize', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const state = createThinkingBlock(parentEl, mockRenderContent);
       const header = (state.wrapperEl as any)._children[0];
@@ -271,7 +188,7 @@ describe('ThinkingBlockRenderer', () => {
 
   describe('renderStoredThinkingBlock', () => {
     it('should start collapsed by default', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const wrapperEl = renderStoredThinkingBlock(parentEl, 'thinking content', 10, mockRenderContent);
 
@@ -279,7 +196,7 @@ describe('ThinkingBlockRenderer', () => {
     });
 
     it('should set aria-expanded to false by default', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const wrapperEl = renderStoredThinkingBlock(parentEl, 'thinking content', 10, mockRenderContent);
 
@@ -288,7 +205,7 @@ describe('ThinkingBlockRenderer', () => {
     });
 
     it('should hide content by default', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const wrapperEl = renderStoredThinkingBlock(parentEl, 'thinking content', 10, mockRenderContent);
 
@@ -297,7 +214,7 @@ describe('ThinkingBlockRenderer', () => {
     });
 
     it('should toggle expand/collapse on click', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const wrapperEl = renderStoredThinkingBlock(parentEl, 'thinking content', 10, mockRenderContent);
       const header = (wrapperEl as any)._children[0];
@@ -317,7 +234,7 @@ describe('ThinkingBlockRenderer', () => {
     });
 
     it('should support keyboard navigation (Enter/Space)', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const wrapperEl = renderStoredThinkingBlock(parentEl, 'thinking content', 10, mockRenderContent);
       const header = (wrapperEl as any)._children[0];
@@ -343,7 +260,7 @@ describe('ThinkingBlockRenderer', () => {
 
   describe('createThinkingBlock keyboard navigation', () => {
     it('should support keyboard navigation (Enter/Space)', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const state = createThinkingBlock(parentEl, mockRenderContent);
       const header = (state.wrapperEl as any)._children[0];
@@ -369,7 +286,7 @@ describe('ThinkingBlockRenderer', () => {
     });
 
     it('should ignore other keys', () => {
-      const parentEl = createMockElement();
+      const parentEl = createMockEl();
 
       const state = createThinkingBlock(parentEl, mockRenderContent);
       const header = (state.wrapperEl as any)._children[0];

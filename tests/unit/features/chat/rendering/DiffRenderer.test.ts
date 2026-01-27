@@ -1,37 +1,8 @@
+import { createMockEl } from '@test/helpers/mockElement';
+
 import type { DiffLine, StructuredPatchHunk } from '@/core/types/diff';
 import { renderDiffContent, splitIntoHunks } from '@/features/chat/rendering/DiffRenderer';
 import { countLineChanges, structuredPatchToDiffLines } from '@/utils/diff';
-
-/** Minimal mock element for renderDiffContent tests. */
-function createMockElement(): any {
-  const children: any[] = [];
-  const classes = new Set<string>();
-  const el: any = {
-    children,
-    textContent: '',
-    empty: () => { children.length = 0; el.textContent = ''; },
-    addClass: (cls: string) => { classes.add(cls); return el; },
-    hasClass: (cls: string) => classes.has(cls),
-    createDiv: (opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      if (opts?.cls) opts.cls.split(' ').forEach(c => child.addClass(c));
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    },
-    createSpan: (opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      if (opts?.cls) opts.cls.split(' ').forEach(c => child.addClass(c));
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    },
-    setText: (text: string) => { el.textContent = text; },
-    _children: children,
-    _classes: classes,
-  };
-  return el;
-}
 
 /** Recursively count elements matching a class. */
 function countByClass(el: any, cls: string): number {
@@ -340,7 +311,7 @@ describe('DiffRenderer', () => {
 
   describe('renderDiffContent', () => {
     it('should render all lines when all-inserts count is within cap', () => {
-      const container = createMockElement();
+      const container = createMockEl();
       const lines = makeInsertLines(20);
 
       renderDiffContent(container, lines);
@@ -351,7 +322,7 @@ describe('DiffRenderer', () => {
     });
 
     it('should cap all-inserts diff at 20 lines with remainder message', () => {
-      const container = createMockElement();
+      const container = createMockEl();
       const lines = makeInsertLines(100);
 
       renderDiffContent(container, lines);
@@ -368,7 +339,7 @@ describe('DiffRenderer', () => {
     });
 
     it('should not cap mixed diff lines (edits with context)', () => {
-      const container = createMockElement();
+      const container = createMockEl();
       // Build a diff with equal + insert lines — not all-inserts
       const lines: DiffLine[] = [
         { type: 'equal', text: 'ctx', oldLineNum: 1, newLineNum: 1 },

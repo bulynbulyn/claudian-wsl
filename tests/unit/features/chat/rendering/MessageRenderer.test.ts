@@ -1,3 +1,5 @@
+import { createMockEl } from '@test/helpers/mockElement';
+
 import { TOOL_AGENT_OUTPUT } from '@/core/tools/toolNames';
 import type { ChatMessage } from '@/core/types';
 import { MessageRenderer } from '@/features/chat/rendering/MessageRenderer';
@@ -20,61 +22,6 @@ jest.mock('@/features/chat/rendering/WriteEditRenderer', () => ({
   renderStoredWriteEdit: jest.fn(),
 }));
 
-function createMockElement() {
-  const children: any[] = [];
-  const classList = new Set<string>();
-
-  const element: any = {
-    children,
-    classList: {
-      add: (cls: string) => classList.add(cls),
-      remove: (cls: string) => classList.delete(cls),
-      contains: (cls: string) => classList.has(cls),
-    },
-    addClass: (cls: string) => classList.add(cls),
-    removeClass: (cls: string) => classList.delete(cls),
-    hasClass: (cls: string) => classList.has(cls),
-    style: {},
-    scrollTop: 0,
-    scrollHeight: 0,
-    textContent: '',
-    innerHTML: '',
-    empty: jest.fn(() => { children.length = 0; }),
-    createDiv: (opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      if (opts?.cls) {
-        // Handle space-separated class names
-        opts.cls.split(' ').forEach(c => child.addClass(c));
-      }
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    },
-    createSpan: (opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      if (opts?.cls) child.addClass(opts.cls);
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    },
-    createEl: (tag: string, opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      child.tagName = tag.toUpperCase();
-      if (opts?.cls) child.addClass(opts.cls);
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    },
-    appendChild: (child: any) => { children.push(child); return child; },
-    querySelector: jest.fn().mockReturnValue(null),
-    querySelectorAll: jest.fn().mockReturnValue([]),
-    setText: jest.fn((text: string) => { element.textContent = text; }),
-    addEventListener: jest.fn(),
-  };
-
-  return element;
-}
-
 function createMockComponent() {
   return {
     registerDomEvent: jest.fn(),
@@ -87,7 +34,8 @@ function createMockComponent() {
 
 describe('MessageRenderer', () => {
   it('renders welcome element and calls renderStoredMessage for each message', () => {
-    const messagesEl = createMockElement();
+    const messagesEl = createMockEl();
+    const emptySpy = jest.spyOn(messagesEl, 'empty');
     const mockComponent = createMockComponent();
     const renderer = new MessageRenderer({} as any, mockComponent as any, messagesEl);
     const renderStoredSpy = jest.spyOn(renderer, 'renderStoredMessage').mockImplementation(() => {});
@@ -98,14 +46,14 @@ describe('MessageRenderer', () => {
 
     const welcomeEl = renderer.renderMessages(messages, () => 'Hello');
 
-    expect(messagesEl.empty).toHaveBeenCalled();
+    expect(emptySpy).toHaveBeenCalled();
     expect(renderStoredSpy).toHaveBeenCalledTimes(1);
     expect(welcomeEl.hasClass('claudian-welcome')).toBe(true);
     expect(welcomeEl.children[0].textContent).toBe('Hello');
   });
 
   it('renders interrupt messages with interrupt styling instead of user bubble', () => {
-    const messagesEl = createMockElement();
+    const messagesEl = createMockEl();
     const mockComponent = createMockComponent();
     const renderer = new MessageRenderer({} as any, mockComponent as any, messagesEl);
 
@@ -131,7 +79,7 @@ describe('MessageRenderer', () => {
   });
 
   it('renders assistant content blocks using specialized renderers', () => {
-    const messagesEl = createMockElement();
+    const messagesEl = createMockEl();
     const mockComponent = createMockComponent();
     const renderer = new MessageRenderer({} as any, mockComponent as any, messagesEl);
     const renderContentSpy = jest.spyOn(renderer, 'renderContent').mockResolvedValue(undefined);
@@ -173,7 +121,7 @@ describe('MessageRenderer', () => {
   });
 
   it('should skip TaskOutput tool calls (internal async subagent communication)', () => {
-    const messagesEl = createMockElement();
+    const messagesEl = createMockEl();
     const mockComponent = createMockComponent();
     const renderer = new MessageRenderer({} as any, mockComponent as any, messagesEl);
 
@@ -200,7 +148,7 @@ describe('MessageRenderer', () => {
   });
 
   it('should render other tool calls but skip TaskOutput when mixed', () => {
-    const messagesEl = createMockElement();
+    const messagesEl = createMockEl();
     const mockComponent = createMockComponent();
     const renderer = new MessageRenderer({} as any, mockComponent as any, messagesEl);
 

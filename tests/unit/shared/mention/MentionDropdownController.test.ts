@@ -1,3 +1,5 @@
+import { createMockEl } from '@test/helpers/mockElement';
+
 import {
   type AgentMentionProvider,
   type McpMentionProvider,
@@ -17,52 +19,19 @@ jest.mock('@/utils/mcp', () => ({
   extractMcpMentions: jest.fn().mockReturnValue(new Set()),
 }));
 
-// Mock SelectableDropdown
+// Mock SelectableDropdown with controllable visibility
+let mockDropdownVisible = false;
 jest.mock('@/shared/components/SelectableDropdown', () => ({
   SelectableDropdown: jest.fn().mockImplementation(() => ({
-    isVisible: jest.fn().mockReturnValue(false),
-    hide: jest.fn(),
+    isVisible: jest.fn(() => mockDropdownVisible),
+    hide: jest.fn(() => { mockDropdownVisible = false; }),
     destroy: jest.fn(),
-    render: jest.fn(),
+    render: jest.fn(() => { mockDropdownVisible = true; }),
     moveSelection: jest.fn(),
     getSelectedIndex: jest.fn().mockReturnValue(0),
     getElement: jest.fn().mockReturnValue(null),
   })),
 }));
-
-// Helper to create mock DOM element
-function createMockElement() {
-  const children: any[] = [];
-  const classList = new Set<string>();
-
-  const element: any = {
-    children,
-    classList: {
-      add: (cls: string) => classList.add(cls),
-      remove: (cls: string) => classList.delete(cls),
-      contains: (cls: string) => classList.has(cls),
-    },
-    textContent: '',
-    style: {},
-    createDiv: (opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      if (opts?.cls) child.classList.add(opts.cls);
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    },
-    createSpan: (opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      if (opts?.cls) child.classList.add(opts.cls);
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    },
-    appendChild: (child: any) => { children.push(child); return child; },
-    contains: () => false,
-  };
-  return element;
-}
 
 function createMockInput() {
   return {
@@ -122,7 +91,8 @@ describe('MentionDropdownController', () => {
   let controller: MentionDropdownController;
 
   beforeEach(() => {
-    containerEl = createMockElement();
+    mockDropdownVisible = false;
+    containerEl = createMockEl();
     inputEl = createMockInput();
     callbacks = createMockCallbacks();
     controller = new MentionDropdownController(containerEl, inputEl, callbacks);
@@ -369,7 +339,7 @@ describe('MentionDropdownController', () => {
 
   describe('containsElement', () => {
     it('returns false when element not in dropdown', () => {
-      const el = createMockElement();
+      const el = createMockEl();
       expect(controller.containsElement(el)).toBe(false);
     });
   });
@@ -396,14 +366,13 @@ describe('MentionDropdownController', () => {
 
   describe('agent selection callback', () => {
     it('calls onAgentMentionSelect when agent is selected via dropdown', () => {
-      // Setup callback with spy
       const onAgentMentionSelect = jest.fn();
       const testCallbacks = createMockCallbacks({ onAgentMentionSelect });
+      const testInput = createMockInput();
 
-      // Create controller with agent service
       const testController = new MentionDropdownController(
-        createMockElement(),
-        createMockInput(),
+        createMockEl(),
+        testInput,
         testCallbacks
       );
 
@@ -412,31 +381,16 @@ describe('MentionDropdownController', () => {
       ]);
       testController.setAgentService(agentService);
 
-      // Access private method to test selection behavior directly
-      // Set up internal state to simulate @ mention at position 0
-      testController['mentionStartIndex'] = 0;
-      testController['filteredMentionItems'] = [
-        {
-          type: 'agent' as const,
-          id: 'custom-agent',
-          name: 'Custom Agent',
-          description: 'Test agent',
-          source: 'vault' as const,
-        },
-      ];
+      // Type @Agents/ to navigate into the agent submenu and populate items
+      testInput.value = '@Agents/';
+      testInput.selectionStart = 8;
+      testController.handleInputChange();
 
-      // Mock the dropdown to return index 0
-      testController['dropdown'].getSelectedIndex = jest.fn().mockReturnValue(0);
+      // handleInputChange populates filteredMentionItems and calls dropdown.render(),
+      // which sets mockDropdownVisible = true. Press Enter to select the first item.
+      const enterEvent = { key: 'Enter', preventDefault: jest.fn(), isComposing: false } as any;
+      testController.handleKeydown(enterEvent);
 
-      // Simulate input state
-      const testInput = testController['inputEl'];
-      testInput.value = '@';
-      testInput.selectionStart = 1;
-
-      // Call private selectMentionItem method directly
-      testController['selectMentionItem']();
-
-      // Verify callback was called with agent ID
       expect(onAgentMentionSelect).toHaveBeenCalledWith('custom-agent');
 
       testController.destroy();

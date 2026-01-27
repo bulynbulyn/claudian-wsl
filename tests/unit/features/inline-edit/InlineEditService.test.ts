@@ -13,7 +13,14 @@ jest.mock('fs');
 // Now import after all mocks are set up
 import { getPathFromToolInput } from '@/core/tools/toolInput';
 import type { InlineEditRequest } from '@/features/inline-edit/InlineEditService';
-import { InlineEditService } from '@/features/inline-edit/InlineEditService';
+import {
+  buildInlineEditPrompt,
+  createReadOnlyHook,
+  createVaultRestrictionHook,
+  extractTextFromSdkMessage,
+  InlineEditService,
+  parseInlineEditResponse,
+} from '@/features/inline-edit/InlineEditService';
 import { buildCursorContext } from '@/utils/editor';
 
 // Create a mock plugin
@@ -35,6 +42,12 @@ function createMockPlugin(settings = {}) {
     getResolvedClaudeCliPath: jest.fn().mockReturnValue('/fake/claude'),
   } as any;
 }
+
+// Hook functions accept typed HookInput / return typed HookJSONOutput, but the
+// implementation only reads tool_name/tool_input. Cast I/O to any in tests.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const callHook = async (hook: any, input: any, ...rest: any[]): Promise<any> =>
+  hook(input, ...rest);
 
 describe('InlineEditService', () => {
   let service: InlineEditService;
@@ -66,11 +79,10 @@ describe('InlineEditService', () => {
     });
 
     it('should block Read outside vault', async () => {
-      const hook = (service as any).createVaultRestrictionHook('/test/vault/path');
-      const res = await hook.hooks[0](
+      const hook = createVaultRestrictionHook('/test/vault/path');
+      const res = await callHook(hook.hooks[0],
         { tool_name: 'Read', tool_input: { file_path: '/etc/passwd' } },
-        'tool-1',
-        {}
+        'tool-1', {},
       );
 
       expect(res.continue).toBe(false);
@@ -78,22 +90,20 @@ describe('InlineEditService', () => {
     });
 
     it('should allow Read inside vault', async () => {
-      const hook = (service as any).createVaultRestrictionHook('/test/vault/path');
-      const res = await hook.hooks[0](
+      const hook = createVaultRestrictionHook('/test/vault/path');
+      const res = await callHook(hook.hooks[0],
         { tool_name: 'Read', tool_input: { file_path: '/test/vault/path/notes/a.md' } },
-        'tool-2',
-        {}
+        'tool-2', {},
       );
 
       expect(res.continue).toBe(true);
     });
 
     it('should block Glob escaping pattern', async () => {
-      const hook = (service as any).createVaultRestrictionHook('/test/vault/path');
-      const res = await hook.hooks[0](
+      const hook = createVaultRestrictionHook('/test/vault/path');
+      const res = await callHook(hook.hooks[0],
         { tool_name: 'Glob', tool_input: { pattern: '../**/*.md' } },
-        'tool-3',
-        {}
+        'tool-3', {},
       );
 
       expect(res.continue).toBe(false);
@@ -103,11 +113,10 @@ describe('InlineEditService', () => {
       // Mock os.homedir to return a known path
       jest.spyOn(os, 'homedir').mockReturnValue('/home/test');
 
-      const hook = (service as any).createVaultRestrictionHook('/test/vault/path');
-      const res = await hook.hooks[0](
+      const hook = createVaultRestrictionHook('/test/vault/path');
+      const res = await callHook(hook.hooks[0],
         { tool_name: 'Read', tool_input: { file_path: '/home/test/.claude/settings.json' } },
-        'tool-4',
-        {}
+        'tool-4', {},
       );
 
       expect(res.continue).toBe(true);
@@ -116,11 +125,10 @@ describe('InlineEditService', () => {
     it('should allow Glob inside ~/.claude/ directory', async () => {
       jest.spyOn(os, 'homedir').mockReturnValue('/home/test');
 
-      const hook = (service as any).createVaultRestrictionHook('/test/vault/path');
-      const res = await hook.hooks[0](
+      const hook = createVaultRestrictionHook('/test/vault/path');
+      const res = await callHook(hook.hooks[0],
         { tool_name: 'Glob', tool_input: { pattern: '/home/test/.claude/**/*.md' } },
-        'tool-5',
-        {}
+        'tool-5', {},
       );
 
       expect(res.continue).toBe(true);
@@ -129,11 +137,10 @@ describe('InlineEditService', () => {
     it('should still block paths outside vault and ~/.claude/', async () => {
       jest.spyOn(os, 'homedir').mockReturnValue('/home/test');
 
-      const hook = (service as any).createVaultRestrictionHook('/test/vault/path');
-      const res = await hook.hooks[0](
+      const hook = createVaultRestrictionHook('/test/vault/path');
+      const res = await callHook(hook.hooks[0],
         { tool_name: 'Read', tool_input: { file_path: '/home/test/.ssh/id_rsa' } },
-        'tool-6',
-        {}
+        'tool-6', {},
       );
 
       expect(res.continue).toBe(false);
@@ -143,11 +150,10 @@ describe('InlineEditService', () => {
     it('should block path traversal via ~/.claude/../ to escape allowed directory', async () => {
       jest.spyOn(os, 'homedir').mockReturnValue('/home/test');
 
-      const hook = (service as any).createVaultRestrictionHook('/test/vault/path');
-      const res = await hook.hooks[0](
+      const hook = createVaultRestrictionHook('/test/vault/path');
+      const res = await callHook(hook.hooks[0],
         { tool_name: 'Read', tool_input: { file_path: '/home/test/.claude/../.ssh/id_rsa' } },
-        'tool-7',
-        {}
+        'tool-7', {},
       );
 
       expect(res.continue).toBe(false);
@@ -155,12 +161,10 @@ describe('InlineEditService', () => {
     });
 
     it('should deny when path cannot be determined (fail-closed)', async () => {
-      const hook = (service as any).createVaultRestrictionHook('/test/vault/path');
-      // Pass empty tool_input so getPathFromToolInput returns null
-      const res = await hook.hooks[0](
+      const hook = createVaultRestrictionHook('/test/vault/path');
+      const res = await callHook(hook.hooks[0],
         { tool_name: 'Read', tool_input: {} },
-        'tool-8',
-        {}
+        'tool-8', {},
       );
 
       expect(res.continue).toBe(false);
@@ -169,22 +173,12 @@ describe('InlineEditService', () => {
     });
 
     it('should deny when path validation throws (fail-closed)', async () => {
-      // Test that the try-catch wrapping getPathAccessType fails closed
-      // We can't easily mock getPathAccessType to throw here due to module loading,
-      // but the code path is covered by the try-catch implementation.
-      // This test documents the expected behavior: any exception from path validation
-      // should result in denial (fail-closed security pattern).
-
-      // For now, verify the code compiles and the hook still works correctly
-      // when paths can be validated (ensuring the try-catch doesn't break normal flow)
-      const hook = (service as any).createVaultRestrictionHook('/test/vault/path');
-      const res = await hook.hooks[0](
+      const hook = createVaultRestrictionHook('/test/vault/path');
+      const res = await callHook(hook.hooks[0],
         { tool_name: 'Read', tool_input: { file_path: '/outside/vault/file.txt' } },
-        'tool-9',
-        {}
+        'tool-9', {},
       );
 
-      // Should deny paths outside vault (normal path validation works)
       expect(res.continue).toBe(false);
       expect(res.hookSpecificOutput.permissionDecision).toBe('deny');
     });
@@ -199,7 +193,7 @@ describe('InlineEditService', () => {
         notePath: 'notes/test.md',
       };
 
-      const prompt = (service as any).buildPrompt(request);
+      const prompt = buildInlineEditPrompt(request);
 
       // New format: instruction first, then XML context (no <query> wrapper)
       expect(prompt).toContain('Fix the greeting');
@@ -218,7 +212,7 @@ describe('InlineEditService', () => {
         notePath: 'doc.md',
       };
 
-      const prompt = (service as any).buildPrompt(request);
+      const prompt = buildInlineEditPrompt(request);
 
       expect(prompt).toContain('Line 1\nLine 2\nLine 3');
     });
@@ -231,7 +225,7 @@ describe('InlineEditService', () => {
         notePath: 'empty.md',
       };
 
-      const prompt = (service as any).buildPrompt(request);
+      const prompt = buildInlineEditPrompt(request);
 
       // New format: instruction first, then XML context (no <query> wrapper)
       expect(prompt).toContain('Add content');
@@ -249,7 +243,7 @@ describe('InlineEditService', () => {
         contextFiles: ['notes/helper.md', 'docs/api.md'],
       };
 
-      const prompt = (service as any).buildPrompt(request);
+      const prompt = buildInlineEditPrompt(request);
 
       // Context files should be appended with <context_files> tag
       expect(prompt).toContain('<context_files>');
@@ -273,7 +267,7 @@ describe('InlineEditService', () => {
         contextFiles: [],
       };
 
-      const prompt = (service as any).buildPrompt(request);
+      const prompt = buildInlineEditPrompt(request);
 
       expect(prompt).not.toContain('<context_files>');
       expect(prompt).toContain('<editor_selection');
@@ -287,7 +281,7 @@ describe('InlineEditService', () => {
         notePath: 'test.md',
       };
 
-      const prompt = (service as any).buildPrompt(request);
+      const prompt = buildInlineEditPrompt(request);
 
       expect(prompt).not.toContain('<context_files>');
       expect(prompt).toContain('<editor_selection');
@@ -308,7 +302,7 @@ describe('InlineEditService', () => {
         contextFiles: ['utils.ts'],
       };
 
-      const prompt = (service as any).buildPrompt(request);
+      const prompt = buildInlineEditPrompt(request);
 
       expect(prompt).toContain('<context_files>');
       expect(prompt).toContain('utils.ts');
@@ -320,7 +314,7 @@ describe('InlineEditService', () => {
     it('should extract text from replacement tags', () => {
       const response = 'Here is the edit:\n<replacement>Fixed text here</replacement>';
 
-      const result = (service as any).parseResponse(response);
+      const result = parseInlineEditResponse(response);
 
       expect(result.success).toBe(true);
       expect(result.editedText).toBe('Fixed text here');
@@ -329,7 +323,7 @@ describe('InlineEditService', () => {
     it('should handle multiline replacement content', () => {
       const response = '<replacement>Line 1\nLine 2\nLine 3</replacement>';
 
-      const result = (service as any).parseResponse(response);
+      const result = parseInlineEditResponse(response);
 
       expect(result.success).toBe(true);
       expect(result.editedText).toBe('Line 1\nLine 2\nLine 3');
@@ -338,7 +332,7 @@ describe('InlineEditService', () => {
     it('should return clarification when no replacement tags', () => {
       const response = 'Could you please clarify what you mean by "fix"?';
 
-      const result = (service as any).parseResponse(response);
+      const result = parseInlineEditResponse(response);
 
       expect(result.success).toBe(true);
       expect(result.clarification).toBe('Could you please clarify what you mean by "fix"?');
@@ -346,14 +340,14 @@ describe('InlineEditService', () => {
     });
 
     it('should return error for empty response', () => {
-      const result = (service as any).parseResponse('');
+      const result = parseInlineEditResponse('');
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Empty response');
     });
 
     it('should return error for whitespace-only response', () => {
-      const result = (service as any).parseResponse('   \n\t  ');
+      const result = parseInlineEditResponse('   \n\t  ');
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Empty response');
@@ -362,7 +356,7 @@ describe('InlineEditService', () => {
     it('should handle replacement tags with special characters', () => {
       const response = '<replacement>const x = a < b && c > d;</replacement>';
 
-      const result = (service as any).parseResponse(response);
+      const result = parseInlineEditResponse(response);
 
       expect(result.success).toBe(true);
       expect(result.editedText).toBe('const x = a < b && c > d;');
@@ -371,7 +365,7 @@ describe('InlineEditService', () => {
     it('should extract first replacement tag if multiple exist', () => {
       const response = '<replacement>first</replacement> then <replacement>second</replacement>';
 
-      const result = (service as any).parseResponse(response);
+      const result = parseInlineEditResponse(response);
 
       expect(result.success).toBe(true);
       expect(result.editedText).toBe('first');
@@ -380,7 +374,7 @@ describe('InlineEditService', () => {
     it('should handle empty replacement tags', () => {
       const response = '<replacement></replacement>';
 
-      const result = (service as any).parseResponse(response);
+      const result = parseInlineEditResponse(response);
 
       expect(result.success).toBe(true);
       expect(result.editedText).toBe('');
@@ -561,7 +555,19 @@ describe('InlineEditService', () => {
         notePath: 'test.md',
       });
 
-      expect((service as any).sessionId).toBe('inline-session-123');
+      // Verify session was captured by checking continueConversation resumes it
+      setMockMessages([
+        {
+          type: 'assistant',
+          message: { content: [{ type: 'text', text: '<replacement>fixed</replacement>' }] },
+        },
+        { type: 'result' },
+      ]);
+
+      await service.continueConversation('make it better');
+
+      const options = getLastOptions();
+      expect(options?.resume).toBe('inline-session-123');
     });
 
     it('should return clarification response', async () => {
@@ -734,12 +740,33 @@ describe('InlineEditService', () => {
   });
 
   describe('resetConversation', () => {
-    it('should clear session ID', async () => {
-      (service as any).sessionId = 'some-session';
+    it('should clear session so continueConversation fails', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
 
+      // First establish a session
+      setMockMessages([
+        { type: 'system', subtype: 'init', session_id: 'some-session' },
+        {
+          type: 'assistant',
+          message: { content: [{ type: 'text', text: 'What do you want?' }] },
+        },
+        { type: 'result' },
+      ]);
+
+      await service.editText({
+        mode: 'selection',
+        selectedText: 'test',
+        instruction: 'fix',
+        notePath: 'test.md',
+      });
+
+      // Reset should clear the session
       service.resetConversation();
 
-      expect((service as any).sessionId).toBeNull();
+      // continueConversation should fail since session is cleared
+      const result = await service.continueConversation('more details');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('No active conversation');
     });
   });
 
@@ -777,43 +804,35 @@ describe('InlineEditService', () => {
 
   describe('read-only hook enforcement', () => {
     it('should create hook that allows read-only tools', () => {
-      const hook = (service as any).createReadOnlyHook();
+      const hook = createReadOnlyHook();
 
       expect(hook.hooks).toHaveLength(1);
     });
 
     it('should allow Read tool through hook', async () => {
-      const hook = (service as any).createReadOnlyHook();
-      const hookFn = hook.hooks[0];
-
-      const result = await hookFn({ tool_name: 'Read', tool_input: { file_path: 'test.md' } });
+      const hook = createReadOnlyHook();
+      const result = await callHook(hook.hooks[0], { tool_name: 'Read', tool_input: { file_path: 'test.md' } });
 
       expect(result.continue).toBe(true);
     });
 
     it('should allow Grep tool through hook', async () => {
-      const hook = (service as any).createReadOnlyHook();
-      const hookFn = hook.hooks[0];
-
-      const result = await hookFn({ tool_name: 'Grep', tool_input: { pattern: 'test' } });
+      const hook = createReadOnlyHook();
+      const result = await callHook(hook.hooks[0], { tool_name: 'Grep', tool_input: { pattern: 'test' } });
 
       expect(result.continue).toBe(true);
     });
 
     it('should allow WebSearch tool through hook', async () => {
-      const hook = (service as any).createReadOnlyHook();
-      const hookFn = hook.hooks[0];
-
-      const result = await hookFn({ tool_name: 'WebSearch', tool_input: { query: 'test' } });
+      const hook = createReadOnlyHook();
+      const result = await callHook(hook.hooks[0], { tool_name: 'WebSearch', tool_input: { query: 'test' } });
 
       expect(result.continue).toBe(true);
     });
 
     it('should block Write tool through hook', async () => {
-      const hook = (service as any).createReadOnlyHook();
-      const hookFn = hook.hooks[0];
-
-      const result = await hookFn({ tool_name: 'Write', tool_input: { file_path: 'test.md' } });
+      const hook = createReadOnlyHook();
+      const result = await callHook(hook.hooks[0], { tool_name: 'Write', tool_input: { file_path: 'test.md' } });
 
       expect(result.continue).toBe(false);
       expect(result.hookSpecificOutput.permissionDecision).toBe('deny');
@@ -821,20 +840,16 @@ describe('InlineEditService', () => {
     });
 
     it('should block Bash tool through hook', async () => {
-      const hook = (service as any).createReadOnlyHook();
-      const hookFn = hook.hooks[0];
-
-      const result = await hookFn({ tool_name: 'Bash', tool_input: { command: 'rm -rf /' } });
+      const hook = createReadOnlyHook();
+      const result = await callHook(hook.hooks[0], { tool_name: 'Bash', tool_input: { command: 'rm -rf /' } });
 
       expect(result.continue).toBe(false);
       expect(result.hookSpecificOutput.permissionDecision).toBe('deny');
     });
 
     it('should block Edit tool through hook', async () => {
-      const hook = (service as any).createReadOnlyHook();
-      const hookFn = hook.hooks[0];
-
-      const result = await hookFn({ tool_name: 'Edit', tool_input: { file_path: 'test.md' } });
+      const hook = createReadOnlyHook();
+      const result = await callHook(hook.hooks[0], { tool_name: 'Edit', tool_input: { file_path: 'test.md' } });
 
       expect(result.continue).toBe(false);
     });
@@ -849,7 +864,7 @@ describe('InlineEditService', () => {
         },
       };
 
-      const text = (service as any).extractTextFromMessage(message);
+      const text = extractTextFromSdkMessage(message);
 
       expect(text).toBe('Hello world');
     });
@@ -863,7 +878,7 @@ describe('InlineEditService', () => {
         },
       };
 
-      const text = (service as any).extractTextFromMessage(message);
+      const text = extractTextFromSdkMessage(message);
 
       expect(text).toBe('Starting...');
     });
@@ -877,7 +892,7 @@ describe('InlineEditService', () => {
         },
       };
 
-      const text = (service as any).extractTextFromMessage(message);
+      const text = extractTextFromSdkMessage(message);
 
       expect(text).toBe(' more text');
     });
@@ -888,7 +903,7 @@ describe('InlineEditService', () => {
         subtype: 'init',
       };
 
-      const text = (service as any).extractTextFromMessage(message);
+      const text = extractTextFromSdkMessage(message);
 
       expect(text).toBeNull();
     });
@@ -901,7 +916,7 @@ describe('InlineEditService', () => {
         },
       };
 
-      const text = (service as any).extractTextFromMessage(message);
+      const text = extractTextFromSdkMessage(message);
 
       expect(text).toBeNull();
     });
@@ -939,8 +954,8 @@ describe('InlineEditService', () => {
     });
 
     it('allows non-file tools in vault restriction hook', async () => {
-      const hook = (service as any).createVaultRestrictionHook('/test/vault/path');
-      const res = await hook.hooks[0]({ tool_name: 'WebSearch', tool_input: {} }, 't', {});
+      const hook = createVaultRestrictionHook('/test/vault/path');
+      const res = await callHook(hook.hooks[0], { tool_name: 'WebSearch', tool_input: {} }, 't', {});
       expect(res.continue).toBe(true);
     });
 
@@ -1107,7 +1122,7 @@ describe('InlineEditService', () => {
         },
       };
 
-      const prompt = (service as any).buildCursorPrompt(request);
+      const prompt = buildInlineEditPrompt(request);
 
       // New format: instruction first, then XML context (no <query> wrapper)
       expect(prompt).toContain('add missing word');
@@ -1132,7 +1147,7 @@ describe('InlineEditService', () => {
         },
       };
 
-      const prompt = (service as any).buildCursorPrompt(request);
+      const prompt = buildInlineEditPrompt(request);
 
       // New format: instruction first, then XML context (no <query> wrapper)
       expect(prompt).toContain('add a new section');
@@ -1159,7 +1174,7 @@ describe('InlineEditService', () => {
         },
       };
 
-      const prompt = (service as any).buildCursorPrompt(request);
+      const prompt = buildInlineEditPrompt(request);
 
       expect(prompt).toContain('| #inbetween');
       expect(prompt).toContain('First paragraph');
@@ -1180,7 +1195,7 @@ describe('InlineEditService', () => {
         },
       };
 
-      const prompt = (service as any).buildCursorPrompt(request);
+      const prompt = buildInlineEditPrompt(request);
 
       expect(prompt).toContain('Last paragraph');
       expect(prompt).toContain('| #inbetween');
@@ -1196,7 +1211,7 @@ describe('InlineEditService', () => {
         selectedText: 'selected text here',
       };
 
-      const prompt = (service as any).buildPrompt(request);
+      const prompt = buildInlineEditPrompt(request);
 
       expect(prompt).toContain('selected text here');
       expect(prompt).not.toContain('#inline');
@@ -1217,7 +1232,7 @@ describe('InlineEditService', () => {
         },
       };
 
-      const prompt = (service as any).buildPrompt(request);
+      const prompt = buildInlineEditPrompt(request);
 
       expect(prompt).toContain('before|after #inline');
     });
@@ -1227,7 +1242,7 @@ describe('InlineEditService', () => {
     it('should extract text from insertion tags', () => {
       const response = 'Here is the content:\n<insertion>inserted text here</insertion>';
 
-      const result = (service as any).parseResponse(response);
+      const result = parseInlineEditResponse(response);
 
       expect(result.success).toBe(true);
       expect(result.insertedText).toBe('inserted text here');
@@ -1237,7 +1252,7 @@ describe('InlineEditService', () => {
     it('should handle multiline insertion content', () => {
       const response = '<insertion>Line 1\nLine 2\nLine 3</insertion>';
 
-      const result = (service as any).parseResponse(response);
+      const result = parseInlineEditResponse(response);
 
       expect(result.success).toBe(true);
       expect(result.insertedText).toBe('Line 1\nLine 2\nLine 3');
@@ -1246,7 +1261,7 @@ describe('InlineEditService', () => {
     it('should prefer replacement tags over insertion tags', () => {
       const response = '<replacement>replaced</replacement><insertion>inserted</insertion>';
 
-      const result = (service as any).parseResponse(response);
+      const result = parseInlineEditResponse(response);
 
       expect(result.success).toBe(true);
       expect(result.editedText).toBe('replaced');
@@ -1256,7 +1271,7 @@ describe('InlineEditService', () => {
     it('should handle insertion tags with leading/trailing newlines', () => {
       const response = '<insertion>\n## New Section\n\nContent here\n</insertion>';
 
-      const result = (service as any).parseResponse(response);
+      const result = parseInlineEditResponse(response);
 
       expect(result.success).toBe(true);
       expect(result.insertedText).toBe('\n## New Section\n\nContent here\n');
@@ -1265,7 +1280,7 @@ describe('InlineEditService', () => {
     it('should handle empty insertion tags', () => {
       const response = '<insertion></insertion>';
 
-      const result = (service as any).parseResponse(response);
+      const result = parseInlineEditResponse(response);
 
       expect(result.success).toBe(true);
       expect(result.insertedText).toBe('');
@@ -1274,7 +1289,7 @@ describe('InlineEditService', () => {
     it('should handle insertion with special characters', () => {
       const response = '<insertion>const x = a < b && c > d;</insertion>';
 
-      const result = (service as any).parseResponse(response);
+      const result = parseInlineEditResponse(response);
 
       expect(result.success).toBe(true);
       expect(result.insertedText).toBe('const x = a < b && c > d;');
@@ -1283,7 +1298,7 @@ describe('InlineEditService', () => {
     it('should return clarification when no tags present', () => {
       const response = 'What would you like me to insert?';
 
-      const result = (service as any).parseResponse(response);
+      const result = parseInlineEditResponse(response);
 
       expect(result.success).toBe(true);
       expect(result.clarification).toBe('What would you like me to insert?');

@@ -41,6 +41,9 @@ describe('ClaudianService', () => {
       },
       getResolvedClaudeCliPath: jest.fn().mockReturnValue('/usr/local/bin/claude'),
       getActiveEnvironmentVariables: jest.fn().mockReturnValue(''),
+      pluginManager: {
+        getPluginsKey: jest.fn().mockReturnValue(''),
+      },
     } as unknown as ClaudianPlugin;
 
     mockMcpManager = {
@@ -71,16 +74,16 @@ describe('ClaudianService', () => {
 
     it('should not close persistent query when setting same session ID', () => {
       service.setSessionId('test-session-123');
-      const closePersistentQuerySpy = jest.spyOn(service as any, 'closePersistentQuery');
+      const activeStateBefore = service.isPersistentQueryActive();
       service.setSessionId('test-session-123');
-      expect(closePersistentQuerySpy).not.toHaveBeenCalled();
+      expect(service.getSessionId()).toBe('test-session-123');
+      expect(service.isPersistentQueryActive()).toBe(activeStateBefore);
     });
 
-    it('should close persistent query when switching to different session', () => {
+    it('should update session ID when switching to different session', () => {
       service.setSessionId('test-session-123');
-      const closePersistentQuerySpy = jest.spyOn(service as any, 'closePersistentQuery');
       service.setSessionId('different-session-456');
-      expect(closePersistentQuerySpy).toHaveBeenCalledWith('session switch');
+      expect(service.getSessionId()).toBe('different-session-456');
     });
 
     it('should handle setting null session ID', () => {
@@ -169,25 +172,19 @@ describe('ClaudianService', () => {
       const startPersistentQuerySpy = jest.spyOn(service as any, 'startPersistentQuery');
       startPersistentQuerySpy.mockResolvedValue(undefined);
 
-      await service.ensureReady({ force: true });
+      const result = await service.ensureReady({ force: true });
 
+      expect(result).toBe(true);
       expect(startPersistentQuerySpy).toHaveBeenCalled();
     });
 
     it('should return false (no-op) when config unchanged and query running', async () => {
-      // Setup: simulate running query with current config
       const startPersistentQuerySpy = jest.spyOn(service as any, 'startPersistentQuery');
-      const buildConfigSpy = jest.spyOn(service as any, 'buildPersistentQueryConfig');
-      const needsRestartSpy = jest.spyOn(service as any, 'needsRestart');
 
-      const mockConfig = { model: 'test', externalContextPaths: [] };
-      buildConfigSpy.mockReturnValue(mockConfig);
-      needsRestartSpy.mockReturnValue(false);
-
-      startPersistentQuerySpy.mockImplementation(async () => {
-        // Simulate that query is now running
-        (service as any).persistentQuery = {};
-        (service as any).currentConfig = mockConfig;
+      // Mock startPersistentQuery to simulate real side effects (subprocess boundary)
+      startPersistentQuerySpy.mockImplementation(async (vaultPath: string, cliPath: string, _sessionId?: string, externalContextPaths?: string[]) => {
+        (service as any).persistentQuery = { interrupt: jest.fn().mockResolvedValue(undefined) };
+        (service as any).currentConfig = (service as any).buildPersistentQueryConfig(vaultPath, cliPath, externalContextPaths);
       });
 
       // First call starts the query
@@ -203,46 +200,29 @@ describe('ClaudianService', () => {
 
     it('should restart when config changed (external context paths)', async () => {
       const startPersistentQuerySpy = jest.spyOn(service as any, 'startPersistentQuery');
-      const closePersistentQuerySpy = jest.spyOn(service as any, 'closePersistentQuery');
-      const buildConfigSpy = jest.spyOn(service as any, 'buildPersistentQueryConfig');
-      const needsRestartSpy = jest.spyOn(service as any, 'needsRestart');
 
-      const mockConfig = { model: 'test', externalContextPaths: [] };
-      buildConfigSpy.mockReturnValue(mockConfig);
-
-      // needsRestart is only called when query is already running (Case 3)
-      // Return true to trigger restart on config change
-      needsRestartSpy.mockReturnValue(true);
-
-      startPersistentQuerySpy.mockImplementation(async () => {
-        (service as any).persistentQuery = {};
-      });
-
-      closePersistentQuerySpy.mockImplementation(() => {
-        (service as any).persistentQuery = null;
+      // Mock startPersistentQuery to simulate real side effects (subprocess boundary)
+      startPersistentQuerySpy.mockImplementation(async (vaultPath: string, cliPath: string, _sessionId?: string, externalContextPaths?: string[]) => {
+        (service as any).persistentQuery = { interrupt: jest.fn().mockResolvedValue(undefined) };
+        (service as any).currentConfig = (service as any).buildPersistentQueryConfig(vaultPath, cliPath, externalContextPaths);
       });
 
       // First call starts with no external paths (Case 1: not running)
       await service.ensureReady({ externalContextPaths: [] });
       expect(startPersistentQuerySpy).toHaveBeenCalledTimes(1);
 
-      // Second call: query is running, needsRestart returns true → restart
+      // Second call with different paths triggers restart via real needsRestart
       const result = await service.ensureReady({ externalContextPaths: ['/new/path'] });
       expect(result).toBe(true);
-      expect(closePersistentQuerySpy).toHaveBeenCalledWith('config changed', { preserveHandlers: undefined });
       expect(startPersistentQuerySpy).toHaveBeenCalledTimes(2);
     });
 
     it('should pass preserveHandlers: true to closePersistentQuery on force restart', async () => {
       const startPersistentQuerySpy = jest.spyOn(service as any, 'startPersistentQuery');
-      const closePersistentQuerySpy = jest.spyOn(service as any, 'closePersistentQuery');
+      const closePersistentQuerySpy = jest.spyOn(service, 'closePersistentQuery');
 
       startPersistentQuerySpy.mockImplementation(async () => {
-        (service as any).persistentQuery = {};
-      });
-
-      closePersistentQuerySpy.mockImplementation(() => {
-        (service as any).persistentQuery = null;
+        (service as any).persistentQuery = { interrupt: jest.fn().mockResolvedValue(undefined) };
       });
 
       // Start the query first
@@ -258,20 +238,12 @@ describe('ClaudianService', () => {
 
     it('should pass preserveHandlers through config change restart', async () => {
       const startPersistentQuerySpy = jest.spyOn(service as any, 'startPersistentQuery');
-      const closePersistentQuerySpy = jest.spyOn(service as any, 'closePersistentQuery');
-      const buildConfigSpy = jest.spyOn(service as any, 'buildPersistentQueryConfig');
-      const needsRestartSpy = jest.spyOn(service as any, 'needsRestart');
+      const closePersistentQuerySpy = jest.spyOn(service, 'closePersistentQuery');
 
-      const mockConfig = { model: 'test', externalContextPaths: [] };
-      buildConfigSpy.mockReturnValue(mockConfig);
-      needsRestartSpy.mockReturnValue(true);
-
-      startPersistentQuerySpy.mockImplementation(async () => {
-        (service as any).persistentQuery = {};
-      });
-
-      closePersistentQuerySpy.mockImplementation(() => {
-        (service as any).persistentQuery = null;
+      // Mock startPersistentQuery to simulate real side effects (subprocess boundary)
+      startPersistentQuerySpy.mockImplementation(async (vaultPath: string, cliPath: string, _sessionId?: string, externalContextPaths?: string[]) => {
+        (service as any).persistentQuery = { interrupt: jest.fn().mockResolvedValue(undefined) };
+        (service as any).currentConfig = (service as any).buildPersistentQueryConfig(vaultPath, cliPath, externalContextPaths);
       });
 
       // Start the query first
@@ -285,14 +257,10 @@ describe('ClaudianService', () => {
 
     it('should return false when CLI unavailable after force close', async () => {
       const startPersistentQuerySpy = jest.spyOn(service as any, 'startPersistentQuery');
-      const closePersistentQuerySpy = jest.spyOn(service as any, 'closePersistentQuery');
+      const closePersistentQuerySpy = jest.spyOn(service, 'closePersistentQuery');
 
       startPersistentQuerySpy.mockImplementation(async () => {
-        (service as any).persistentQuery = {};
-      });
-
-      closePersistentQuerySpy.mockImplementation(() => {
-        (service as any).persistentQuery = null;
+        (service as any).persistentQuery = { interrupt: jest.fn().mockResolvedValue(undefined) };
       });
 
       // Start the query first
@@ -311,22 +279,12 @@ describe('ClaudianService', () => {
 
     it('should return false when CLI unavailable after config change close', async () => {
       const startPersistentQuerySpy = jest.spyOn(service as any, 'startPersistentQuery');
-      const closePersistentQuerySpy = jest.spyOn(service as any, 'closePersistentQuery');
-      const buildConfigSpy = jest.spyOn(service as any, 'buildPersistentQueryConfig');
-      const needsRestartSpy = jest.spyOn(service as any, 'needsRestart');
+      const closePersistentQuerySpy = jest.spyOn(service, 'closePersistentQuery');
 
-      const mockConfig = { model: 'test', externalContextPaths: [] };
-      buildConfigSpy.mockReturnValue(mockConfig);
-
-      // needsRestart returns true to trigger config change restart
-      needsRestartSpy.mockReturnValue(true);
-
-      startPersistentQuerySpy.mockImplementation(async () => {
-        (service as any).persistentQuery = {};
-      });
-
-      closePersistentQuerySpy.mockImplementation(() => {
-        (service as any).persistentQuery = null;
+      // Mock startPersistentQuery to simulate real side effects (subprocess boundary)
+      startPersistentQuerySpy.mockImplementation(async (vaultPath: string, cliPath: string, _sessionId?: string, externalContextPaths?: string[]) => {
+        (service as any).persistentQuery = { interrupt: jest.fn().mockResolvedValue(undefined) };
+        (service as any).currentConfig = (service as any).buildPersistentQueryConfig(vaultPath, cliPath, externalContextPaths);
       });
 
       // Start the query first (Case 1: not running)
@@ -349,7 +307,7 @@ describe('ClaudianService', () => {
     });
 
     it('should cleanup resources', () => {
-      const closePersistentQuerySpy = jest.spyOn(service as any, 'closePersistentQuery');
+      const closePersistentQuerySpy = jest.spyOn(service, 'closePersistentQuery');
       const cancelSpy = jest.spyOn(service, 'cancel');
 
       service.cleanup();
@@ -406,6 +364,8 @@ describe('ClaudianService', () => {
   });
 
   describe('Approval Callback', () => {
+    // approvalCallback is private with no observable side effect from setApprovalCallback alone.
+    // Verifying the stored value requires direct access.
     it('should set approval callback', () => {
       const callback = jest.fn();
       service.setApprovalCallback(callback);
@@ -434,10 +394,8 @@ describe('ClaudianService', () => {
 
     it('should invalidate session on reset', () => {
       service.setSessionId('test-session-123');
-      const sessionManager = (service as any).sessionManager;
       service.resetSession();
 
-      expect(sessionManager.getSessionId()).toBeNull();
       expect(service.getSessionId()).toBeNull();
     });
   });

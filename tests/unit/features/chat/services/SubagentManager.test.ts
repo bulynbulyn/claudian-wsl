@@ -421,60 +421,203 @@ describe('SubagentManager', () => {
   });
 
   // ============================================
-  // Private Method Tests (async parsing)
+  // Async Parsing Edge Cases (via public API)
   // ============================================
 
-  describe('private async parsing', () => {
-    it('handles JSON envelope forms in still-running detection', () => {
+  describe('async parsing edge cases', () => {
+    const setupLinkedAgentOutput = (
+      manager: ReturnType<typeof createManager>['manager'],
+      taskId: string,
+      agentId: string,
+      outputToolId: string
+    ) => {
+      const parentEl = createMockEl();
+      manager.handleTaskToolUse(taskId, { description: 'Background', run_in_background: true }, parentEl);
+      manager.handleTaskToolResult(taskId, JSON.stringify({ agent_id: agentId }));
+      manager.handleAgentOutputToolUse({
+        id: outputToolId,
+        name: 'AgentOutputTool',
+        input: { agent_id: agentId },
+        status: 'running',
+        isExpanded: false,
+      });
+    };
+
+    // ---- still-running detection with envelope forms ----
+
+    it('stays running with array envelope containing not_ready', () => {
       const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'agent-1', 'out-1');
 
       const arrayEnvelope = JSON.stringify([
         { text: JSON.stringify({ retrieval_status: 'not_ready', agents: {} }) },
       ]);
-      expect((manager as any).isStillRunningResult(arrayEnvelope, false)).toBe(true);
+      const result = manager.handleAgentOutputToolResult('out-1', arrayEnvelope, false);
+      expect(result?.asyncStatus).toBe('running');
+    });
+
+    it('stays running with object envelope containing running status', () => {
+      const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'agent-1', 'out-1');
 
       const objectEnvelope = JSON.stringify({
         text: JSON.stringify({ retrieval_status: 'running', agents: {} }),
       });
-      expect((manager as any).isStillRunningResult(objectEnvelope, false)).toBe(true);
-
-      expect((manager as any).isStillRunningResult('   ', false)).toBe(false);
-      expect((manager as any).isStillRunningResult('whatever', true)).toBe(false);
-      expect((manager as any).isStillRunningResult(JSON.stringify({ retrieval_status: 'success' }), false)).toBe(false);
-      expect((manager as any).isStillRunningResult(JSON.stringify({ retrieval_status: 'unknown' }), false)).toBe(false);
-      expect((manager as any).isStillRunningResult('plain output', false)).toBe(false);
+      const result = manager.handleAgentOutputToolResult('out-1', objectEnvelope, false);
+      expect(result?.asyncStatus).toBe('running');
     });
 
-    it('unwraps envelopes in extractAgentResult', () => {
+    it('finalizes when result is whitespace-only', () => {
       const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'agent-1', 'out-1');
+
+      const result = manager.handleAgentOutputToolResult('out-1', '   ', false);
+      expect(result?.asyncStatus).toBe('completed');
+    });
+
+    it('finalizes to error when isError is true regardless of content', () => {
+      const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'agent-1', 'out-1');
+
+      const result = manager.handleAgentOutputToolResult('out-1', 'whatever', true);
+      expect(result?.asyncStatus).toBe('error');
+    });
+
+    it('finalizes when retrieval_status is success without agents', () => {
+      const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'agent-1', 'out-1');
+
+      const result = manager.handleAgentOutputToolResult(
+        'out-1',
+        JSON.stringify({ retrieval_status: 'success' }),
+        false
+      );
+      expect(result?.asyncStatus).toBe('completed');
+    });
+
+    it('finalizes when retrieval_status is unknown', () => {
+      const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'agent-1', 'out-1');
+
+      const result = manager.handleAgentOutputToolResult(
+        'out-1',
+        JSON.stringify({ retrieval_status: 'unknown' }),
+        false
+      );
+      expect(result?.asyncStatus).toBe('completed');
+    });
+
+    it('finalizes with plain text as result when no running indicators', () => {
+      const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'agent-1', 'out-1');
+
+      const result = manager.handleAgentOutputToolResult('out-1', 'plain output', false);
+      expect(result?.asyncStatus).toBe('completed');
+      expect(result?.result).toBe('plain output');
+    });
+
+    // ---- result extraction with envelope forms ----
+
+    it('extracts result from array envelope', () => {
+      const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'a', 'out-1');
 
       const payloadArray = JSON.stringify([
-        { text: JSON.stringify({ agents: { a: { result: 'R' } } }) },
+        { text: JSON.stringify({ retrieval_status: 'success', agents: { a: { result: 'R' } } }) },
       ]);
-      expect((manager as any).extractAgentResult(payloadArray, 'a')).toBe('R');
-
-      const payloadObject = JSON.stringify({
-        text: JSON.stringify({ agents: { a: { status: 'completed' } } }),
-      });
-      expect((manager as any).extractAgentResult(payloadObject, 'a')).toContain('completed');
-
-      const fallback = JSON.stringify({ agents: { first: { status: 'completed' } } });
-      expect((manager as any).extractAgentResult(fallback, 'missing')).toContain('completed');
-
-      const noAgents = JSON.stringify({ foo: 'bar' });
-      expect((manager as any).extractAgentResult(noAgents, 'x')).toBe(noAgents);
+      const result = manager.handleAgentOutputToolResult('out-1', payloadArray, false);
+      expect(result?.result).toBe('R');
     });
 
-    it('parses agent id from multiple JSON shapes', () => {
+    it('extracts result from object envelope', () => {
       const { manager } = createManager();
-      expect((manager as any).parseAgentId(JSON.stringify({ agentId: 'camel' }))).toBe('camel');
-      expect((manager as any).parseAgentId(JSON.stringify({ data: { agent_id: 'nested' } }))).toBe('nested');
-      expect((manager as any).parseAgentId(JSON.stringify({ id: 'idfield' }))).toBe('idfield');
+      setupLinkedAgentOutput(manager, 'task-1', 'a', 'out-1');
 
-      expect((manager as any).parseAgentId('{"agent\\u005fid":"escaped"}')).toBe('escaped');
-      expect((manager as any).parseAgentId('{"data": {"agent\\u005fid": "nested2"}}')).toBe('nested2');
+      const payloadObject = JSON.stringify({
+        text: JSON.stringify({ retrieval_status: 'success', agents: { a: { status: 'completed' } } }),
+      });
+      const result = manager.handleAgentOutputToolResult('out-1', payloadObject, false);
+      expect(result?.result).toContain('completed');
+    });
 
-      expect((manager as any).parseAgentId('{"foo": "bar"}')).toBeNull();
+    it('falls back to first agent when agentId is missing from agents map', () => {
+      const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'agent-x', 'out-1');
+
+      const fallback = JSON.stringify({
+        retrieval_status: 'success',
+        agents: { first: { status: 'completed' } },
+      });
+      const result = manager.handleAgentOutputToolResult('out-1', fallback, false);
+      expect(result?.result).toContain('completed');
+    });
+
+    it('returns raw payload when no agents key is present', () => {
+      const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'agent-x', 'out-1');
+
+      const noAgents = JSON.stringify({ foo: 'bar' });
+      const result = manager.handleAgentOutputToolResult('out-1', noAgents, false);
+      expect(result?.result).toBe(noAgents);
+    });
+
+    // ---- agent ID parsing from multiple JSON shapes ----
+
+    it('parses camelCase agentId from task result', () => {
+      const { manager } = createManager();
+      const parentEl = createMockEl();
+      manager.handleTaskToolUse('task-1', { description: 'Bg', run_in_background: true }, parentEl);
+
+      manager.handleTaskToolResult('task-1', JSON.stringify({ agentId: 'camel' }));
+      expect(manager.getByAgentId('camel')).toBeDefined();
+      expect(manager.getByAgentId('camel')?.agentId).toBe('camel');
+    });
+
+    it('parses nested data.agent_id from task result', () => {
+      const { manager } = createManager();
+      const parentEl = createMockEl();
+      manager.handleTaskToolUse('task-1', { description: 'Bg', run_in_background: true }, parentEl);
+
+      manager.handleTaskToolResult('task-1', JSON.stringify({ data: { agent_id: 'nested' } }));
+      expect(manager.getByAgentId('nested')).toBeDefined();
+    });
+
+    it('parses id field from task result', () => {
+      const { manager } = createManager();
+      const parentEl = createMockEl();
+      manager.handleTaskToolUse('task-1', { description: 'Bg', run_in_background: true }, parentEl);
+
+      manager.handleTaskToolResult('task-1', JSON.stringify({ id: 'idfield' }));
+      expect(manager.getByAgentId('idfield')).toBeDefined();
+    });
+
+    it('parses unicode-escaped agent_id from task result', () => {
+      const { manager } = createManager();
+      const parentEl = createMockEl();
+      manager.handleTaskToolUse('task-1', { description: 'Bg', run_in_background: true }, parentEl);
+
+      manager.handleTaskToolResult('task-1', '{"agent\\u005fid":"escaped"}');
+      expect(manager.getByAgentId('escaped')).toBeDefined();
+    });
+
+    it('parses nested unicode-escaped agent_id from task result', () => {
+      const { manager } = createManager();
+      const parentEl = createMockEl();
+      manager.handleTaskToolUse('task-1', { description: 'Bg', run_in_background: true }, parentEl);
+
+      manager.handleTaskToolResult('task-1', '{"data": {"agent\\u005fid": "nested2"}}');
+      expect(manager.getByAgentId('nested2')).toBeDefined();
+    });
+
+    it('transitions to error when no recognizable agent ID in task result', () => {
+      const { manager, updates } = createManager();
+      const parentEl = createMockEl();
+      manager.handleTaskToolUse('task-1', { description: 'Bg', run_in_background: true }, parentEl);
+
+      manager.handleTaskToolResult('task-1', '{"foo": "bar"}');
+      const last = updates[updates.length - 1];
+      expect(last.asyncStatus).toBe('error');
+      expect(last.result).toContain('Failed to parse agent_id');
     });
   });
 

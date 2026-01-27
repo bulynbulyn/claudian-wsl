@@ -1,67 +1,7 @@
+import { createMockEl } from '@test/helpers/mockElement';
+
 import { TabBar, type TabBarCallbacks } from '@/features/chat/tabs/TabBar';
 import type { TabBarItem } from '@/features/chat/tabs/types';
-
-// Helper to create mock DOM element
-function createMockElement(): any {
-  const classList = new Set<string>();
-  const children: any[] = [];
-  const eventListeners: Map<string, Array<(...args: unknown[]) => void>> = new Map();
-  const attributes: Map<string, string> = new Map();
-
-  const el: any = {
-    style: {},
-    classList: {
-      add: (cls: string) => classList.add(cls),
-      remove: (cls: string) => classList.delete(cls),
-      contains: (cls: string) => classList.has(cls),
-    },
-    addClass: (cls: string) => classList.add(cls),
-    removeClass: (cls: string) => classList.delete(cls),
-    empty: () => {
-      children.length = 0;
-    },
-    createDiv: (opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      // Handle space-separated class strings (e.g., "claudian-tab-badge claudian-tab-badge-idle")
-      if (opts?.cls) {
-        opts.cls.split(' ').forEach(c => child.addClass(c.trim()));
-      }
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    },
-    setAttribute: (name: string, value: string) => {
-      attributes.set(name, value);
-    },
-    getAttribute: (name: string) => attributes.get(name),
-    addEventListener: (event: string, handler: (...args: unknown[]) => void) => {
-      if (!eventListeners.has(event)) {
-        eventListeners.set(event, []);
-      }
-      eventListeners.get(event)!.push(handler);
-    },
-    removeEventListener: (event: string, handler: (...args: unknown[]) => void) => {
-      const handlers = eventListeners.get(event);
-      if (handlers) {
-        const index = handlers.indexOf(handler);
-        if (index > -1) handlers.splice(index, 1);
-      }
-    },
-    dispatchEvent: (event: string, eventObj?: any) => {
-      const handlers = eventListeners.get(event);
-      if (handlers) {
-        handlers.forEach(h => h(eventObj));
-      }
-    },
-    textContent: '',
-    _children: children,
-    _classList: classList,
-    _attributes: attributes,
-    _eventListeners: eventListeners,
-  };
-
-  return el;
-}
 
 // Helper to create mock callbacks
 function createMockCallbacks(): TabBarCallbacks {
@@ -89,7 +29,7 @@ function createTabBarItem(overrides: Partial<TabBarItem> = {}): TabBarItem {
 describe('TabBar', () => {
   describe('constructor', () => {
     it('should add tab badges class to container', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
 
       new TabBar(containerEl, callbacks);
@@ -100,7 +40,7 @@ describe('TabBar', () => {
 
   describe('update', () => {
     it('should clear existing badges before rendering', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
@@ -114,7 +54,7 @@ describe('TabBar', () => {
     });
 
     it('should render badge for each tab item', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
@@ -128,7 +68,7 @@ describe('TabBar', () => {
     });
 
     it('should render empty when no items', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
@@ -140,7 +80,7 @@ describe('TabBar', () => {
 
   describe('badge rendering', () => {
     it('should display index number as text', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
@@ -150,7 +90,7 @@ describe('TabBar', () => {
     });
 
     it('should set title tooltip from item title', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
@@ -163,7 +103,7 @@ describe('TabBar', () => {
 
   describe('badge state classes', () => {
     it('should apply idle class for inactive tab', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
@@ -173,7 +113,7 @@ describe('TabBar', () => {
     });
 
     it('should apply active class for active tab', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
@@ -183,7 +123,7 @@ describe('TabBar', () => {
     });
 
     it('should apply streaming class for streaming tab', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
@@ -193,7 +133,7 @@ describe('TabBar', () => {
     });
 
     it('should apply attention class for tab needing attention', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
@@ -203,7 +143,7 @@ describe('TabBar', () => {
     });
 
     it('should prioritize active over attention', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
@@ -214,7 +154,7 @@ describe('TabBar', () => {
     });
 
     it('should prioritize attention over streaming', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
@@ -225,7 +165,7 @@ describe('TabBar', () => {
     });
 
     it('should prioritize active over streaming', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
@@ -238,7 +178,7 @@ describe('TabBar', () => {
 
   describe('badge interactions', () => {
     it('should call onTabClick when badge is clicked', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
@@ -251,7 +191,7 @@ describe('TabBar', () => {
     });
 
     it('should call onTabClose on right-click when canClose is true', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
@@ -266,7 +206,7 @@ describe('TabBar', () => {
     });
 
     it('should not register contextmenu handler when canClose is false', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
@@ -279,7 +219,7 @@ describe('TabBar', () => {
 
   describe('destroy', () => {
     it('should empty container', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
@@ -292,7 +232,7 @@ describe('TabBar', () => {
     });
 
     it('should remove tab badges class from container', () => {
-      const containerEl = createMockElement();
+      const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 

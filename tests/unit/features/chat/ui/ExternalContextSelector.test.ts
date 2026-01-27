@@ -1,3 +1,4 @@
+import { createMockEl } from '@test/helpers/mockElement';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -12,54 +13,6 @@ jest.mock('obsidian', () => ({
 
 // Mock fs
 jest.mock('fs');
-
-// Helper to create mock DOM element
-type EventHandler = (...args: unknown[]) => unknown;
-
-function createMockElement(): any {
-  const children: any[] = [];
-  const classList = new Set<string>();
-  const attributes: Record<string, string> = {};
-  const eventListeners: Record<string, EventHandler[]> = {};
-
-  const el: any = {
-    empty: jest.fn(() => { children.length = 0; }),
-    createDiv: jest.fn((opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      if (opts?.cls) child.classList.add(opts.cls);
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    }),
-    createSpan: jest.fn((opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement();
-      if (opts?.cls) child.classList.add(opts.cls);
-      if (opts?.text) child.textContent = opts.text;
-      children.push(child);
-      return child;
-    }),
-    addClass: jest.fn((cls: string) => classList.add(cls)),
-    removeClass: jest.fn((cls: string) => classList.delete(cls)),
-    hasClass: (cls: string) => classList.has(cls),
-    classList: {
-      add: (cls: string) => classList.add(cls),
-      remove: (cls: string) => classList.delete(cls),
-      contains: (cls: string) => classList.has(cls),
-    },
-    setAttribute: jest.fn((key: string, value: string) => { attributes[key] = value; }),
-    getAttribute: (key: string) => attributes[key],
-    addEventListener: jest.fn((event: string, handler: EventHandler) => {
-      if (!eventListeners[event]) eventListeners[event] = [];
-      eventListeners[event].push(handler);
-    }),
-    setText: jest.fn((text: string) => { el.textContent = text; }),
-    textContent: '',
-    style: {},
-    children,
-  };
-
-  return el;
-}
 
 // Mock callbacks
 function createMockCallbacks() {
@@ -85,7 +38,7 @@ describe('ExternalContextSelector', () => {
     jest.clearAllMocks();
     // By default, all paths are valid (exist on filesystem)
     (fs.statSync as jest.Mock).mockReturnValue({ isDirectory: () => true });
-    parentEl = createMockElement();
+    parentEl = createMockEl();
     callbacks = createMockCallbacks();
     selector = new ExternalContextSelector(parentEl, callbacks);
   });

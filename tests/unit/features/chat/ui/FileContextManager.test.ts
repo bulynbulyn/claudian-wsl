@@ -1,3 +1,4 @@
+import { createMockEl, type MockElement } from '@test/helpers/mockElement';
 import type { TFile } from 'obsidian';
 
 import type { FileContextCallbacks } from '@/features/chat/ui/FileContext';
@@ -38,109 +39,6 @@ jest.mock('@/utils/externalContextScanner', () => ({
   },
 }));
 
-interface MockElement {
-  tagName: string;
-  children: MockElement[];
-  style: Record<string, string>;
-  addClass: (cls: string) => void;
-  removeClass: (cls: string) => void;
-  hasClass: (cls: string) => boolean;
-  getClasses: () => string[];
-  createDiv: (opts?: { cls?: string; text?: string }) => MockElement;
-  createSpan: (opts?: { cls?: string; text?: string }) => MockElement;
-  setText: (text: string) => void;
-  setAttribute: (name: string, value: string) => void;
-  addEventListener: (event: string, handler: (e: unknown) => void) => void;
-  dispatchEvent: (event: { type: string; target?: unknown; stopPropagation?: () => void }) => void;
-  click: () => void;
-  empty: () => void;
-  remove: () => void;
-  scrollIntoView: () => void;
-  contains: (node: Node) => boolean;
-  textContent: string;
-  firstChild: MockElement | null;
-  insertBefore: (el: MockElement, ref: MockElement | null) => void;
-}
-
-function createMockElement(tag = 'div'): MockElement {
-  const children: MockElement[] = [];
-  const classList = new Set<string>();
-  const style: Record<string, string> = {};
-  const eventListeners = new Map<string, Array<(e: any) => void>>();
-  let textContent = '';
-
-  const element = {
-    tagName: tag.toUpperCase(),
-    children,
-    style,
-    addClass: (cls: string) => {
-      cls.split(/\s+/).filter(Boolean).forEach((c) => classList.add(c));
-    },
-    removeClass: (cls: string) => {
-      cls.split(/\s+/).filter(Boolean).forEach((c) => classList.delete(c));
-    },
-    hasClass: (cls: string) => classList.has(cls),
-    getClasses: () => Array.from(classList),
-    createDiv: (opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement('div');
-      if (opts?.cls) child.addClass(opts.cls);
-      if (opts?.text) child.setText(opts.text);
-      children.push(child);
-      return child;
-    },
-    createSpan: (opts?: { cls?: string; text?: string }) => {
-      const child = createMockElement('span');
-      if (opts?.cls) child.addClass(opts.cls);
-      if (opts?.text) child.setText(opts.text);
-      children.push(child);
-      return child;
-    },
-    setText: (text: string) => {
-      textContent = text;
-    },
-    setAttribute: (_name: string, _value: string) => {},
-    addEventListener: (event: string, handler: (e: any) => void) => {
-      if (!eventListeners.has(event)) {
-        eventListeners.set(event, []);
-      }
-      eventListeners.get(event)!.push(handler);
-    },
-    dispatchEvent: (event: { type: string; target?: any; stopPropagation?: () => void }) => {
-      const handlers = eventListeners.get(event.type) || [];
-      handlers.forEach(handler => handler(event));
-    },
-    click: () => {
-      element.dispatchEvent({
-        type: 'click',
-        target: element,
-        stopPropagation: jest.fn(),
-      });
-    },
-    empty: () => {
-      children.length = 0;
-    },
-    remove: () => {},
-    scrollIntoView: () => {},
-    contains: (node: Node) => {
-      if (node === (element as unknown as Node)) return true;
-      return children.some(child => (child as any).contains?.(node));
-    },
-    get textContent() {
-      return textContent;
-    },
-    set textContent(value: string) {
-      textContent = value;
-    },
-    get firstChild() {
-      return children[0] || null;
-    },
-    insertBefore: (el: MockElement, _ref: MockElement | null) => {
-      children.unshift(el);
-    },
-  };
-
-  return element;
-}
 
 function findByClass(root: MockElement, className: string): MockElement | undefined {
   if (root.hasClass(className)) return root;
@@ -215,7 +113,7 @@ describe('FileContextManager', () => {
     jest.clearAllMocks();
     mockVaultPath = '/vault';
     mockScanPaths.mockReturnValue([]);
-    containerEl = createMockElement();
+    containerEl = createMockEl();
     inputEl = {
       value: '',
       selectionStart: 0,
@@ -361,7 +259,7 @@ describe('FileContextManager', () => {
 
     // Now inserts full vault-relative path (WYSIWYG)
     expect(inputEl.value).toBe('@clipping/file.md ');
-    const attached = (manager as any).state.getAttachedFiles();
+    const attached = manager.getAttachedFiles();
     expect(attached.has('clipping/file.md')).toBe(true);
 
     manager.destroy();
@@ -399,10 +297,10 @@ describe('FileContextManager', () => {
 
     // Display shows friendly name, but state stores mapping to absolute path
     expect(inputEl.value).toBe('@external/src/app.md ');
-    const attached = (manager as any).state.getAttachedFiles();
+    const attached = manager.getAttachedFiles();
     expect(attached.has('/external/src/app.md')).toBe(true);
     // Check transformation works
-    const transformed = (manager as any).state.transformContextMentions('@external/src/app.md');
+    const transformed = manager.transformContextMentions('@external/src/app.md');
     expect(transformed).toBe('/external/src/app.md');
 
     manager.destroy();

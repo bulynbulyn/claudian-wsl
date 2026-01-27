@@ -1,3 +1,4 @@
+import { createMockEl, type MockElement } from '@test/helpers/mockElement';
 import { setIcon } from 'obsidian';
 
 import type { SubagentInfo } from '@/core/types';
@@ -10,120 +11,6 @@ import {
   renderStoredSubagent,
   updateAsyncSubagentRunning,
 } from '@/features/chat/rendering/SubagentRenderer';
-
-interface MockElement {
-  children: MockElement[];
-  addClass: (cls: string) => void;
-  removeClass: (cls: string) => void;
-  hasClass: (cls: string) => boolean;
-  getClasses: () => string[];
-  addEventListener: (event: string, handler: (e: any) => void) => void;
-  removeEventListener: (event: string, handler: (e: any) => void) => void;
-  dispatchEvent: (event: { type: string; target?: any }) => void;
-  click: () => void;
-  createDiv: (opts?: { cls?: string; text?: string }) => MockElement;
-  createSpan: (opts?: { cls?: string; text?: string }) => MockElement;
-  createEl: (tag: string, opts?: { cls?: string; text?: string }) => MockElement;
-  setText: (text: string) => void;
-  textContent: string;
-  dataset: Record<string, string>;
-  style: Record<string, string>;
-  empty: () => void;
-  setAttribute: (name: string, value: string) => void;
-  getAttribute: (name: string) => string | null;
-  getEventListenerCount: (event: string) => number;
-}
-
-function createMockElement(tag = 'div'): MockElement {
-  const children: MockElement[] = [];
-  const classList = new Set<string>();
-  const dataset: Record<string, string> = {};
-  const style: Record<string, string> = {};
-  const attributes: Map<string, string> = new Map();
-  const eventListeners: Map<string, Array<(e: any) => void>> = new Map();
-  let textContent = '';
-
-  const element: MockElement = {
-    children,
-    dataset,
-    style,
-    addClass: (cls: string) => {
-      cls.split(/\s+/).filter(Boolean).forEach((c) => classList.add(c));
-    },
-    removeClass: (cls: string) => {
-      cls.split(/\s+/).filter(Boolean).forEach((c) => classList.delete(c));
-    },
-    hasClass: (cls: string) => classList.has(cls),
-    getClasses: () => Array.from(classList),
-    addEventListener: (event: string, handler: (e: any) => void) => {
-      if (!eventListeners.has(event)) {
-        eventListeners.set(event, []);
-      }
-      eventListeners.get(event)!.push(handler);
-    },
-    removeEventListener: (event: string, handler: (e: any) => void) => {
-      const handlers = eventListeners.get(event);
-      if (handlers) {
-        const idx = handlers.indexOf(handler);
-        if (idx !== -1) {
-          handlers.splice(idx, 1);
-        }
-      }
-    },
-    getEventListenerCount: (event: string) => {
-      return eventListeners.get(event)?.length ?? 0;
-    },
-    dispatchEvent: (event) => {
-      const handlers = eventListeners.get(event.type) || [];
-      handlers.forEach((h) => h(event));
-    },
-    click: () => {
-      const handlers = eventListeners.get('click') || [];
-      handlers.forEach((h) => h({ type: 'click', target: element, stopPropagation: () => {} }));
-    },
-    createDiv: (opts) => {
-      const child = createMockElement('div');
-      if (opts?.cls) child.addClass(opts.cls);
-      if (opts?.text) child.setText(opts.text);
-      children.push(child);
-      return child;
-    },
-    createSpan: (opts) => {
-      const child = createMockElement('span');
-      if (opts?.cls) child.addClass(opts.cls);
-      if (opts?.text) child.setText(opts.text);
-      children.push(child);
-      return child;
-    },
-    createEl: (_tag, opts) => {
-      const child = createMockElement(_tag);
-      if (opts?.cls) child.addClass(opts.cls);
-      if (opts?.text) child.setText(opts.text);
-      children.push(child);
-      return child;
-    },
-    setText: (text: string) => {
-      textContent = text;
-    },
-    get textContent() {
-      return textContent;
-    },
-    set textContent(value: string) {
-      textContent = value;
-    },
-    empty: () => {
-      children.length = 0;
-    },
-    setAttribute: (name: string, value: string) => {
-      attributes.set(name, value);
-    },
-    getAttribute: (name: string) => {
-      return attributes.get(name) ?? null;
-    },
-  };
-
-  return element;
-}
 
 const getTextByClass = (el: MockElement, cls: string): string[] => {
   const results: string[] = [];
@@ -142,7 +29,7 @@ describe('Sync Subagent Renderer', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    parentEl = createMockElement('div');
+    parentEl = createMockEl('div');
   });
 
   describe('createSubagentBlock', () => {
@@ -307,7 +194,7 @@ describe('keyboard navigation', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    parentEl = createMockElement('div');
+    parentEl = createMockEl('div');
   });
 
   it('should support keyboard navigation (Enter/Space) on createSubagentBlock', () => {
@@ -371,7 +258,7 @@ describe('Async Subagent Renderer', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    parentEl = createMockElement('div');
+    parentEl = createMockEl('div');
   });
 
   describe('inline display behavior', () => {
