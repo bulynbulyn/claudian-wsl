@@ -1,6 +1,6 @@
 import { Notice, setIcon } from 'obsidian';
 
-import type { ClaudianPlugin as ClaudianPluginType, PluginScope } from '../../../core/types';
+import type { ClaudianPlugin as ClaudianPluginType } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
 
 export class PluginSettingsManager {
@@ -78,9 +78,6 @@ export class PluginSettingsManager {
     const nameEl = nameRow.createSpan({ cls: 'claudian-plugin-name' });
     nameEl.setText(plugin.name);
 
-    const scopeEl = nameRow.createSpan({ cls: 'claudian-plugin-scope-badge' });
-    scopeEl.setText(this.getScopeLabel(plugin.scope));
-
     const actionsEl = itemEl.createDiv({ cls: 'claudian-plugin-actions' });
 
     const toggleBtn = actionsEl.createEl('button', {
@@ -89,15 +86,6 @@ export class PluginSettingsManager {
     });
     setIcon(toggleBtn, plugin.enabled ? 'toggle-right' : 'toggle-left');
     toggleBtn.addEventListener('click', () => this.togglePlugin(plugin.id));
-  }
-
-  private getScopeLabel(scope: PluginScope): string {
-    switch (scope) {
-      case 'user':
-        return 'User';
-      case 'project':
-        return 'Project';
-    }
   }
 
   private async togglePlugin(pluginId: string) {

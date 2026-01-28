@@ -110,15 +110,6 @@
   color: var(--text-muted);
 }
 
-.claudian-plugin-scope-badge {
-  font-size: 10px;
-  padding: 2px 6px;
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-  border-radius: 4px;
-  text-transform: uppercase;
-}
-
 .claudian-plugin-error-badge {
   font-size: 10px;
   padding: 2px 6px;
