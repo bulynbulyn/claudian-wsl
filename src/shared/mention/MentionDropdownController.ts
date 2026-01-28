@@ -48,7 +48,7 @@ export class MentionDropdownController {
   private filteredContextFiles: ExternalContextFile[] = [];
   private activeContextFilter: { folderName: string; contextRoot: string } | null = null;
   private activeAgentFilter = false;
-  private mcpService: McpMentionProvider | null = null;
+  private mcpManager: McpMentionProvider | null = null;
   private agentService: AgentMentionProvider | null = null;
   private fixed: boolean;
 
@@ -72,8 +72,8 @@ export class MentionDropdownController {
     });
   }
 
-  setMcpService(service: McpMentionProvider | null): void {
-    this.mcpService = service;
+  setMcpManager(manager: McpMentionProvider | null): void {
+    this.mcpManager = manager;
   }
 
   setAgentService(service: AgentMentionProvider | null): void {
@@ -111,10 +111,10 @@ export class MentionDropdownController {
   }
 
   updateMcpMentionsFromText(text: string): void {
-    if (!this.mcpService) return;
+    if (!this.mcpManager) return;
 
     const validNames = new Set(
-      this.mcpService.getContextSavingServers().map(s => s.name)
+      this.mcpManager.getContextSavingServers().map(s => s.name)
     );
 
     const newMentions = extractMcpMentions(text, validNames);
@@ -313,8 +313,8 @@ export class MentionDropdownController {
     this.activeContextFilter = null;
     this.activeAgentFilter = false;
 
-    if (this.mcpService) {
-      const mcpServers = this.mcpService.getContextSavingServers();
+    if (this.mcpManager) {
+      const mcpServers = this.mcpManager.getContextSavingServers();
 
       for (const server of mcpServers) {
         if (server.name.toLowerCase().includes(searchLower)) {

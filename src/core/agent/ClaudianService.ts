@@ -1256,7 +1256,6 @@ export class ClaudianService {
   }
 
   cancel() {
-    // Dismiss any pending approval modal before aborting
     this.approvalDismisser?.();
 
     if (this.abortController) {
@@ -1398,10 +1397,11 @@ export class ClaudianService {
       }
 
       try {
+        const { decisionReason, blockedPath, agentID } = options;
         const description = getActionDescription(toolName, input);
         const decision = await this.approvalCallback(
           toolName, input, description,
-          { decisionReason: options.decisionReason, blockedPath: options.blockedPath, agentID: options.agentID }
+          { decisionReason, blockedPath, agentID }
         );
 
         if (decision === 'cancel') {

@@ -232,34 +232,34 @@ describe('MentionDropdownController', () => {
     });
   });
 
-  describe('setMcpService', () => {
-    it('sets the MCP service', () => {
-      const mcpService = createMockMcpService([{ name: 'filesystem' }]);
-      controller.setMcpService(mcpService);
+  describe('setMcpManager', () => {
+    it('sets the MCP manager', () => {
+      const mcpManager = createMockMcpService([{ name: 'filesystem' }]);
+      controller.setMcpManager(mcpManager);
 
       inputEl.value = '@';
       inputEl.selectionStart = 1;
       controller.handleInputChange();
 
-      expect(mcpService.getContextSavingServers).toHaveBeenCalled();
+      expect(mcpManager.getContextSavingServers).toHaveBeenCalled();
     });
   });
 
   describe('mixed providers', () => {
     it('queries both MCP servers and agents', () => {
-      const mcpService = createMockMcpService([{ name: 'filesystem' }]);
+      const mcpManager = createMockMcpService([{ name: 'filesystem' }]);
       const agentService = createMockAgentService([
         { id: 'Explore', name: 'Explore', source: 'builtin' },
       ]);
 
-      controller.setMcpService(mcpService);
+      controller.setMcpManager(mcpManager);
       controller.setAgentService(agentService);
 
       inputEl.value = '@';
       inputEl.selectionStart = 1;
       controller.handleInputChange();
 
-      expect(mcpService.getContextSavingServers).toHaveBeenCalled();
+      expect(mcpManager.getContextSavingServers).toHaveBeenCalled();
       expect(agentService.searchAgents).toHaveBeenCalled();
     });
   });
@@ -351,16 +351,16 @@ describe('MentionDropdownController', () => {
   });
 
   describe('updateMcpMentionsFromText', () => {
-    it('does nothing without MCP service', () => {
+    it('does nothing without MCP manager', () => {
       expect(() => controller.updateMcpMentionsFromText('@test')).not.toThrow();
     });
 
-    it('updates mentions when MCP service is set', () => {
-      const mcpService = createMockMcpService([{ name: 'test' }]);
-      controller.setMcpService(mcpService);
+    it('updates mentions when MCP manager is set', () => {
+      const mcpManager = createMockMcpService([{ name: 'test' }]);
+      controller.setMcpManager(mcpManager);
       controller.updateMcpMentionsFromText('@test');
 
-      expect(mcpService.getContextSavingServers).toHaveBeenCalled();
+      expect(mcpManager.getContextSavingServers).toHaveBeenCalled();
     });
   });
 

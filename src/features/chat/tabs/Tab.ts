@@ -306,7 +306,7 @@ function initializeContextManagers(tab: TabData, plugin: ClaudianPlugin): void {
     },
     dom.inputContainerEl
   );
-  tab.ui.fileContextManager.setMcpService(plugin.mcpService);
+  tab.ui.fileContextManager.setMcpManager(plugin.mcpManager);
   tab.ui.fileContextManager.setAgentService(plugin.agentManager);
 
   // Image context manager - drag/drop uses inputContainerEl, preview in contextRowEl
@@ -431,8 +431,7 @@ function initializeInputToolbar(tab: TabData, plugin: ClaudianPlugin): void {
   tab.ui.mcpServerSelector = toolbarComponents.mcpServerSelector;
   tab.ui.permissionToggle = toolbarComponents.permissionToggle;
 
-  // Wire MCP service
-  tab.ui.mcpServerSelector.setMcpService(plugin.mcpService);
+  tab.ui.mcpServerSelector.setMcpManager(plugin.mcpManager);
 
   // Sync @-mentions to UI selector
   tab.ui.fileContextManager?.setOnMcpMentionChange((servers) => {
@@ -875,10 +874,7 @@ export function getTabTitle(tab: TabData, plugin: ClaudianPlugin): string {
   return 'New Chat';
 }
 
-/**
- * Sets up the approval callback for a tab's service.
- * Extracted to avoid duplication between Tab.ts and TabManager.ts.
- */
+/** Shared between Tab.ts and TabManager.ts to avoid duplication. */
 export function setupApprovalCallback(tab: TabData): void {
   if (tab.service && tab.controllers.inputController) {
     tab.service.setApprovalCallback(

@@ -9,7 +9,7 @@ import type { Editor, MarkdownView } from 'obsidian';
 import { Notice, Plugin } from 'obsidian';
 
 import { AgentManager } from './core/agents';
-import { McpServerManager, McpService } from './core/mcp';
+import { McpServerManager } from './core/mcp';
 import { PluginManager, PluginStorage } from './core/plugins';
 import { StorageService } from './core/storage';
 import type {
@@ -43,7 +43,7 @@ import { deleteSDKSession, loadSDKSessionMessages, sdkSessionExists, type SDKSes
  */
 export default class ClaudianPlugin extends Plugin {
   settings: ClaudianSettings;
-  mcpService: McpService;
+  mcpManager: McpServerManager;
   pluginManager: PluginManager;
   agentManager: AgentManager;
   storage: StorageService;
@@ -56,10 +56,9 @@ export default class ClaudianPlugin extends Plugin {
 
     this.cliResolver = new ClaudeCliResolver();
 
-    // Initialize MCP service first (shared manager for agent + UI)
-    const mcpManager = new McpServerManager(this.storage.mcp);
-    this.mcpService = new McpService(mcpManager);
-    await this.mcpService.loadServers();
+    // Initialize MCP manager (shared for agent + UI)
+    this.mcpManager = new McpServerManager(this.storage.mcp);
+    await this.mcpManager.loadServers();
 
     // Initialize plugin manager (uses CC settings for enabled state)
     const vaultPath = (this.app.vault.adapter as any).basePath;

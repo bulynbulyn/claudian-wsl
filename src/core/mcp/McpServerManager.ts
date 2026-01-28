@@ -1,10 +1,10 @@
 /**
  * McpServerManager - Core MCP server configuration management.
  *
- * Infrastructure layer for loading and filtering MCP server configurations.
- * No UI or @-mention logic - those belong in McpService and shared UI.
+ * Infrastructure layer for loading, filtering, and querying MCP server configurations.
  */
 
+import { extractMcpMentions, transformMcpMentions } from '../../utils/mcp';
 import type { ClaudianMcpServer, McpServerConfig } from '../types';
 
 /** Storage interface for loading MCP servers. */
@@ -113,5 +113,25 @@ export class McpServerManager {
 
   hasServers(): boolean {
     return this.servers.length > 0;
+  }
+
+  getContextSavingServers(): ClaudianMcpServer[] {
+    return this.servers.filter((s) => s.enabled && s.contextSaving);
+  }
+
+  private getContextSavingNames(): Set<string> {
+    return new Set(this.getContextSavingServers().map((s) => s.name));
+  }
+
+  /** Only matches against enabled servers with context-saving mode. */
+  extractMentions(text: string): Set<string> {
+    return extractMcpMentions(text, this.getContextSavingNames());
+  }
+
+  /**
+   * Appends " MCP" after each valid @mention. Applied to API requests only, not shown in UI.
+   */
+  transformMentions(text: string): string {
+    return transformMcpMentions(text, this.getContextSavingNames());
   }
 }

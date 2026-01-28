@@ -229,10 +229,10 @@ export class InputController {
     state.responseStartTime = performance.now();
 
     // Extract @-mentioned MCP servers from prompt
-    const mcpMentions = plugin.mcpService.extractMentions(promptToSend);
+    const mcpMentions = plugin.mcpManager.extractMentions(promptToSend);
 
     // Transform @mcpname to @mcpname MCP in API request only
-    promptToSend = plugin.mcpService.transformMentions(promptToSend);
+    promptToSend = plugin.mcpManager.transformMentions(promptToSend);
 
     // Add MCP options to query
     const enabledMcpServers = mcpServerSelector?.getEnabledServers();
@@ -617,11 +617,7 @@ export class InputController {
       const modal = new ApprovalModal(plugin.app, toolName, input, description, (decision) => {
         this.pendingApprovalModal = null;
         resolve(decision);
-      }, {
-        decisionReason: options?.decisionReason,
-        blockedPath: options?.blockedPath,
-        agentID: options?.agentID,
-      });
+      }, options);
       this.pendingApprovalModal = modal;
       modal.open();
     });

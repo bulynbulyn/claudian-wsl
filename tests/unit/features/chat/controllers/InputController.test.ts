@@ -71,7 +71,7 @@ function createMockDeps(overrides: Partial<InputControllerDeps> = {}): InputCont
         permissionMode: 'yolo',
         enableAutoTitleGeneration: true,
       },
-      mcpService: {
+      mcpManager: {
         extractMentions: jest.fn().mockReturnValue(new Set()),
         transformMentions: jest.fn().mockImplementation((text: string) => text),
       },
@@ -398,7 +398,7 @@ describe('InputController - Message Queue', () => {
       const mcpMentions = new Set(['server-a']);
       const enabledServers = new Set(['server-b']);
 
-      deps.plugin.mcpService.extractMentions = jest.fn().mockReturnValue(mcpMentions);
+      deps.plugin.mcpManager.extractMentions = jest.fn().mockReturnValue(mcpMentions);
       deps.getMcpServerSelector = () => ({
         getEnabledServers: () => enabledServers,
       }) as any;
@@ -936,8 +936,6 @@ describe('InputController - Message Queue', () => {
     it('should be a no-op when no modal is pending', () => {
       controller = new InputController(deps);
       expect((controller as any).pendingApprovalModal).toBeNull();
-
-      // Should not throw
       expect(() => controller.dismissPendingApproval()).not.toThrow();
     });
   });

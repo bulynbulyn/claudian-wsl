@@ -39,7 +39,7 @@ jest.mock('@/core/agent', () => ({
 // Mock factories must be defined before jest.mock calls due to hoisting
 // These will be initialized fresh in beforeEach
 const createMockFileContextManager = () => ({
-  setMcpService: jest.fn(),
+  setMcpManager: jest.fn(),
   setAgentService: jest.fn(),
   setOnMcpMentionChange: jest.fn(),
   preScanExternalContexts: jest.fn(),
@@ -102,7 +102,7 @@ const createMockExternalContextSelector = () => ({
 });
 
 const createMockMcpServerSelector = () => ({
-  setMcpService: jest.fn(),
+  setMcpManager: jest.fn(),
   addMentionedServers: jest.fn(),
 });
 
@@ -266,7 +266,7 @@ function createMockPlugin(overrides: Record<string, any> = {}): any {
       },
       persistentExternalContextPaths: [],
     },
-    mcpService: { getMcpServers: jest.fn().mockReturnValue([]) },
+    mcpManager: { getMcpServers: jest.fn().mockReturnValue([]) },
     agentManager: { searchAgents: jest.fn().mockReturnValue([]) },
     getConversationById: jest.fn().mockResolvedValue(null),
     getConversationSync: jest.fn().mockReturnValue(null),
@@ -703,7 +703,7 @@ describe('Tab - UI Initialization', () => {
 
       initializeTabUI(tab, options.plugin);
 
-      expect(mockFileContextManager.setMcpService).toHaveBeenCalledWith(options.plugin.mcpService);
+      expect(mockFileContextManager.setMcpManager).toHaveBeenCalledWith(options.plugin.mcpManager);
     });
 
     it('should create ImageContextManager', () => {
@@ -791,7 +791,7 @@ describe('Tab - UI Initialization', () => {
 
       initializeTabUI(tab, options.plugin);
 
-      expect(mockMcpServerSelector.setMcpService).toHaveBeenCalledWith(options.plugin.mcpService);
+      expect(mockMcpServerSelector.setMcpManager).toHaveBeenCalledWith(options.plugin.mcpManager);
     });
 
     it('should wire external context selector onChange', () => {

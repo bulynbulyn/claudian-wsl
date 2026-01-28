@@ -2,7 +2,7 @@ import type { App, EventRef } from 'obsidian';
 import { Notice, TFile } from 'obsidian';
 
 import type { AgentManager } from '../../../core/agents';
-import type { McpService } from '../../../core/mcp';
+import type { McpServerManager } from '../../../core/mcp';
 import { MentionDropdownController } from '../../../shared/mention/MentionDropdownController';
 import { getVaultPath, normalizePathForVault as normalizePathForVaultUtil } from '../../../utils/path';
 import { FileContextState } from './file-context/state/FileContextState';
@@ -34,7 +34,6 @@ export class FileContextManager {
   private currentNotePath: string | null = null;
 
   // MCP server support
-  private mcpService: McpService | null = null;
   private onMcpMentionChange: ((servers: Set<string>) => void) | null = null;
 
   constructor(
@@ -286,9 +285,8 @@ export class FileContextManager {
   // MCP Server Support
   // ========================================
 
-  setMcpService(service: McpService | null): void {
-    this.mcpService = service;
-    this.mentionDropdown.setMcpService(service);
+  setMcpManager(manager: McpServerManager | null): void {
+    this.mentionDropdown.setMcpManager(manager);
   }
 
   setAgentService(agentManager: AgentManager | null): void {

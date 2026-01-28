@@ -129,7 +129,7 @@ export class ClaudianView extends ItemView {
     // Initialize TabManager
     this.tabManager = new TabManager(
       this.plugin,
-      this.plugin.mcpService.getManager(),
+      this.plugin.mcpManager,
       this.tabContentEl,
       this,
       {

@@ -3,7 +3,7 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp';
 
-import { McpServerManager, McpService } from '@/core/mcp';
+import { McpServerManager } from '@/core/mcp';
 import { testMcpServer } from '@/core/mcp/McpTester';
 import { MCP_CONFIG_PATH, McpStorage } from '@/core/storage/McpStorage';
 import type {
@@ -16,7 +16,6 @@ import type {
 import {
   DEFAULT_MCP_SERVER,
   getMcpServerType,
-  inferMcpServerType,
   isValidMcpServerConfig,
 } from '@/core/types/mcp';
 import {
@@ -90,28 +89,6 @@ describe('MCP Types', () => {
     it('should return http for URL without explicit type', () => {
       const config = { url: 'http://localhost:3000/mcp' } as McpServerConfig;
       expect(getMcpServerType(config)).toBe('http');
-    });
-  });
-
-  describe('inferMcpServerType', () => {
-    it('should infer stdio for command config', () => {
-      const config: McpStdioServerConfig = { command: 'python', args: ['-m', 'server'] };
-      expect(inferMcpServerType(config)).toBe('stdio');
-    });
-
-    it('should infer sse for SSE config', () => {
-      const config: McpSSEServerConfig = { type: 'sse', url: 'http://example.com/sse' };
-      expect(inferMcpServerType(config)).toBe('sse');
-    });
-
-    it('should infer http for HTTP config', () => {
-      const config: McpHttpServerConfig = { type: 'http', url: 'http://example.com/mcp' };
-      expect(inferMcpServerType(config)).toBe('http');
-    });
-
-    it('should default URL-based config to http', () => {
-      const config = { url: 'http://example.com' } as McpServerConfig;
-      expect(inferMcpServerType(config)).toBe('http');
     });
   });
 
@@ -773,18 +750,17 @@ describe('McpTester', () => {
 });
 
 // ============================================================================
-// McpService Tests (Unit tests without plugin dependency)
+// McpServerManager Tests (Unit tests without plugin dependency)
 // ============================================================================
 
-describe('McpService', () => {
-  function createService(servers: ClaudianMcpServer[]): McpService {
+describe('McpServerManager', () => {
+  function createManager(servers: ClaudianMcpServer[]): McpServerManager {
     const manager = new McpServerManager({
       load: jest.fn().mockResolvedValue(servers),
     });
-    const service = new McpService(manager);
     // Directly set the manager's servers for testing
     (manager as any).servers = servers;
-    return service;
+    return manager;
   }
 
   describe('getActiveServers', () => {
@@ -816,31 +792,31 @@ describe('McpService', () => {
     ];
 
     it('should include enabled servers without context-saving', () => {
-      const service = createService(servers);
-      const result = service.getActiveServers(new Set());
+      const manager = createManager(servers);
+      const result = manager.getActiveServers(new Set());
 
       expect(result['always-on']).toBeDefined();
       expect(result['disabled']).toBeUndefined();
     });
 
     it('should exclude context-saving servers when not mentioned', () => {
-      const service = createService(servers);
-      const result = service.getActiveServers(new Set());
+      const manager = createManager(servers);
+      const result = manager.getActiveServers(new Set());
 
       expect(result['context-saving']).toBeUndefined();
     });
 
     it('should include context-saving servers when mentioned', () => {
-      const service = createService(servers);
-      const result = service.getActiveServers(new Set(['context-saving']));
+      const manager = createManager(servers);
+      const result = manager.getActiveServers(new Set(['context-saving']));
 
       expect(result['context-saving']).toBeDefined();
       expect(result['always-on']).toBeDefined();
     });
 
     it('should never include disabled servers even when mentioned', () => {
-      const service = createService(servers);
-      const result = service.getActiveServers(new Set(['disabled', 'disabled-context']));
+      const manager = createManager(servers);
+      const result = manager.getActiveServers(new Set(['disabled', 'disabled-context']));
 
       expect(result['disabled']).toBeUndefined();
       expect(result['disabled-context']).toBeUndefined();
@@ -852,38 +828,10 @@ describe('McpService', () => {
         { name: 's2', config: { command: 'c2' }, enabled: false, contextSaving: true },
       ];
 
-      const service = createService(disabledServers);
-      const result = service.getActiveServers(new Set(['s1', 's2']));
+      const manager = createManager(disabledServers);
+      const result = manager.getActiveServers(new Set(['s1', 's2']));
 
       expect(Object.keys(result)).toHaveLength(0);
-    });
-  });
-
-  describe('isValidMcpMention', () => {
-    const servers: ClaudianMcpServer[] = [
-      { name: 'enabled-context', config: { command: 'c1' }, enabled: true, contextSaving: true },
-      { name: 'enabled-no-context', config: { command: 'c2' }, enabled: true, contextSaving: false },
-      { name: 'disabled-context', config: { command: 'c3' }, enabled: false, contextSaving: true },
-    ];
-
-    it('should return true for enabled context-saving server', () => {
-      const service = createService(servers);
-      expect(service.isValidMcpMention('enabled-context')).toBe(true);
-    });
-
-    it('should return false for enabled non-context-saving server', () => {
-      const service = createService(servers);
-      expect(service.isValidMcpMention('enabled-no-context')).toBe(false);
-    });
-
-    it('should return false for disabled server', () => {
-      const service = createService(servers);
-      expect(service.isValidMcpMention('disabled-context')).toBe(false);
-    });
-
-    it('should return false for unknown server', () => {
-      const service = createService(servers);
-      expect(service.isValidMcpMention('unknown')).toBe(false);
     });
   });
 
@@ -896,8 +844,8 @@ describe('McpService', () => {
     ];
 
     it('should return only enabled context-saving servers', () => {
-      const service = createService(servers);
-      const result = service.getContextSavingServers();
+      const manager = createManager(servers);
+      const result = manager.getContextSavingServers();
 
       expect(result).toHaveLength(2);
       expect(result.map((s) => s.name)).toEqual(['s1', 's4']);
@@ -912,45 +860,39 @@ describe('McpService', () => {
     ];
 
     it('should only extract enabled context-saving mentions', () => {
-      const service = createService(servers);
-      const result = service.extractMentions('Use @context7 and @always-on and @disabled');
+      const manager = createManager(servers);
+      const result = manager.extractMentions('Use @context7 and @always-on and @disabled');
 
       expect(result.size).toBe(1);
       expect(result.has('context7')).toBe(true);
     });
 
     it('should return empty set when no valid mentions exist', () => {
-      const service = createService(servers);
-      const result = service.extractMentions('No mentions here');
+      const manager = createManager(servers);
+      const result = manager.extractMentions('No mentions here');
 
       expect(result.size).toBe(0);
     });
   });
 
   describe('helper methods', () => {
-    it('should report server lists and enabled counts', () => {
+    it('should report enabled counts and server presence', () => {
       const servers: ClaudianMcpServer[] = [
         { name: 's1', config: { command: 'c1' }, enabled: true, contextSaving: true },
         { name: 's2', config: { command: 'c2' }, enabled: true, contextSaving: false },
         { name: 's3', config: { command: 'c3' }, enabled: false, contextSaving: true },
       ];
-      const service = createService(servers);
+      const manager = createManager(servers);
 
-      expect(service.getEnabledCount()).toBe(2);
-      expect(service.getServerNames()).toEqual(['s1', 's2', 's3']);
-      expect(service.getEnabledServerNames()).toEqual(['s1', 's2']);
-      expect(service.hasServers()).toBe(true);
-      expect(service.hasContextSavingServers()).toBe(true);
+      expect(manager.getEnabledCount()).toBe(2);
+      expect(manager.hasServers()).toBe(true);
     });
 
     it('should return false when no servers are configured', () => {
-      const service = createService([]);
+      const manager = createManager([]);
 
-      expect(service.getEnabledCount()).toBe(0);
-      expect(service.getServerNames()).toEqual([]);
-      expect(service.getEnabledServerNames()).toEqual([]);
-      expect(service.hasServers()).toBe(false);
-      expect(service.hasContextSavingServers()).toBe(false);
+      expect(manager.getEnabledCount()).toBe(0);
+      expect(manager.hasServers()).toBe(false);
     });
   });
 });

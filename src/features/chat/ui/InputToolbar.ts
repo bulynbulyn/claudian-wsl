@@ -1,7 +1,7 @@
 import { Notice, setIcon } from 'obsidian';
 import * as path from 'path';
 
-import type { McpService } from '../../../core/mcp';
+import type { McpServerManager } from '../../../core/mcp';
 import type {
   ClaudeModel,
   ClaudianMcpServer,
@@ -579,7 +579,7 @@ export class McpServerSelector {
   private iconEl: HTMLElement | null = null;
   private badgeEl: HTMLElement | null = null;
   private dropdownEl: HTMLElement | null = null;
-  private mcpService: McpService | null = null;
+  private mcpManager: McpServerManager | null = null;
   private enabledServers: Set<string> = new Set();
   private onChangeCallback: ((enabled: Set<string>) => void) | null = null;
 
@@ -588,8 +588,8 @@ export class McpServerSelector {
     this.render();
   }
 
-  setMcpService(service: McpService | null): void {
-    this.mcpService = service;
+  setMcpManager(manager: McpServerManager | null): void {
+    this.mcpManager = manager;
     this.pruneEnabledServers();
     this.updateDisplay();
     this.renderDropdown();
@@ -631,8 +631,8 @@ export class McpServerSelector {
   }
 
   private pruneEnabledServers(): void {
-    if (!this.mcpService) return;
-    const activeNames = new Set(this.mcpService.getServers().filter((s) => s.enabled).map((s) => s.name));
+    if (!this.mcpManager) return;
+    const activeNames = new Set(this.mcpManager.getServers().filter((s) => s.enabled).map((s) => s.name));
     let changed = false;
     for (const name of this.enabledServers) {
       if (!activeNames.has(name)) {
@@ -678,7 +678,7 @@ export class McpServerSelector {
     // Server list
     const listEl = this.dropdownEl.createDiv({ cls: 'claudian-mcp-selector-list' });
 
-    const allServers = this.mcpService?.getServers() || [];
+    const allServers = this.mcpManager?.getServers() || [];
     const servers = allServers.filter(s => s.enabled);
 
     if (servers.length === 0) {
@@ -756,7 +756,7 @@ export class McpServerSelector {
     if (!this.iconEl || !this.badgeEl) return;
 
     const count = this.enabledServers.size;
-    const hasServers = (this.mcpService?.getServers().length || 0) > 0;
+    const hasServers = (this.mcpManager?.getServers().length || 0) > 0;
 
     // Show/hide container based on whether there are servers
     if (!hasServers) {

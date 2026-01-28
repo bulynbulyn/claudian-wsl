@@ -95,13 +95,6 @@ export function isValidMcpServerConfig(obj: unknown): obj is McpServerConfig {
   return false;
 }
 
-export function inferMcpServerType(config: McpServerConfig): McpServerType {
-  if (config.type === 'sse') return 'sse';
-  if (config.type === 'http') return 'http';
-  if ('url' in config) return 'http'; // Default URL-based to http
-  return 'stdio';
-}
-
 export const DEFAULT_MCP_SERVER: Omit<ClaudianMcpServer, 'name' | 'config'> = {
   enabled: true,
   contextSaving: true,

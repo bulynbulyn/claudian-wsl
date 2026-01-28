@@ -96,7 +96,6 @@ export {
   type ClaudianMcpServer,
   DEFAULT_MCP_SERVER,
   getMcpServerType,
-  inferMcpServerType,
   isValidMcpServerConfig,
   type McpConfigFile,
   type McpHttpServerConfig,
