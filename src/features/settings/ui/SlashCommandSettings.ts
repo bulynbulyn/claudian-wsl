@@ -1,4 +1,4 @@
-import type { App} from 'obsidian';
+import type { App, ToggleComponent } from 'obsidian';
 import { Modal, Notice, setIcon, Setting } from 'obsidian';
 
 import type { SlashCommand } from '../../../core/types';
@@ -55,6 +55,20 @@ export class SlashCommandModal extends Modal {
     let contextValue: 'fork' | '' = this.existingCmd?.context ?? '';
     let agentInput: HTMLInputElement;
 
+    /* eslint-disable prefer-const -- assigned in Setting callbacks */
+    let disableUserSetting!: Setting;
+    let disableUserToggle!: ToggleComponent;
+    /* eslint-enable prefer-const */
+
+    const updateSkillOnlyFields = () => {
+      const isSkillType = selectedType === 'skill';
+      disableUserSetting.settingEl.style.display = isSkillType ? '' : 'none';
+      if (!isSkillType) {
+        disableUserInvocation = false;
+        disableUserToggle.setValue(false);
+      }
+    };
+
     new Setting(contentEl)
       .setName('Type')
       .setDesc('Command or skill')
@@ -66,6 +80,7 @@ export class SlashCommandModal extends Modal {
           .onChange(value => {
             selectedType = value as 'command' | 'skill';
             this.setTitle(this.existingCmd ? `Edit ${typeLabel()}` : `Add ${typeLabel()}`);
+            updateSkillOnlyFields();
           });
         if (this.existingCmd) {
           dropdown.setDisabled(true);
@@ -133,13 +148,16 @@ export class SlashCommandModal extends Modal {
           .onChange(value => { disableModelToggle = value; });
       });
 
-    new Setting(details)
+    disableUserSetting = new Setting(details)
       .setName('Disable user invocation')
-      .setDesc('Prevent the user from invoking this command directly')
+      .setDesc('Prevent the user from invoking this skill directly')
       .addToggle(toggle => {
+        disableUserToggle = toggle;
         toggle.setValue(disableUserInvocation)
           .onChange(value => { disableUserInvocation = value; });
       });
+
+    updateSkillOnlyFields();
 
     new Setting(details)
       .setName('Context')
