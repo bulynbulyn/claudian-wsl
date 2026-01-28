@@ -11,6 +11,7 @@ export interface ApprovalModalOptions {
   title?: string;
   decisionReason?: string;
   blockedPath?: string;
+  agentID?: string;
 }
 
 export class ApprovalModal extends Modal {
@@ -59,6 +60,11 @@ export class ApprovalModal extends Modal {
     if (this.options.blockedPath) {
       const pathEl = infoEl.createDiv({ cls: 'claudian-approval-blocked-path' });
       pathEl.setText(this.options.blockedPath);
+    }
+
+    if (this.options.agentID) {
+      const agentEl = infoEl.createDiv({ cls: 'claudian-approval-agent' });
+      agentEl.setText(`Agent: ${this.options.agentID}`);
     }
 
     const descEl = contentEl.createDiv({ cls: 'claudian-approval-desc' });

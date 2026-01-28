@@ -29,6 +29,7 @@ export const COMPLETION_FLAVOR_WORDS = [
   'Roasted',
   'Cured',
   'Smoked',
+  'Cogitated',
 ] as const;
 
 /** Random flavor texts shown while Claude is thinking. */

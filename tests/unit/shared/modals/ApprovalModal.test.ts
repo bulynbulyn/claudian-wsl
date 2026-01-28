@@ -258,4 +258,49 @@ describe('ApprovalModal - global keyboard navigation', () => {
     ApprovalModal.prototype.onClose.call(modal);
     (global as any).document = originalDocument;
   });
+
+  it('renders agentID when provided', () => {
+    const originalDocument = (global as any).document;
+    (global as any).document = createMockDocument();
+
+    const modal = new ApprovalModal({} as any, 'Bash', {}, 'Run: ls', jest.fn(), {
+      agentID: 'sub-agent-42',
+    });
+    (modal as any).setTitle = jest.fn();
+    (modal as any).contentEl = new MockElement('div');
+
+    ApprovalModal.prototype.onOpen.call(modal);
+
+    const contentEl = (modal as any).contentEl as MockElement;
+    const infoEl = contentEl.children[0];
+    const agentEl = infoEl.children.find(
+      (el: MockElement) => el.classList.has('claudian-approval-agent')
+    );
+    expect(agentEl).toBeDefined();
+    expect(agentEl!.textContent).toBe('Agent: sub-agent-42');
+
+    ApprovalModal.prototype.onClose.call(modal);
+    (global as any).document = originalDocument;
+  });
+
+  it('does not render agentID when not provided', () => {
+    const originalDocument = (global as any).document;
+    (global as any).document = createMockDocument();
+
+    const modal = new ApprovalModal({} as any, 'Bash', {}, 'Run: ls', jest.fn(), {});
+    (modal as any).setTitle = jest.fn();
+    (modal as any).contentEl = new MockElement('div');
+
+    ApprovalModal.prototype.onOpen.call(modal);
+
+    const contentEl = (modal as any).contentEl as MockElement;
+    const infoEl = contentEl.children[0];
+    const agentEl = infoEl.children.find(
+      (el: MockElement) => el.classList.has('claudian-approval-agent')
+    );
+    expect(agentEl).toBeUndefined();
+
+    ApprovalModal.prototype.onClose.call(modal);
+    (global as any).document = originalDocument;
+  });
 });

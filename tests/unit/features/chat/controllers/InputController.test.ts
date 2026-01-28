@@ -921,6 +921,27 @@ describe('InputController - Message Queue', () => {
     });
   });
 
+  describe('Approval modal tracking', () => {
+    it('should dismiss pending modal and clear reference', () => {
+      controller = new InputController(deps);
+      const mockModal = { close: jest.fn() };
+      (controller as any).pendingApprovalModal = mockModal;
+
+      controller.dismissPendingApproval();
+
+      expect(mockModal.close).toHaveBeenCalled();
+      expect((controller as any).pendingApprovalModal).toBeNull();
+    });
+
+    it('should be a no-op when no modal is pending', () => {
+      controller = new InputController(deps);
+      expect((controller as any).pendingApprovalModal).toBeNull();
+
+      // Should not throw
+      expect(() => controller.dismissPendingApproval()).not.toThrow();
+    });
+  });
+
   describe('Built-in commands - /add-dir', () => {
     beforeEach(() => {
       mockNotice.mockClear();

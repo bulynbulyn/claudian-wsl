@@ -1,6 +1,6 @@
 import { Notice } from 'obsidian';
 
-import type { ClaudianService } from '../../../core/agent';
+import type { ApprovalCallbackOptions, ClaudianService } from '../../../core/agent';
 import { detectBuiltInCommand } from '../../../core/commands';
 import type { ChatMessage } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
@@ -53,6 +53,7 @@ export interface InputControllerDeps {
 
 export class InputController {
   private deps: InputControllerDeps;
+  private pendingApprovalModal: ApprovalModal | null = null;
 
   constructor(deps: InputControllerDeps) {
     this.deps = deps;
@@ -609,17 +610,28 @@ export class InputController {
     toolName: string,
     input: Record<string, unknown>,
     description: string,
-    decisionReason?: string,
-    blockedPath?: string,
+    options?: ApprovalCallbackOptions,
   ): Promise<ApprovalDecision> {
     const { plugin } = this.deps;
     return new Promise((resolve) => {
-      const modal = new ApprovalModal(plugin.app, toolName, input, description, resolve, {
-        decisionReason,
-        blockedPath,
+      const modal = new ApprovalModal(plugin.app, toolName, input, description, (decision) => {
+        this.pendingApprovalModal = null;
+        resolve(decision);
+      }, {
+        decisionReason: options?.decisionReason,
+        blockedPath: options?.blockedPath,
+        agentID: options?.agentID,
       });
+      this.pendingApprovalModal = modal;
       modal.open();
     });
+  }
+
+  dismissPendingApproval(): void {
+    if (this.pendingApprovalModal) {
+      this.pendingApprovalModal.close();
+      this.pendingApprovalModal = null;
+    }
   }
 
   // ============================================

@@ -319,6 +319,19 @@ describe('ClaudianService', () => {
 
       expect(sessionManager.wasInterrupted()).toBe(true);
     });
+
+    it('should call approval dismisser on cancel', () => {
+      const dismisser = jest.fn();
+      service.setApprovalDismisser(dismisser);
+
+      service.cancel();
+
+      expect(dismisser).toHaveBeenCalled();
+    });
+
+    it('should not throw when no approval dismisser is set', () => {
+      expect(() => service.cancel()).not.toThrow();
+    });
   });
 
   describe('Approval Callback', () => {
@@ -416,8 +429,33 @@ describe('ClaudianService', () => {
           'Read',
           { file_path: '/etc/passwd' },
           'Read file: /etc/passwd',
-          'Path is outside allowed directories',
-          '/etc/passwd',
+          {
+            decisionReason: 'Path is outside allowed directories',
+            blockedPath: '/etc/passwd',
+            agentID: undefined,
+          },
+        );
+      });
+
+      it('should forward agentID to approvalCallback', async () => {
+        const callback = jest.fn().mockResolvedValue('allow');
+        service.setApprovalCallback(callback);
+
+        const canUseTool = (service as any).createApprovalCallback();
+        await canUseTool('Bash', { command: 'ls' }, {
+          ...canUseToolOptions,
+          agentID: 'sub-agent-42',
+        });
+
+        expect(callback).toHaveBeenCalledWith(
+          'Bash',
+          { command: 'ls' },
+          expect.any(String),
+          {
+            decisionReason: undefined,
+            blockedPath: undefined,
+            agentID: 'sub-agent-42',
+          },
         );
       });
 

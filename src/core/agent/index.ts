@@ -1,4 +1,4 @@
-export { type ApprovalCallback, ClaudianService, type QueryOptions } from './ClaudianService';
+export { type ApprovalCallback, type ApprovalCallbackOptions, ClaudianService, type QueryOptions } from './ClaudianService';
 export { MessageChannel } from './MessageChannel';
 export {
   type ColdStartQueryContext,

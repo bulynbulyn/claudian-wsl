@@ -882,8 +882,11 @@ export function getTabTitle(tab: TabData, plugin: ClaudianPlugin): string {
 export function setupApprovalCallback(tab: TabData): void {
   if (tab.service && tab.controllers.inputController) {
     tab.service.setApprovalCallback(
-      (toolName, input, description, decisionReason, blockedPath) =>
-        tab.controllers.inputController!.handleApprovalRequest(toolName, input, description, decisionReason, blockedPath)
+      (toolName, input, description, options) =>
+        tab.controllers.inputController!.handleApprovalRequest(toolName, input, description, options)
+    );
+    tab.service.setApprovalDismisser(
+      () => tab.controllers.inputController?.dismissPendingApproval()
     );
   }
 }

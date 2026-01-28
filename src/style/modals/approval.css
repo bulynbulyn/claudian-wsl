@@ -98,3 +98,9 @@
   margin-bottom: 8px;
   word-break: break-all;
 }
+
+.claudian-approval-agent {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 8px;
+}

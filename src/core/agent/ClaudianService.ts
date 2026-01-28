@@ -71,12 +71,17 @@ import {
 
 export type { ApprovalDecision };
 
+export interface ApprovalCallbackOptions {
+  decisionReason?: string;
+  blockedPath?: string;
+  agentID?: string;
+}
+
 export type ApprovalCallback = (
   toolName: string,
   input: Record<string, unknown>,
   description: string,
-  decisionReason?: string,
-  blockedPath?: string,
+  options?: ApprovalCallbackOptions,
 ) => Promise<ApprovalDecision>;
 
 export interface QueryOptions {
@@ -107,6 +112,7 @@ export class ClaudianService {
   private plugin: ClaudianPlugin;
   private abortController: AbortController | null = null;
   private approvalCallback: ApprovalCallback | null = null;
+  private approvalDismisser: (() => void) | null = null;
   private vaultPath: string | null = null;
   private currentExternalContextPaths: string[] = [];
 
@@ -1250,6 +1256,9 @@ export class ClaudianService {
   }
 
   cancel() {
+    // Dismiss any pending approval modal before aborting
+    this.approvalDismisser?.();
+
     if (this.abortController) {
       this.abortController.abort();
       this.sessionManager.markInterrupted();
@@ -1365,6 +1374,10 @@ export class ClaudianService {
     this.approvalCallback = callback;
   }
 
+  setApprovalDismisser(dismisser: (() => void) | null) {
+    this.approvalDismisser = dismisser;
+  }
+
   private createApprovalCallback(): CanUseTool {
     return async (toolName, input, options): Promise<PermissionResult> => {
       if (this.currentAllowedTools !== null) {
@@ -1388,7 +1401,7 @@ export class ClaudianService {
         const description = getActionDescription(toolName, input);
         const decision = await this.approvalCallback(
           toolName, input, description,
-          options.decisionReason, options.blockedPath
+          { decisionReason: options.decisionReason, blockedPath: options.blockedPath, agentID: options.agentID }
         );
 
         if (decision === 'cancel') {
