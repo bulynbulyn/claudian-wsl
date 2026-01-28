@@ -40,7 +40,7 @@ describe('transformSDKMessage', () => {
       expect(results).toEqual([]);
     });
 
-    it('captures agents, skills, and slashCommands from init message', () => {
+    it('captures agents from init message', () => {
       const message: SDKMessage = {
         type: 'system',
         subtype: 'init',
@@ -57,8 +57,6 @@ describe('transformSDKMessage', () => {
         type: 'session_init',
         sessionId: 'test-session-456',
         agents: ['Explore', 'Plan', 'custom-agent'],
-        skills: ['commit', 'review-pr'],
-        slashCommands: ['clear', 'add-dir'],
       });
     });
   });

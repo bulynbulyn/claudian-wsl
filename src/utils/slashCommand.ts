@@ -42,10 +42,6 @@ export function validateCommandName(name: string): string | null {
   return null;
 }
 
-export function isUserCommand(cmd: SlashCommand): boolean {
-  return !cmd.id.startsWith('plugin-');
-}
-
 export function isSkill(cmd: SlashCommand): boolean {
   return cmd.id.startsWith('skill-');
 }

@@ -143,15 +143,4 @@ export class PluginManager {
     return this.plugins.length > 0;
   }
 
-  /**
-   * Get install paths for enabled and available plugins.
-   * Returns array of { pluginName, commandsPath } for each active plugin.
-   * Note: Actual command existence is verified by loadPluginCommands().
-   */
-  getPluginCommandPaths(): Array<{ pluginName: string; commandsPath: string }> {
-    return this.getActivePlugins().map((plugin) => ({
-      pluginName: plugin.name,
-      commandsPath: plugin.installPath, // The commands subdirectory is appended by loadPluginCommands()
-    }));
-  }
 }

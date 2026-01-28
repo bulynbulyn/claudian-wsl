@@ -259,50 +259,6 @@ describe('PluginManager', () => {
     });
   });
 
-  describe('getPluginCommandPaths', () => {
-    it('returns installPath for commands (not pluginPath)', async () => {
-      const plugin = createMockPlugin({
-        id: 'test-plugin',
-        name: 'Test Plugin',
-        installPath: '/path/to/plugin',
-        pluginPath: '/path/to/plugin/.claude-plugin',
-        status: 'available',
-      });
-      const pluginStorage = createMockPluginStorage([plugin]);
-      const ccSettings = createMockCCSettingsStorage({});
-      const manager = new PluginManager(pluginStorage, ccSettings);
-
-      await manager.loadEnabledState();
-      await manager.loadPlugins();
-
-      const paths = manager.getPluginCommandPaths();
-      expect(paths).toHaveLength(1);
-      expect(paths[0].pluginName).toBe('Test Plugin');
-      // Commands are at {installPath}/commands/, not {pluginPath}/commands/
-      expect(paths[0].commandsPath).toBe('/path/to/plugin');
-    });
-
-    it('excludes disabled and unavailable plugins', async () => {
-      const plugins = [
-        createMockPlugin({ id: 'enabled-available', status: 'available', installPath: '/path/a' }),
-        createMockPlugin({ id: 'disabled-available', status: 'available', installPath: '/path/b' }),
-        createMockPlugin({ id: 'enabled-unavailable', status: 'unavailable', installPath: '/path/c' }),
-      ];
-      const pluginStorage = createMockPluginStorage(plugins);
-      const ccSettings = createMockCCSettingsStorage({
-        'disabled-available': false,
-      });
-      const manager = new PluginManager(pluginStorage, ccSettings);
-
-      await manager.loadEnabledState();
-      await manager.loadPlugins();
-
-      const paths = manager.getPluginCommandPaths();
-      expect(paths).toHaveLength(1);
-      expect(paths[0].commandsPath).toBe('/path/a');
-    });
-  });
-
   describe('enablePlugin', () => {
     it('enables a disabled plugin', async () => {
       const plugin = createMockPlugin();

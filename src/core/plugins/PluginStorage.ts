@@ -10,16 +10,13 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { normalizePathForComparison } from '../../utils/path';
-import { parseSlashCommandContent } from '../../utils/slashCommand';
 import type {
-  ClaudeModel,
   ClaudianPlugin,
   InstalledPluginEntry,
   InstalledPluginsFile,
   MarketplaceManifest,
   PluginManifest,
   PluginScope,
-  SlashCommand,
 } from '../types';
 
 /** Path to the global installed plugins registry. */
@@ -433,90 +430,4 @@ export class PluginStorage {
       return null;
     }
   }
-}
-
-/**
- * Load slash commands from a plugin install directory.
- * Looks for commands in {installPath}/commands/*.md
- */
-export function loadPluginCommands(
-  installPath: string,
-  pluginName: string
-): SlashCommand[] {
-  const commandsDir = path.join(installPath, 'commands');
-  const commands: SlashCommand[] = [];
-
-  if (!fs.existsSync(commandsDir)) {
-    return commands;
-  }
-
-  try {
-    const files = listMarkdownFilesRecursive(commandsDir);
-
-    for (const filePath of files) {
-      try {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        const command = parsePluginCommandFile(content, filePath, commandsDir, pluginName);
-        if (command) {
-          commands.push(command);
-        }
-      } catch {
-        // Skip invalid command files gracefully
-      }
-    }
-  } catch {
-    // Return empty array if directory listing fails
-  }
-
-  return commands;
-}
-
-function listMarkdownFilesRecursive(dir: string): string[] {
-  const files: string[] = [];
-
-  if (!fs.existsSync(dir)) {
-    return files;
-  }
-
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...listMarkdownFilesRecursive(fullPath));
-    } else if (entry.isFile() && entry.name.endsWith('.md')) {
-      files.push(fullPath);
-    }
-  }
-
-  return files;
-}
-
-function parsePluginCommandFile(
-  content: string,
-  filePath: string,
-  commandsDir: string,
-  pluginName: string
-): SlashCommand | null {
-  const parsed = parseSlashCommandContent(content);
-
-  const relativePath = path.relative(commandsDir, filePath);
-  const nameWithoutExt = relativePath.replace(/\.md$/, '').replace(/\\/g, '/');
-
-  // Prefix with plugin name to namespace the command
-  const name = `${pluginName.toLowerCase().replace(/\s+/g, '-')}:${nameWithoutExt}`;
-
-  // Generate a unique ID for plugin commands
-  const escapedName = name.replace(/-/g, '-_').replace(/:/g, '--');
-  const id = `plugin-${escapedName}`;
-
-  return {
-    id,
-    name,
-    description: parsed.description,
-    argumentHint: parsed.argumentHint,
-    allowedTools: parsed.allowedTools,
-    model: parsed.model as ClaudeModel | undefined,
-    content: parsed.promptContent,
-  };
 }

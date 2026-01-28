@@ -10,7 +10,7 @@ import { Notice, Plugin } from 'obsidian';
 
 import { AgentManager } from './core/agents';
 import { McpServerManager, McpService } from './core/mcp';
-import { loadPluginCommands, PluginManager, PluginStorage } from './core/plugins';
+import { PluginManager, PluginStorage } from './core/plugins';
 import { StorageService } from './core/storage';
 import type {
   ChatMessage,
@@ -71,8 +71,6 @@ export default class ClaudianPlugin extends Plugin {
     // Initialize agent manager (after plugin manager for plugin-sourced agents)
     this.agentManager = new AgentManager(vaultPath, this.pluginManager);
     await this.agentManager.loadAgents();
-
-    this.loadPluginSlashCommands();
 
     this.registerView(
       VIEW_TYPE_CLAUDIAN,
@@ -378,23 +376,6 @@ export default class ClaudianPlugin extends Plugin {
     } = this.settings;
 
     await this.storage.saveClaudianSettings(settingsToSave);
-  }
-
-  /**
-   * Loads slash commands from enabled plugins and merges them with vault commands.
-   * Plugin commands are namespaced with the plugin name (e.g., "plugin-name:command").
-   */
-  loadPluginSlashCommands(): void {
-    const vaultCommands = this.settings.slashCommands.filter(
-      cmd => !cmd.id.startsWith('plugin-')
-    );
-
-    const pluginPaths = this.pluginManager.getPluginCommandPaths();
-    const pluginCommands = pluginPaths.flatMap(
-      ({ pluginName, commandsPath }) => loadPluginCommands(commandsPath, pluginName)
-    );
-
-    this.settings.slashCommands = [...vaultCommands, ...pluginCommands];
   }
 
   /** Updates and persists environment variables, restarting processes to apply changes. */

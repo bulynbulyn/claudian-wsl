@@ -4,7 +4,7 @@ import { Modal, Notice, setIcon, Setting } from 'obsidian';
 import type { SlashCommand } from '../../../core/types';
 import { t } from '../../../i18n';
 import type ClaudianPlugin from '../../../main';
-import { extractFirstParagraph, isSkill, isUserCommand, parseSlashCommandContent, validateCommandName } from '../../../utils/slashCommand';
+import { extractFirstParagraph, isSkill, parseSlashCommandContent, validateCommandName } from '../../../utils/slashCommand';
 
 function resolveAllowedTools(inputValue: string, parsedTools?: string[]): string[] | undefined {
   const trimmed = inputValue.trim();
@@ -286,7 +286,7 @@ export class SlashCommandSettings {
     setIcon(addBtn, 'plus');
     addBtn.addEventListener('click', () => this.openCommandModal(null));
 
-    const commands = this.plugin.settings.slashCommands.filter(isUserCommand);
+    const commands = this.plugin.settings.slashCommands;
 
     if (commands.length === 0) {
       const emptyEl = this.containerEl.createDiv({ cls: 'claudian-slash-empty-state' });

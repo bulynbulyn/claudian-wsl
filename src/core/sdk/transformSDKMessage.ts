@@ -46,8 +46,6 @@ export function* transformSDKMessage(
           type: 'session_init',
           sessionId: message.session_id,
           agents: message.agents,
-          skills: message.skills,
-          slashCommands: message.slash_commands,
         };
       }
       // Don't yield system messages to the UI

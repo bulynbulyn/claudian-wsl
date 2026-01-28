@@ -130,7 +130,6 @@ export class PluginSettingsManager {
 
     try {
       await this.plugin.pluginManager.togglePlugin(pluginId);
-      this.plugin.loadPluginSlashCommands();
       await this.plugin.agentManager.loadAgents();
 
       const view = this.plugin.getView();
@@ -160,7 +159,6 @@ export class PluginSettingsManager {
   private async refreshPlugins() {
     try {
       await this.plugin.pluginManager.loadPlugins();
-      this.plugin.loadPluginSlashCommands();
       await this.plugin.agentManager.loadAgents();
 
       new Notice('Plugin list refreshed');
