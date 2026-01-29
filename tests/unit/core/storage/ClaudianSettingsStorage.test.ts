@@ -6,12 +6,11 @@ import {
 import type { VaultFileAdapter } from '@/core/storage/VaultFileAdapter';
 import { DEFAULT_SETTINGS, getDefaultBlockedCommands } from '@/core/types';
 
-// Mock VaultFileAdapter
 const mockAdapter = {
   exists: jest.fn(),
   read: jest.fn(),
   write: jest.fn(),
-} as unknown as VaultFileAdapter;
+} as unknown as jest.Mocked<VaultFileAdapter>;
 
 describe('ClaudianSettingsStorage', () => {
   let storage: ClaudianSettingsStorage;
@@ -19,15 +18,15 @@ describe('ClaudianSettingsStorage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Reset mock implementations to default resolved values
-    (mockAdapter.exists as jest.Mock).mockResolvedValue(false);
-    (mockAdapter.read as jest.Mock).mockResolvedValue('{}');
-    (mockAdapter.write as jest.Mock).mockResolvedValue(undefined);
+    mockAdapter.exists.mockResolvedValue(false);
+    mockAdapter.read.mockResolvedValue('{}');
+    mockAdapter.write.mockResolvedValue(undefined);
     storage = new ClaudianSettingsStorage(mockAdapter);
   });
 
   describe('load', () => {
     it('should return defaults when file does not exist', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(false);
+      mockAdapter.exists.mockResolvedValue(false);
 
       const result = await storage.load();
 
@@ -38,8 +37,8 @@ describe('ClaudianSettingsStorage', () => {
     });
 
     it('should parse valid JSON and merge with defaults', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(true);
-      (mockAdapter.read as jest.Mock).mockResolvedValue(JSON.stringify({
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({
         model: 'claude-opus-4-5',
         userName: 'TestUser',
       }));
@@ -53,8 +52,8 @@ describe('ClaudianSettingsStorage', () => {
     });
 
     it('should normalize blockedCommands from loaded data', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(true);
-      (mockAdapter.read as jest.Mock).mockResolvedValue(JSON.stringify({
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({
         blockedCommands: {
           unix: ['custom-unix-cmd'],
           windows: ['custom-win-cmd'],
@@ -68,8 +67,8 @@ describe('ClaudianSettingsStorage', () => {
     });
 
     it('should normalize claudeCliPathsByHost from loaded data', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(true);
-      (mockAdapter.read as jest.Mock).mockResolvedValue(JSON.stringify({
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({
         claudeCliPathsByHost: {
           'host-a': '/custom/path-a',
           'host-b': '/custom/path-b',
@@ -83,8 +82,8 @@ describe('ClaudianSettingsStorage', () => {
     });
 
     it('should preserve legacy claudeCliPath field', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(true);
-      (mockAdapter.read as jest.Mock).mockResolvedValue(JSON.stringify({
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({
         claudeCliPath: '/legacy/path',
       }));
 
@@ -94,15 +93,15 @@ describe('ClaudianSettingsStorage', () => {
     });
 
     it('should throw on JSON parse error', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(true);
-      (mockAdapter.read as jest.Mock).mockResolvedValue('invalid json');
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue('invalid json');
 
       await expect(storage.load()).rejects.toThrow();
     });
 
     it('should throw on read error', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(true);
-      (mockAdapter.read as jest.Mock).mockRejectedValue(new Error('Read failed'));
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockRejectedValue(new Error('Read failed'));
 
       await expect(storage.load()).rejects.toThrow('Read failed');
     });
@@ -123,12 +122,12 @@ describe('ClaudianSettingsStorage', () => {
         CLAUDIAN_SETTINGS_PATH,
         expect.any(String)
       );
-      const writtenContent = JSON.parse((mockAdapter.write as jest.Mock).mock.calls[0][1]);
+      const writtenContent = JSON.parse(mockAdapter.write.mock.calls[0][1]);
       expect(writtenContent.model).toBe('claude-opus-4-5');
     });
 
     it('should throw on write error', async () => {
-      (mockAdapter.write as jest.Mock).mockRejectedValue(new Error('Write failed'));
+      mockAdapter.write.mockRejectedValue(new Error('Write failed'));
 
       const settings = {
         ...DEFAULT_SETTINGS,
@@ -141,7 +140,7 @@ describe('ClaudianSettingsStorage', () => {
 
   describe('exists', () => {
     it('should return true when file exists', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(true);
+      mockAdapter.exists.mockResolvedValue(true);
 
       const result = await storage.exists();
 
@@ -150,7 +149,7 @@ describe('ClaudianSettingsStorage', () => {
     });
 
     it('should return false when file does not exist', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(false);
+      mockAdapter.exists.mockResolvedValue(false);
 
       const result = await storage.exists();
 
@@ -160,15 +159,15 @@ describe('ClaudianSettingsStorage', () => {
 
   describe('update', () => {
     it('should merge updates with existing settings', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(true);
-      (mockAdapter.read as jest.Mock).mockResolvedValue(JSON.stringify({
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({
         model: 'claude-haiku-4-5',
         userName: 'ExistingUser',
       }));
 
       await storage.update({ model: 'claude-opus-4-5' });
 
-      const writeCall = (mockAdapter.write as jest.Mock).mock.calls[0];
+      const writeCall = mockAdapter.write.mock.calls[0];
       const writtenContent = JSON.parse(writeCall[1]);
       expect(writtenContent.model).toBe('claude-opus-4-5');
       expect(writtenContent.userName).toBe('ExistingUser');
@@ -177,8 +176,8 @@ describe('ClaudianSettingsStorage', () => {
 
   describe('legacy activeConversationId', () => {
     it('should read legacy activeConversationId when present', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(true);
-      (mockAdapter.read as jest.Mock).mockResolvedValue(JSON.stringify({
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({
         activeConversationId: 'conv-123',
       }));
 
@@ -188,8 +187,8 @@ describe('ClaudianSettingsStorage', () => {
     });
 
     it('should return null when legacy activeConversationId is missing', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(true);
-      (mockAdapter.read as jest.Mock).mockResolvedValue(JSON.stringify({
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({
         model: 'claude-haiku-4-5',
       }));
 
@@ -199,15 +198,15 @@ describe('ClaudianSettingsStorage', () => {
     });
 
     it('should clear legacy activeConversationId from file', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(true);
-      (mockAdapter.read as jest.Mock).mockResolvedValue(JSON.stringify({
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({
         activeConversationId: 'conv-123',
         model: 'claude-haiku-4-5',
       }));
 
       await storage.clearLegacyActiveConversationId();
 
-      const writeCall = (mockAdapter.write as jest.Mock).mock.calls[0];
+      const writeCall = mockAdapter.write.mock.calls[0];
       const writtenContent = JSON.parse(writeCall[1]);
       expect(writtenContent.activeConversationId).toBeUndefined();
       expect(writtenContent.model).toBe('claude-haiku-4-5');
@@ -216,7 +215,7 @@ describe('ClaudianSettingsStorage', () => {
 
   describe('getLegacyActiveConversationId - file missing', () => {
     it('should return null when file does not exist', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(false);
+      mockAdapter.exists.mockResolvedValue(false);
 
       const result = await storage.getLegacyActiveConversationId();
 
@@ -227,7 +226,7 @@ describe('ClaudianSettingsStorage', () => {
 
   describe('clearLegacyActiveConversationId - file missing', () => {
     it('should return early when file does not exist', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(false);
+      mockAdapter.exists.mockResolvedValue(false);
 
       await storage.clearLegacyActiveConversationId();
 
@@ -238,8 +237,8 @@ describe('ClaudianSettingsStorage', () => {
 
   describe('clearLegacyActiveConversationId - no key present', () => {
     it('should not write when activeConversationId key is absent', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(true);
-      (mockAdapter.read as jest.Mock).mockResolvedValue(JSON.stringify({
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({
         model: 'claude-haiku-4-5',
       }));
 
@@ -251,24 +250,24 @@ describe('ClaudianSettingsStorage', () => {
 
   describe('setLastModel', () => {
     it('should update lastClaudeModel for non-custom models', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(true);
-      (mockAdapter.read as jest.Mock).mockResolvedValue(JSON.stringify({}));
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({}));
 
       await storage.setLastModel('claude-sonnet-4-5', false);
 
-      const writeCall = (mockAdapter.write as jest.Mock).mock.calls[0];
+      const writeCall = mockAdapter.write.mock.calls[0];
       const writtenContent = JSON.parse(writeCall[1]);
       expect(writtenContent.lastClaudeModel).toBe('claude-sonnet-4-5');
       // lastCustomModel keeps its default value (empty string)
     });
 
     it('should update lastCustomModel for custom models', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(true);
-      (mockAdapter.read as jest.Mock).mockResolvedValue(JSON.stringify({}));
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({}));
 
       await storage.setLastModel('custom-model-id', true);
 
-      const writeCall = (mockAdapter.write as jest.Mock).mock.calls[0];
+      const writeCall = mockAdapter.write.mock.calls[0];
       const writtenContent = JSON.parse(writeCall[1]);
       expect(writtenContent.lastCustomModel).toBe('custom-model-id');
       // lastClaudeModel keeps its default value
@@ -277,12 +276,12 @@ describe('ClaudianSettingsStorage', () => {
 
   describe('setLastEnvHash', () => {
     it('should update environment hash', async () => {
-      (mockAdapter.exists as jest.Mock).mockResolvedValue(true);
-      (mockAdapter.read as jest.Mock).mockResolvedValue(JSON.stringify({}));
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({}));
 
       await storage.setLastEnvHash('abc123');
 
-      const writeCall = (mockAdapter.write as jest.Mock).mock.calls[0];
+      const writeCall = mockAdapter.write.mock.calls[0];
       const writtenContent = JSON.parse(writeCall[1]);
       expect(writtenContent.lastEnvHash).toBe('abc123');
     });

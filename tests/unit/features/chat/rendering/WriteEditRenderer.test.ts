@@ -50,16 +50,6 @@ describe('WriteEditRenderer', () => {
       expect(state.toolCall).toBe(toolCall);
     });
 
-    it('should start collapsed by default', () => {
-      const parentEl = createMockEl();
-      const toolCall = createToolCall();
-
-      const state = createWriteEditBlock(parentEl, toolCall);
-
-      expect(state.isExpanded).toBe(false);
-      expect(state.wrapperEl.hasClass('expanded')).toBe(false);
-    });
-
     it('should set data-tool-id on wrapper', () => {
       const parentEl = createMockEl();
       const toolCall = createToolCall({ id: 'my-tool-id' });
@@ -89,41 +79,6 @@ describe('WriteEditRenderer', () => {
       const state = createWriteEditBlock(parentEl, toolCall);
 
       expect(state.statusEl.hasClass('status-running')).toBe(true);
-    });
-
-    it('should toggle expand/collapse on header click', () => {
-      const parentEl = createMockEl();
-      const toolCall = createToolCall();
-
-      const state = createWriteEditBlock(parentEl, toolCall);
-
-      // Initially collapsed
-      expect(state.isExpanded).toBe(false);
-      expect(state.wrapperEl.hasClass('expanded')).toBe(false);
-
-      // Trigger click
-      const clickHandlers = (state.headerEl as any)._eventListeners.get('click') || [];
-      expect(clickHandlers.length).toBeGreaterThan(0);
-      clickHandlers[0]();
-
-      // Should be expanded
-      expect(state.isExpanded).toBe(true);
-      expect(state.wrapperEl.hasClass('expanded')).toBe(true);
-
-      // Click again to collapse
-      clickHandlers[0]();
-      expect(state.isExpanded).toBe(false);
-    });
-
-    it('should set ARIA attributes for accessibility', () => {
-      const parentEl = createMockEl();
-      const toolCall = createToolCall();
-
-      const state = createWriteEditBlock(parentEl, toolCall);
-
-      expect(state.headerEl.getAttribute('role')).toBe('button');
-      expect(state.headerEl.getAttribute('tabindex')).toBe('0');
-      expect(state.headerEl.getAttribute('aria-expanded')).toBe('false');
     });
 
     it('should shorten long file paths', () => {
@@ -261,15 +216,6 @@ describe('WriteEditRenderer', () => {
   });
 
   describe('renderStoredWriteEdit', () => {
-    it('should create collapsed block by default', () => {
-      const parentEl = createMockEl();
-      const toolCall = createToolCall({ status: 'completed' });
-
-      const block = renderStoredWriteEdit(parentEl, toolCall);
-
-      expect(block.hasClass('expanded')).toBe(false);
-    });
-
     it('should show done state for completed status', () => {
       const parentEl = createMockEl();
       const toolCall = createToolCall({ status: 'completed' });
@@ -339,27 +285,6 @@ describe('WriteEditRenderer', () => {
       expect(block.hasClass('error')).toBe(true);
     });
 
-    it('should toggle expand on click', () => {
-      const parentEl = createMockEl();
-      const toolCall = createToolCall({ status: 'completed' });
-
-      const block = renderStoredWriteEdit(parentEl, toolCall);
-
-      // Initially collapsed
-      expect(block.hasClass('expanded')).toBe(false);
-
-      // Find header and trigger click
-      const header = (block as any)._children.find((c: any) =>
-        c.hasClass('claudian-write-edit-header')
-      );
-      expect(header).toBeDefined();
-
-      const clickHandlers = header._eventListeners.get('click') || [];
-      clickHandlers[0]();
-
-      expect(block.hasClass('expanded')).toBe(true);
-    });
-
     it('should use correct icon for Edit tool', () => {
       const parentEl = createMockEl();
       const toolCall = createToolCall({ name: 'Edit' });
@@ -370,25 +295,6 @@ describe('WriteEditRenderer', () => {
       expect(block).toBeDefined();
     });
 
-    it('should support keyboard navigation (Enter/Space)', () => {
-      const parentEl = createMockEl();
-      const toolCall = createToolCall({ status: 'completed' });
-
-      const block = renderStoredWriteEdit(parentEl, toolCall);
-      const header = (block as any)._children.find((c: any) =>
-        c.hasClass('claudian-write-edit-header')
-      );
-
-      const keydownHandlers = header._eventListeners.get('keydown') || [];
-      expect(keydownHandlers.length).toBeGreaterThan(0);
-
-      // Simulate Enter key
-      const enterEvent = { key: 'Enter', preventDefault: jest.fn() };
-      keydownHandlers[0](enterEvent);
-
-      expect(enterEvent.preventDefault).toHaveBeenCalled();
-      expect(block.hasClass('expanded')).toBe(true);
-    });
   });
 
   describe('path shortening', () => {

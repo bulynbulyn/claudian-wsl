@@ -7,13 +7,20 @@ import {
 } from '@/features/chat/rendering/collapsible';
 
 describe('collapsible', () => {
+  let wrapper: ReturnType<typeof createMockEl>;
+  let header: ReturnType<typeof createMockEl>;
+  let content: ReturnType<typeof createMockEl>;
+  let state: CollapsibleState;
+
+  beforeEach(() => {
+    wrapper = createMockEl();
+    header = createMockEl();
+    content = createMockEl();
+    state = { isExpanded: false };
+  });
+
   describe('setupCollapsible', () => {
     it('should start collapsed by default', () => {
-      const wrapper = createMockEl();
-      const header = createMockEl();
-      const content = createMockEl();
-      const state: CollapsibleState = { isExpanded: false };
-
       setupCollapsible(wrapper, header, content, state);
 
       expect(state.isExpanded).toBe(false);
@@ -23,11 +30,6 @@ describe('collapsible', () => {
     });
 
     it('should start expanded when initiallyExpanded is true', () => {
-      const wrapper = createMockEl();
-      const header = createMockEl();
-      const content = createMockEl();
-      const state: CollapsibleState = { isExpanded: false };
-
       setupCollapsible(wrapper, header, content, state, { initiallyExpanded: true });
 
       expect(state.isExpanded).toBe(true);
@@ -37,11 +39,6 @@ describe('collapsible', () => {
     });
 
     it('should toggle on click', () => {
-      const wrapper = createMockEl();
-      const header = createMockEl();
-      const content = createMockEl();
-      const state: CollapsibleState = { isExpanded: false };
-
       setupCollapsible(wrapper, header, content, state);
 
       const clickHandlers = header._eventListeners.get('click') || [];
@@ -63,11 +60,6 @@ describe('collapsible', () => {
     });
 
     it('should toggle on Enter key', () => {
-      const wrapper = createMockEl();
-      const header = createMockEl();
-      const content = createMockEl();
-      const state: CollapsibleState = { isExpanded: false };
-
       setupCollapsible(wrapper, header, content, state);
 
       const keydownHandlers = header._eventListeners.get('keydown') || [];
@@ -79,11 +71,6 @@ describe('collapsible', () => {
     });
 
     it('should toggle on Space key', () => {
-      const wrapper = createMockEl();
-      const header = createMockEl();
-      const content = createMockEl();
-      const state: CollapsibleState = { isExpanded: false };
-
       setupCollapsible(wrapper, header, content, state);
 
       const keydownHandlers = header._eventListeners.get('keydown') || [];
@@ -95,11 +82,6 @@ describe('collapsible', () => {
     });
 
     it('should not toggle on other keys', () => {
-      const wrapper = createMockEl();
-      const header = createMockEl();
-      const content = createMockEl();
-      const state: CollapsibleState = { isExpanded: false };
-
       setupCollapsible(wrapper, header, content, state);
 
       const keydownHandlers = header._eventListeners.get('keydown') || [];
@@ -111,10 +93,6 @@ describe('collapsible', () => {
     });
 
     it('should call onToggle callback with new state', () => {
-      const wrapper = createMockEl();
-      const header = createMockEl();
-      const content = createMockEl();
-      const state: CollapsibleState = { isExpanded: false };
       const onToggle = jest.fn();
 
       setupCollapsible(wrapper, header, content, state, { onToggle });
@@ -129,11 +107,6 @@ describe('collapsible', () => {
     });
 
     it('should set aria-label with baseAriaLabel', () => {
-      const wrapper = createMockEl();
-      const header = createMockEl();
-      const content = createMockEl();
-      const state: CollapsibleState = { isExpanded: false };
-
       setupCollapsible(wrapper, header, content, state, { baseAriaLabel: 'Read: file.ts' });
 
       expect(header.getAttribute('aria-label')).toBe('Read: file.ts - click to expand');
@@ -145,11 +118,6 @@ describe('collapsible', () => {
     });
 
     it('should set aria-label for initially expanded with baseAriaLabel', () => {
-      const wrapper = createMockEl();
-      const header = createMockEl();
-      const content = createMockEl();
-      const state: CollapsibleState = { isExpanded: false };
-
       setupCollapsible(wrapper, header, content, state, {
         initiallyExpanded: true,
         baseAriaLabel: 'Tool',
@@ -159,11 +127,6 @@ describe('collapsible', () => {
     });
 
     it('should not set aria-label without baseAriaLabel', () => {
-      const wrapper = createMockEl();
-      const header = createMockEl();
-      const content = createMockEl();
-      const state: CollapsibleState = { isExpanded: false };
-
       setupCollapsible(wrapper, header, content, state);
 
       expect(header.getAttribute('aria-label')).toBeNull();
@@ -172,11 +135,7 @@ describe('collapsible', () => {
 
   describe('collapseElement', () => {
     it('should collapse an expanded element', () => {
-      const wrapper = createMockEl();
-      const header = createMockEl();
-      const content = createMockEl();
-      const state: CollapsibleState = { isExpanded: true };
-
+      state.isExpanded = true;
       wrapper.addClass('expanded');
       content.style.display = 'block';
       header.setAttribute('aria-expanded', 'true');
@@ -190,11 +149,6 @@ describe('collapsible', () => {
     });
 
     it('should be safe to call on already collapsed element', () => {
-      const wrapper = createMockEl();
-      const header = createMockEl();
-      const content = createMockEl();
-      const state: CollapsibleState = { isExpanded: false };
-
       collapseElement(wrapper, header, content, state);
 
       expect(state.isExpanded).toBe(false);
