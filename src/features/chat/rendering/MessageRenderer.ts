@@ -195,6 +195,9 @@ export class MessageRenderer {
           if (toolCall) {
             this.renderToolCall(contentEl, toolCall);
           }
+        } else if (block.type === 'compact_boundary') {
+          const boundaryEl = contentEl.createDiv({ cls: 'claudian-compact-boundary' });
+          boundaryEl.createSpan({ cls: 'claudian-compact-boundary-label', text: 'Conversation compacted' });
         } else if (block.type === 'subagent') {
           const subagent = msg.subagents?.find(s => s.id === block.subagentId);
           if (subagent) {
@@ -221,8 +224,9 @@ export class MessageRenderer {
       }
     }
 
-    // Render response duration footer
-    if (msg.durationSeconds && msg.durationSeconds > 0) {
+    // Render response duration footer (skip when message contains a compaction boundary)
+    const hasCompactBoundary = msg.contentBlocks?.some(b => b.type === 'compact_boundary');
+    if (msg.durationSeconds && msg.durationSeconds > 0 && !hasCompactBoundary) {
       const flavorWord = msg.durationFlavorWord || 'Baked';
       const footerEl = contentEl.createDiv({ cls: 'claudian-response-footer' });
       footerEl.createSpan({

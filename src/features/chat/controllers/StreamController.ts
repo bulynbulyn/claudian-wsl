@@ -121,6 +121,18 @@ export class StreamController {
         this.flushPendingTools();
         break;
 
+      case 'compact_boundary': {
+        this.flushPendingTools();
+        if (state.currentThinkingState) {
+          this.finalizeCurrentThinkingBlock(msg);
+        }
+        this.finalizeCurrentTextBlock(msg);
+        msg.contentBlocks = msg.contentBlocks || [];
+        msg.contentBlocks.push({ type: 'compact_boundary' });
+        this.renderCompactBoundary();
+        break;
+      }
+
       case 'usage': {
         // Skip usage updates from other sessions or when flagged (during session reset)
         const currentSessionId = this.deps.getAgentService?.()?.getSessionId() ?? null;
@@ -600,7 +612,7 @@ export class StreamController {
    * This prevents the indicator from appearing during active streaming.
    * Note: Flavor text is hidden when model thinking block is active (thinking takes priority).
    */
-  showThinkingIndicator(): void {
+  showThinkingIndicator(overrideText?: string, overrideCls?: string): void {
     const { state } = this.deps;
 
     // Early return if no content element
@@ -630,9 +642,12 @@ export class StreamController {
       // Double-check we still have a content element, no indicator exists, and no thinking block
       if (!state.currentContentEl || state.thinkingEl || state.currentThinkingState) return;
 
-      state.thinkingEl = state.currentContentEl.createDiv({ cls: 'claudian-thinking' });
-      const randomText = FLAVOR_TEXTS[Math.floor(Math.random() * FLAVOR_TEXTS.length)];
-      state.thinkingEl.createSpan({ text: randomText });
+      const cls = overrideCls
+        ? `claudian-thinking ${overrideCls}`
+        : 'claudian-thinking';
+      state.thinkingEl = state.currentContentEl.createDiv({ cls });
+      const text = overrideText || FLAVOR_TEXTS[Math.floor(Math.random() * FLAVOR_TEXTS.length)];
+      state.thinkingEl.createSpan({ text });
 
       // Create timer span with initial value
       const timerSpan = state.thinkingEl.createSpan({ cls: 'claudian-thinking-hint' });
@@ -681,6 +696,18 @@ export class StreamController {
       state.thinkingEl = null;
     }
     state.queueIndicatorEl = null;
+  }
+
+  // ============================================
+  // Compact Boundary
+  // ============================================
+
+  private renderCompactBoundary(): void {
+    const { state } = this.deps;
+    if (!state.currentContentEl) return;
+    this.hideThinkingIndicator();
+    const el = state.currentContentEl.createDiv({ cls: 'claudian-compact-boundary' });
+    el.createSpan({ cls: 'claudian-compact-boundary-label', text: 'Conversation compacted' });
   }
 
   // ============================================
