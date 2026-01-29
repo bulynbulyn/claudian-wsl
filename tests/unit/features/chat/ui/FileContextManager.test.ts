@@ -1,21 +1,23 @@
 import { createMockEl, type MockElement } from '@test/helpers/mockElement';
-import type { TFile } from 'obsidian';
+import { TFile } from 'obsidian';
 
 import type { FileContextCallbacks } from '@/features/chat/ui/FileContext';
 import { FileContextManager } from '@/features/chat/ui/FileContext';
 import type { ExternalContextFile } from '@/utils/externalContextScanner';
 
-jest.mock('obsidian', () => ({
-  setIcon: jest.fn(),
-  Notice: jest.fn(),
-}));
-
-function createMockTFile(path: string): TFile {
+jest.mock('obsidian', () => {
+  const actual = jest.requireActual('obsidian');
   return {
-    path,
-    name: path.split('/').pop() || path,
-    stat: { mtime: Date.now(), ctime: Date.now(), size: 0 },
-  } as TFile;
+    ...actual,
+    setIcon: jest.fn(),
+    Notice: jest.fn(),
+  };
+});
+
+function createMockTFile(filePath: string): TFile {
+  const file = new (TFile as any)(filePath) as TFile;
+  (file as any).stat = { mtime: Date.now(), ctime: Date.now(), size: 0 };
+  return file;
 }
 
 let mockVaultPath = '/vault';
@@ -304,5 +306,402 @@ describe('FileContextManager', () => {
     expect(transformed).toBe('/external/src/app.md');
 
     manager.destroy();
+  });
+
+  describe('session lifecycle', () => {
+    it('should report session not started initially', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+      expect(manager.isSessionStarted()).toBe(false);
+      manager.destroy();
+    });
+
+    it('should report session started after startSession', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+      manager.startSession();
+      expect(manager.isSessionStarted()).toBe(true);
+      manager.destroy();
+    });
+
+    it('should reset state for new conversation', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+      manager.setCurrentNote('notes/test.md');
+      manager.startSession();
+
+      manager.resetForNewConversation();
+      expect(manager.getCurrentNotePath()).toBeNull();
+      expect(manager.isSessionStarted()).toBe(false);
+      manager.destroy();
+    });
+  });
+
+  describe('handleFileOpen', () => {
+    it('should update current note when session not started', () => {
+      const app = createMockApp({ files: ['notes/new.md'] });
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+
+      const file = createMockTFile('notes/new.md');
+      manager.handleFileOpen(file);
+      expect(manager.getCurrentNotePath()).toBe('notes/new.md');
+      manager.destroy();
+    });
+
+    it('should clear attachments when opening a new file before session starts', () => {
+      const app = createMockApp({ files: ['notes/a.md', 'notes/b.md'] });
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+
+      manager.setCurrentNote('notes/a.md');
+      const fileB = createMockTFile('notes/b.md');
+      manager.handleFileOpen(fileB);
+      expect(manager.getCurrentNotePath()).toBe('notes/b.md');
+      manager.destroy();
+    });
+
+    it('should not update current note when session is started', () => {
+      const app = createMockApp({ files: ['notes/a.md'] });
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+
+      manager.setCurrentNote('notes/a.md');
+      manager.startSession();
+
+      const fileB = createMockTFile('notes/b.md');
+      manager.handleFileOpen(fileB);
+      // Should NOT update because session is started
+      expect(manager.getCurrentNotePath()).toBe('notes/a.md');
+      manager.destroy();
+    });
+
+    it('should not attach file with excluded tag', () => {
+      const fileCacheByPath = new Map<string, any>([
+        ['notes/secret.md', { frontmatter: { tags: ['private'] } }],
+      ]);
+      const app = createMockApp({ files: ['notes/secret.md'], fileCacheByPath });
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl,
+        createMockCallbacks({ excludedTags: ['private'] })
+      );
+
+      const file = createMockTFile('notes/secret.md');
+      manager.handleFileOpen(file);
+      expect(manager.getCurrentNotePath()).toBeNull();
+      manager.destroy();
+    });
+  });
+
+  describe('file rename handling', () => {
+    it('should update current note path when file is renamed', () => {
+      const app = createMockApp({ files: ['notes/old.md', 'notes/new.md'] });
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+
+      manager.setCurrentNote('notes/old.md');
+      expect(manager.getCurrentNotePath()).toBe('notes/old.md');
+
+      // Simulate vault rename event
+      const renameHandler = (app.vault.on as jest.Mock).mock.calls
+        .find((c: any[]) => c[0] === 'rename')?.[1];
+      expect(renameHandler).toBeDefined();
+
+      renameHandler(createMockTFile('notes/new.md'), 'notes/old.md');
+      expect(manager.getCurrentNotePath()).toBe('notes/new.md');
+      manager.destroy();
+    });
+
+    it('should update attached files when renamed', () => {
+      const app = createMockApp({ files: ['notes/old.md'] });
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+
+      manager.setCurrentNote('notes/old.md');
+
+      const renameHandler = (app.vault.on as jest.Mock).mock.calls
+        .find((c: any[]) => c[0] === 'rename')?.[1];
+
+      renameHandler(createMockTFile('notes/new.md'), 'notes/old.md');
+      expect(manager.getAttachedFiles().has('notes/new.md')).toBe(true);
+      expect(manager.getAttachedFiles().has('notes/old.md')).toBe(false);
+      manager.destroy();
+    });
+
+    it('should not update if renamed file is not attached', () => {
+      const app = createMockApp({ files: ['notes/a.md', 'notes/unrelated.md'] });
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+
+      manager.setCurrentNote('notes/a.md');
+
+      const renameHandler = (app.vault.on as jest.Mock).mock.calls
+        .find((c: any[]) => c[0] === 'rename')?.[1];
+
+      renameHandler(createMockTFile('notes/renamed.md'), 'notes/unrelated.md');
+      // Current note should remain unchanged
+      expect(manager.getCurrentNotePath()).toBe('notes/a.md');
+      manager.destroy();
+    });
+  });
+
+  describe('file delete handling', () => {
+    it('should clear current note when file is deleted', () => {
+      const app = createMockApp({ files: ['notes/doomed.md'] });
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+
+      manager.setCurrentNote('notes/doomed.md');
+
+      const deleteHandler = (app.vault.on as jest.Mock).mock.calls
+        .find((c: any[]) => c[0] === 'delete')?.[1];
+      expect(deleteHandler).toBeDefined();
+
+      deleteHandler(createMockTFile('notes/doomed.md'));
+      expect(manager.getCurrentNotePath()).toBeNull();
+      manager.destroy();
+    });
+
+    it('should remove deleted file from attached files', () => {
+      const app = createMockApp({ files: ['notes/a.md'] });
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+
+      manager.setCurrentNote('notes/a.md');
+      expect(manager.getAttachedFiles().has('notes/a.md')).toBe(true);
+
+      const deleteHandler = (app.vault.on as jest.Mock).mock.calls
+        .find((c: any[]) => c[0] === 'delete')?.[1];
+
+      deleteHandler(createMockTFile('notes/a.md'));
+      expect(manager.getAttachedFiles().has('notes/a.md')).toBe(false);
+      manager.destroy();
+    });
+
+    it('should not update if deleted file is not attached', () => {
+      const app = createMockApp({ files: ['notes/a.md', 'notes/other.md'] });
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+
+      manager.setCurrentNote('notes/a.md');
+
+      const deleteHandler = (app.vault.on as jest.Mock).mock.calls
+        .find((c: any[]) => c[0] === 'delete')?.[1];
+
+      deleteHandler(createMockTFile('notes/other.md'));
+      expect(manager.getCurrentNotePath()).toBe('notes/a.md');
+      manager.destroy();
+    });
+  });
+
+  describe('hasExcludedTag edge cases', () => {
+    it('should exclude file with inline tags (not just frontmatter)', () => {
+      const fileCacheByPath = new Map<string, any>([
+        ['notes/tagged.md', {
+          tags: [{ tag: '#system', position: { start: { line: 5, col: 0 }, end: { line: 5, col: 7 } } }],
+        }],
+      ]);
+      const app = createMockApp({
+        files: ['notes/tagged.md'],
+        activeFilePath: 'notes/tagged.md',
+        fileCacheByPath,
+      });
+
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl,
+        createMockCallbacks({ excludedTags: ['system'] })
+      );
+
+      manager.autoAttachActiveFile();
+      expect(manager.getCurrentNotePath()).toBeNull();
+      manager.destroy();
+    });
+
+    it('should exclude file with string frontmatter tag (not array)', () => {
+      const fileCacheByPath = new Map<string, any>([
+        ['notes/single-tag.md', { frontmatter: { tags: 'private' } }],
+      ]);
+      const app = createMockApp({
+        files: ['notes/single-tag.md'],
+        activeFilePath: 'notes/single-tag.md',
+        fileCacheByPath,
+      });
+
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl,
+        createMockCallbacks({ excludedTags: ['private'] })
+      );
+
+      manager.autoAttachActiveFile();
+      expect(manager.getCurrentNotePath()).toBeNull();
+      manager.destroy();
+    });
+
+    it('should handle tags with # prefix in cache', () => {
+      const fileCacheByPath = new Map<string, any>([
+        ['notes/hash-tag.md', { frontmatter: { tags: ['#draft'] } }],
+      ]);
+      const app = createMockApp({
+        files: ['notes/hash-tag.md'],
+        activeFilePath: 'notes/hash-tag.md',
+        fileCacheByPath,
+      });
+
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl,
+        createMockCallbacks({ excludedTags: ['draft'] })
+      );
+
+      manager.autoAttachActiveFile();
+      expect(manager.getCurrentNotePath()).toBeNull();
+      manager.destroy();
+    });
+  });
+
+  describe('markFilesCacheDirty', () => {
+    it('should not throw when called', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+      expect(() => manager.markFilesCacheDirty()).not.toThrow();
+      manager.destroy();
+    });
+  });
+
+  describe('MCP and agent support', () => {
+    it('should expose getMentionedMcpServers', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+      const servers = manager.getMentionedMcpServers();
+      expect(servers).toBeInstanceOf(Set);
+      expect(servers.size).toBe(0);
+      manager.destroy();
+    });
+
+    it('should clear MCP mentions', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+      // Should not throw
+      manager.clearMcpMentions();
+      expect(manager.getMentionedMcpServers().size).toBe(0);
+      manager.destroy();
+    });
+
+    it('should set onMcpMentionChange callback without error', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+      const callback = jest.fn();
+      expect(() => manager.setOnMcpMentionChange(callback)).not.toThrow();
+      manager.destroy();
+    });
+
+    it('should setMcpManager without error', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+      expect(() => manager.setMcpManager(null)).not.toThrow();
+      manager.destroy();
+    });
+
+    it('should setAgentService without error', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+      expect(() => manager.setAgentService(null)).not.toThrow();
+      manager.destroy();
+    });
+
+    it('should preScanExternalContexts without error', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+      expect(() => manager.preScanExternalContexts()).not.toThrow();
+      manager.destroy();
+    });
+  });
+
+  describe('mention dropdown delegation', () => {
+    it('should report isMentionDropdownVisible as false initially', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+      expect(manager.isMentionDropdownVisible()).toBe(false);
+      manager.destroy();
+    });
+
+    it('should hideMentionDropdown without error', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+      expect(() => manager.hideMentionDropdown()).not.toThrow();
+      manager.destroy();
+    });
+
+    it('should containsElement return false for unrelated node', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+      const unrelatedNode = createMockEl() as unknown as Node;
+      expect(manager.containsElement(unrelatedNode)).toBe(false);
+      manager.destroy();
+    });
+  });
+
+  describe('destroy', () => {
+    it('should clean up event listeners', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+
+      manager.destroy();
+      expect(app.vault.offref).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('onOpenFile callback', () => {
+    it('should show Notice when file not found in vault', async () => {
+      const { Notice: NoticeMock } = jest.requireMock('obsidian');
+      const app = createMockApp();
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+
+      const chipsView = (manager as any).chipsView;
+      const openCallback = chipsView.callbacks.onOpenFile;
+      expect(openCallback).toBeDefined();
+
+      await openCallback('notes/missing.md');
+      expect(NoticeMock).toHaveBeenCalledWith(expect.stringContaining('Could not open file'));
+      manager.destroy();
+    });
   });
 });

@@ -206,6 +206,9 @@ export function createMockEl(tag = 'div'): any {
 
     setText(text: string) { textContent = text; },
     setAttr(name: string, value: string) { attributes.set(name, value); },
+    toggleClass(cls: string, force: boolean) {
+      if (force) { classes.add(cls); } else { classes.delete(cls); }
+    },
     value: '',
     closest() { return { clientHeight: 600 }; },
     getEventListeners() { return eventListeners; },
