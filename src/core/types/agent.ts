@@ -1,4 +1,5 @@
-import type { AgentMcpServerSpec } from '@anthropic-ai/claude-agent-sdk';
+export const AGENT_PERMISSION_MODES = ['default', 'acceptEdits', 'dontAsk', 'bypassPermissions', 'plan', 'delegate'] as const;
+export type AgentPermissionMode = typeof AGENT_PERMISSION_MODES[number];
 
 /**
  * Agent definition loaded from markdown files with YAML frontmatter.
@@ -36,14 +37,15 @@ export interface AgentDefinition {
   /** Skills available to this agent (pass-through to SDK) */
   skills?: string[];
 
-  /** Max agent turns before stopping (pass-through to SDK) */
-  maxTurns?: number;
+  permissionMode?: AgentPermissionMode;
 
-  /** MCP server specs (pass-through to SDK) */
-  mcpServers?: AgentMcpServerSpec[];
+  /** Parsed from frontmatter; round-tripped on save so the SDK reads hooks from the agent file */
+  hooks?: Record<string, unknown>;
+
+  /** Frontmatter keys not recognized by Claudian, preserved on round-trip */
+  extraFrontmatter?: Record<string, unknown>;
 }
 
-/** YAML frontmatter structure for agent definition files */
 export interface AgentFrontmatter {
   name: string;
   description: string;
@@ -53,10 +55,8 @@ export interface AgentFrontmatter {
   disallowedTools?: string | string[];
   /** Model: validated at parse time, invalid values fall back to 'inherit' */
   model?: string;
-  /** Skills available to this agent (pass-through to SDK) */
   skills?: string[];
-  /** Max agent turns before stopping */
-  maxTurns?: number;
-  /** MCP server specs (pass-through raw to SDK) */
-  mcpServers?: AgentMcpServerSpec[];
+  permissionMode?: string;
+  hooks?: Record<string, unknown>;
+  extraFrontmatter?: Record<string, unknown>;
 }

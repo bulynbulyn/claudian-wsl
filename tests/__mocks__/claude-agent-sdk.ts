@@ -60,6 +60,7 @@ export type AgentDefinition = {
   mcpServers?: unknown[];
   skills?: string[];
   maxTurns?: number;
+  hooks?: Record<string, unknown>;
 };
 
 export type AgentMcpServerSpec = string | Record<string, unknown>;
@@ -75,7 +76,7 @@ export type PermissionRuleValue = {
 
 export type PermissionUpdateDestination = 'userSettings' | 'projectSettings' | 'localSettings' | 'session' | 'cliArg';
 
-export type PermissionMode = 'acceptEdits' | 'bypassPermissions' | 'default' | 'plan';
+export type PermissionMode = 'acceptEdits' | 'bypassPermissions' | 'default' | 'delegate' | 'dontAsk' | 'plan';
 
 export type PermissionUpdate =
   | { type: 'addRules'; rules: PermissionRuleValue[]; behavior: PermissionBehavior; destination: PermissionUpdateDestination }

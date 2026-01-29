@@ -1,4 +1,4 @@
-import { parseAgentFile, parseModel, parseToolsList } from '@/core/agents/AgentStorage';
+import { buildAgentFromFrontmatter, parseAgentFile, parseModel, parsePermissionMode, parseToolsList } from '@/core/agents/AgentStorage';
 
 describe('parseAgentFile', () => {
   it('parses valid frontmatter and body', () => {
@@ -136,33 +136,7 @@ Body.`;
     expect(parsed?.frontmatter.skills).toEqual(['my-skill', 'another-skill']);
   });
 
-  it('parses maxTurns number', () => {
-    const content = `---
-name: TestAgent
-description: Test agent
-maxTurns: 10
----
-Body.`;
-
-    const parsed = parseAgentFile(content);
-    expect(parsed).not.toBeNull();
-    expect(parsed?.frontmatter.maxTurns).toBe(10);
-  });
-
-  it('parses mcpServers array', () => {
-    const content = `---
-name: TestAgent
-description: Test agent
-mcpServers: [server-a, server-b]
----
-Body.`;
-
-    const parsed = parseAgentFile(content);
-    expect(parsed).not.toBeNull();
-    expect(parsed?.frontmatter.mcpServers).toEqual(['server-a', 'server-b']);
-  });
-
-  it('returns undefined for missing new fields', () => {
+  it('returns undefined for missing optional fields', () => {
     const content = `---
 name: TestAgent
 description: Test agent
@@ -172,8 +146,85 @@ Body.`;
     const parsed = parseAgentFile(content);
     expect(parsed).not.toBeNull();
     expect(parsed?.frontmatter.skills).toBeUndefined();
-    expect(parsed?.frontmatter.maxTurns).toBeUndefined();
-    expect(parsed?.frontmatter.mcpServers).toBeUndefined();
+  });
+
+  it('parses permissionMode from frontmatter', () => {
+    const content = `---
+name: TestAgent
+description: Test agent
+permissionMode: dontAsk
+---
+Body.`;
+
+    const parsed = parseAgentFile(content);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.frontmatter.permissionMode).toBe('dontAsk');
+  });
+
+  it('returns undefined permissionMode when not set', () => {
+    const content = `---
+name: TestAgent
+description: Test agent
+---
+Body.`;
+
+    const parsed = parseAgentFile(content);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.frontmatter.permissionMode).toBeUndefined();
+  });
+
+  it('returns undefined hooks when not set', () => {
+    const content = `---
+name: TestAgent
+description: Test agent
+---
+Body.`;
+
+    const parsed = parseAgentFile(content);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.frontmatter.hooks).toBeUndefined();
+  });
+
+  it('collects unknown frontmatter keys into extraFrontmatter', () => {
+    const content = `---
+name: TestAgent
+description: Test agent
+maxTurns: 10
+customKey: hello
+---
+Body.`;
+
+    const parsed = parseAgentFile(content);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.frontmatter.extraFrontmatter).toEqual({
+      maxTurns: 10,
+      customKey: 'hello',
+    });
+  });
+
+  it('sets extraFrontmatter to undefined when no unknown keys', () => {
+    const content = `---
+name: TestAgent
+description: Test agent
+---
+Body.`;
+
+    const parsed = parseAgentFile(content);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.frontmatter.extraFrontmatter).toBeUndefined();
+  });
+
+  it('ignores non-object hooks values', () => {
+    const content = `---
+name: TestAgent
+description: Test agent
+hooks: not-an-object
+---
+Body.`;
+
+    const parsed = parseAgentFile(content);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.frontmatter.hooks).toBeUndefined();
   });
 });
 
@@ -268,5 +319,112 @@ describe('parseModel', () => {
     expect(parseModel('claude-3')).toBe('inherit');
     expect(parseModel('gpt-4')).toBe('inherit');
     expect(parseModel('invalid')).toBe('inherit');
+  });
+});
+
+describe('parsePermissionMode', () => {
+  it('returns undefined for undefined input', () => {
+    expect(parsePermissionMode(undefined)).toBeUndefined();
+  });
+
+  it('returns undefined for empty string', () => {
+    expect(parsePermissionMode('')).toBeUndefined();
+  });
+
+  it('returns default for valid default input', () => {
+    expect(parsePermissionMode('default')).toBe('default');
+  });
+
+  it('returns acceptEdits for valid input', () => {
+    expect(parsePermissionMode('acceptEdits')).toBe('acceptEdits');
+  });
+
+  it('returns dontAsk for valid input', () => {
+    expect(parsePermissionMode('dontAsk')).toBe('dontAsk');
+  });
+
+  it('returns bypassPermissions for valid input', () => {
+    expect(parsePermissionMode('bypassPermissions')).toBe('bypassPermissions');
+  });
+
+  it('returns plan for valid input', () => {
+    expect(parsePermissionMode('plan')).toBe('plan');
+  });
+
+  it('returns delegate for valid input', () => {
+    expect(parsePermissionMode('delegate')).toBe('delegate');
+  });
+
+  it('returns undefined for invalid value', () => {
+    expect(parsePermissionMode('invalid')).toBeUndefined();
+    expect(parsePermissionMode('DONTASK')).toBeUndefined();
+    expect(parsePermissionMode('dont-ask')).toBeUndefined();
+  });
+
+  it('trims whitespace', () => {
+    expect(parsePermissionMode('  dontAsk  ')).toBe('dontAsk');
+  });
+});
+
+describe('buildAgentFromFrontmatter', () => {
+  it('maps all frontmatter fields to AgentDefinition', () => {
+    const result = buildAgentFromFrontmatter(
+      {
+        name: 'Test',
+        description: 'A test agent',
+        tools: ['Read', 'Grep'],
+        disallowedTools: ['Bash'],
+        model: 'opus',
+        skills: ['my-skill'],
+        permissionMode: 'dontAsk',
+        hooks: { preToolUse: { command: 'echo hi' } },
+      },
+      'You are helpful.',
+      { id: 'test', source: 'vault', filePath: '/path/to/test.md' }
+    );
+
+    expect(result.id).toBe('test');
+    expect(result.name).toBe('Test');
+    expect(result.description).toBe('A test agent');
+    expect(result.prompt).toBe('You are helpful.');
+    expect(result.tools).toEqual(['Read', 'Grep']);
+    expect(result.disallowedTools).toEqual(['Bash']);
+    expect(result.model).toBe('opus');
+    expect(result.source).toBe('vault');
+    expect(result.filePath).toBe('/path/to/test.md');
+    expect(result.skills).toEqual(['my-skill']);
+    expect(result.permissionMode).toBe('dontAsk');
+    expect(result.hooks).toEqual({ preToolUse: { command: 'echo hi' } });
+  });
+
+  it('propagates pluginName from meta', () => {
+    const result = buildAgentFromFrontmatter(
+      { name: 'PluginAgent', description: 'From plugin' },
+      'Prompt.',
+      { id: 'my-plugin:agent', source: 'plugin', pluginName: 'my-plugin' }
+    );
+
+    expect(result.pluginName).toBe('my-plugin');
+    expect(result.source).toBe('plugin');
+  });
+
+  it('defaults model to inherit for invalid value', () => {
+    const result = buildAgentFromFrontmatter(
+      { name: 'Test', description: 'Desc', model: 'gpt-4' },
+      'Prompt.',
+      { id: 'test', source: 'vault' }
+    );
+
+    expect(result.model).toBe('inherit');
+  });
+
+  it('returns undefined permissionMode for invalid value', () => {
+    const result = buildAgentFromFrontmatter(
+      { name: 'Test', description: 'Desc', permissionMode: 'INVALID' },
+      'Prompt.',
+      { id: 'test', source: 'vault' }
+    );
+
+    expect(result.permissionMode).toBeUndefined();
   });
 });
