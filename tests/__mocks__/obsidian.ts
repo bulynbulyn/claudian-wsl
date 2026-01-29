@@ -96,6 +96,31 @@ export class Setting {
   addTextArea = jest.fn().mockReturnThis();
 }
 
+export class TextAreaComponent {
+  inputEl: any;
+  private _value = '';
+
+  constructor(_container?: any) {
+    this.inputEl = {
+      addClass: jest.fn(),
+      rows: 0,
+      placeholder: '',
+      focus: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+    };
+  }
+
+  setValue(value: string): this {
+    this._value = value;
+    return this;
+  }
+
+  getValue(): string {
+    return this._value;
+  }
+}
+
 export class Modal {
   app: any;
   containerEl: any = {

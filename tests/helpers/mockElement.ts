@@ -144,6 +144,7 @@ export function createMockEl(tag = 'div'): any {
       return children.some(child => (child as any).contains?.(node));
     },
     scrollIntoView() {},
+    focus() {},
 
     setAttribute(name: string, value: string) { attributes.set(name, value); },
     getAttribute(name: string) { return attributes.get(name) ?? null; },
