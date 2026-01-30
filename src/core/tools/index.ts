@@ -4,7 +4,7 @@ export {
   type TodoItem,
 } from './todo';
 export { getToolIcon, MCP_ICON_MARKER } from './toolIcons';
-export { getPathFromToolInput } from './toolInput';
+export { extractResolvedAnswers, getPathFromToolInput } from './toolInput';
 export {
   BASH_TOOLS,
   type BashToolName,
@@ -23,6 +23,7 @@ export {
   READ_ONLY_TOOLS,
   type ReadOnlyToolName,
   TOOL_AGENT_OUTPUT,
+  TOOL_ASK_USER_QUESTION,
   TOOL_BASH,
   TOOL_BASH_OUTPUT,
   TOOL_EDIT,

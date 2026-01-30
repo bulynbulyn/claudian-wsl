@@ -1,10 +1,5 @@
-/**
- * Tool name constants and helpers.
- *
- * Keeps tool-name strings consistent across the service, view, and UI renderers.
- */
-
 export const TOOL_AGENT_OUTPUT = 'TaskOutput' as const;
+export const TOOL_ASK_USER_QUESTION = 'AskUserQuestion' as const;
 export const TOOL_BASH = 'Bash' as const;
 export const TOOL_BASH_OUTPUT = 'BashOutput' as const;
 export const TOOL_EDIT = 'Edit' as const;

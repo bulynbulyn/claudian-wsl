@@ -3,6 +3,7 @@ import { setIcon } from 'obsidian';
 import type { TodoItem } from '../../../core/tools';
 import { getToolIcon, MCP_ICON_MARKER } from '../../../core/tools/toolIcons';
 import {
+  TOOL_ASK_USER_QUESTION,
   TOOL_BASH,
   TOOL_EDIT,
   TOOL_GLOB,
@@ -338,6 +339,32 @@ function createToolElementStructure(
   return { toolEl, header, labelEl, statusEl, content, currentTaskEl };
 }
 
+function formatAnswer(raw: unknown): string {
+  if (Array.isArray(raw)) return raw.join(', ');
+  if (typeof raw === 'string') return raw;
+  return '';
+}
+
+function renderAskUserQuestionResult(container: HTMLElement, toolCall: ToolCallInfo): void {
+  container.empty();
+  const questions = toolCall.input.questions as Array<{ question: string }> | undefined;
+  const answers = toolCall.resolvedAnswers as Record<string, unknown> | undefined;
+  if (!questions || !Array.isArray(questions) || !answers) return;
+
+  const reviewEl = container.createDiv({ cls: 'claudian-ask-review' });
+  for (const q of questions) {
+    const answer = formatAnswer(answers[q.question]);
+    const qLine = reviewEl.createDiv({ cls: 'claudian-ask-review-q' });
+    qLine.createSpan({ text: q.question, cls: 'claudian-ask-review-q-text' });
+    const aLine = reviewEl.createDiv({ cls: 'claudian-ask-review-a' });
+    aLine.createSpan({ text: '\u2192 ', cls: 'claudian-ask-review-arrow' });
+    aLine.createSpan({
+      text: answer || 'Not answered',
+      cls: answer ? 'claudian-ask-review-a-text' : 'claudian-ask-review-empty',
+    });
+  }
+}
+
 function renderToolContent(
   content: HTMLElement,
   toolCall: ToolCallInfo,
@@ -346,6 +373,15 @@ function renderToolContent(
   if (toolCall.name === TOOL_TODO_WRITE) {
     content.addClass('claudian-tool-content-todo');
     renderTodoWriteResult(content, toolCall.input);
+  } else if (toolCall.name === TOOL_ASK_USER_QUESTION) {
+    content.addClass('claudian-tool-content-ask');
+    if (initialText || !toolCall.resolvedAnswers) {
+      const resultRow = content.createDiv({ cls: 'claudian-tool-result-row' });
+      const resultText = resultRow.createSpan({ cls: 'claudian-tool-result-text' });
+      resultText.setText('Waiting for answer...');
+    } else {
+      renderAskUserQuestionResult(content, toolCall);
+    }
   } else {
     const resultRow = content.createDiv({ cls: 'claudian-tool-result-row' });
     const resultText = resultRow.createSpan({ cls: 'claudian-tool-result-text' });
@@ -420,6 +456,15 @@ export function updateToolCallResult(
   const statusEl = toolEl.querySelector('.claudian-tool-status') as HTMLElement;
   if (statusEl) {
     setToolStatus(statusEl, toolCall.status);
+  }
+
+  if (toolCall.name === TOOL_ASK_USER_QUESTION) {
+    const content = toolEl.querySelector('.claudian-tool-content') as HTMLElement;
+    if (content) {
+      content.addClass('claudian-tool-content-ask');
+      renderAskUserQuestionResult(content, toolCall);
+    }
+    return;
   }
 
   const resultText = toolEl.querySelector('.claudian-tool-result-text') as HTMLElement;

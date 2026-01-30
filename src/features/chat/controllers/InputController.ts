@@ -11,6 +11,7 @@ import { formatDurationMmSs } from '../../../utils/date';
 import { appendEditorContext, type EditorSelectionContext } from '../../../utils/editor';
 import { appendMarkdownSnippet } from '../../../utils/markdown';
 import { COMPLETION_FLAVOR_WORDS } from '../constants';
+import { InlineAskUserQuestion } from '../rendering/InlineAskUserQuestion';
 import type { MessageRenderer } from '../rendering/MessageRenderer';
 import type { InstructionRefineService } from '../services/InstructionRefineService';
 import type { SubagentManager } from '../services/SubagentManager';
@@ -43,6 +44,7 @@ export interface InputControllerDeps {
   getInstructionRefineService: () => InstructionRefineService | null;
   getTitleGenerationService: () => TitleGenerationService | null;
   getStatusPanel: () => StatusPanel | null;
+  getInputContainerEl: () => HTMLElement;
   generateId: () => string;
   resetInputHeight: () => void;
   getAgentService?: () => ClaudianService | null;
@@ -54,6 +56,7 @@ export interface InputControllerDeps {
 export class InputController {
   private deps: InputControllerDeps;
   private pendingApprovalModal: ApprovalModal | null = null;
+  private pendingAskUserQuestionInline: InlineAskUserQuestion | null = null;
 
   constructor(deps: InputControllerDeps) {
     this.deps = deps;
@@ -631,10 +634,50 @@ export class InputController {
     });
   }
 
+  async handleAskUserQuestion(
+    input: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<Record<string, string> | null> {
+    const { streamController } = this.deps;
+    const inputContainerEl = this.deps.getInputContainerEl();
+    const parentEl = inputContainerEl.parentElement;
+    if (!parentEl) {
+      throw new Error('Input container is detached from DOM');
+    }
+
+    streamController.hideThinkingIndicator();
+    inputContainerEl.style.display = 'none';
+
+    return new Promise<Record<string, string> | null>((resolve, reject) => {
+      const inline = new InlineAskUserQuestion(
+        parentEl,
+        input,
+        (result: Record<string, string> | null) => {
+          this.pendingAskUserQuestionInline = null;
+          inputContainerEl.style.display = '';
+          resolve(result);
+        },
+        signal,
+      );
+      this.pendingAskUserQuestionInline = inline;
+      try {
+        inline.render();
+      } catch (err) {
+        this.pendingAskUserQuestionInline = null;
+        inputContainerEl.style.display = '';
+        reject(err);
+      }
+    });
+  }
+
   dismissPendingApproval(): void {
     if (this.pendingApprovalModal) {
       this.pendingApprovalModal.close();
       this.pendingApprovalModal = null;
+    }
+    if (this.pendingAskUserQuestionInline) {
+      this.pendingAskUserQuestionInline.destroy();
+      this.pendingAskUserQuestionInline = null;
     }
   }
 

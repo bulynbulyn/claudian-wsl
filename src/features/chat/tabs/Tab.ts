@@ -628,6 +628,7 @@ export function initializeTabControllers(
     selectionController: tab.controllers.selectionController,
     conversationController: tab.controllers.conversationController,
     getInputEl: () => dom.inputEl,
+    getInputContainerEl: () => dom.inputContainerEl,
     getWelcomeEl: () => dom.welcomeEl,
     getMessagesEl: () => dom.messagesEl,
     getFileContextManager: () => ui.fileContextManager,
@@ -653,7 +654,7 @@ export function initializeTabControllers(
       }
       try {
         await initializeTabService(tab, plugin, mcpManager);
-        setupApprovalCallback(tab);
+        setupServiceCallbacks(tab);
         return true;
       } catch {
         return false;
@@ -881,14 +882,20 @@ export function getTabTitle(tab: TabData, plugin: ClaudianPlugin): string {
 }
 
 /** Shared between Tab.ts and TabManager.ts to avoid duplication. */
-export function setupApprovalCallback(tab: TabData): void {
+export function setupServiceCallbacks(tab: TabData): void {
   if (tab.service && tab.controllers.inputController) {
     tab.service.setApprovalCallback(
-      (toolName, input, description, options) =>
-        tab.controllers.inputController!.handleApprovalRequest(toolName, input, description, options)
+      async (toolName, input, description, options) =>
+        await tab.controllers.inputController?.handleApprovalRequest(toolName, input, description, options)
+        ?? 'cancel'
     );
     tab.service.setApprovalDismisser(
       () => tab.controllers.inputController?.dismissPendingApproval()
+    );
+    tab.service.setAskUserQuestionCallback(
+      async (input, signal) =>
+        await tab.controllers.inputController?.handleAskUserQuestion(input, signal)
+        ?? null
     );
   }
 }

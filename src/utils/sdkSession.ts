@@ -13,6 +13,8 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
+import { extractResolvedAnswers } from '../core/tools';
+import { TOOL_ASK_USER_QUESTION } from '../core/tools/toolNames';
 import type { ChatMessage, ContentBlock, ImageAttachment, ImageMediaType, ToolCallInfo } from '../core/types';
 import { extractContentBeforeXmlContext } from './context';
 import { extractDiffData } from './diff';
@@ -562,8 +564,13 @@ export async function loadSDKSessionMessages(vaultPath: string, sessionId: strin
       if (msg.role !== 'assistant' || !msg.toolCalls) continue;
       for (const toolCall of msg.toolCalls) {
         const toolUseResult = toolUseResults.get(toolCall.id);
-        if (toolUseResult && !toolCall.diffData) {
+        if (!toolUseResult) continue;
+        if (!toolCall.diffData) {
           toolCall.diffData = extractDiffData(toolUseResult, toolCall);
+        }
+        if (toolCall.name === TOOL_ASK_USER_QUESTION) {
+          const answers = extractResolvedAnswers(toolUseResult);
+          if (answers) toolCall.resolvedAnswers = answers;
         }
       }
     }

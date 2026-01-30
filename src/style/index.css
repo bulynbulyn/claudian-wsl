@@ -36,6 +36,7 @@
 @import "./features/inline-edit.css";
 @import "./features/diff.css";
 @import "./features/slash-commands.css";
+@import "./features/ask-user-question.css";
 
 /* Modals */
 @import "./modals/approval.css";
