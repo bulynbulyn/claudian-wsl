@@ -181,6 +181,35 @@ describe('AgentManager', () => {
       expect(agents.every(a => a.source === 'builtin')).toBe(true);
     });
 
+    it('isolates errors per category so one failure does not block others', async () => {
+      const pluginManager = createMockPluginManager([
+        { name: 'Broken', enabled: true, installPath: '/plugins/broken' },
+      ]);
+      const manager = new AgentManager(VAULT_PATH, pluginManager);
+
+      // Plugin agents dir exists but getPlugins throws internally on iteration
+      // Vault agents load normally, global dir doesn't exist
+      mockFs.existsSync.mockImplementation((p) =>
+        p === path.join('/plugins/broken', 'agents') || p === VAULT_AGENTS_DIR
+      );
+      (mockFs.readdirSync as jest.Mock).mockImplementation((dir: string) => {
+        if (dir === path.join('/plugins/broken', 'agents')) {
+          throw new Error('Corrupt plugin directory');
+        }
+        if (dir === VAULT_AGENTS_DIR) {
+          return [createMockDirent('vault-agent.md', true)];
+        }
+        return [];
+      });
+      mockFs.readFileSync.mockReturnValue(MINIMAL_AGENT_FILE);
+
+      await manager.loadAgents();
+      const agents = manager.getAvailableAgents();
+
+      // Vault agent should still be loaded despite plugin error
+      expect(agents.some(a => a.source === 'vault')).toBe(true);
+    });
+
     it('skips duplicate agent IDs', async () => {
       const manager = new AgentManager(VAULT_PATH, createMockPluginManager());
 

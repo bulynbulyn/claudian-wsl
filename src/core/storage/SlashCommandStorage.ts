@@ -33,12 +33,8 @@ export class SlashCommandStorage {
   }
 
   private async loadFromFile(filePath: string): Promise<SlashCommand | null> {
-    try {
-      const content = await this.adapter.read(filePath);
-      return this.parseFile(content, filePath);
-    } catch {
-      return null;
-    }
+    const content = await this.adapter.read(filePath);
+    return this.parseFile(content, filePath);
   }
 
   async save(command: SlashCommand): Promise<void> {

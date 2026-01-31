@@ -104,6 +104,36 @@ Prompt`,
       expect(skills).toEqual([]);
     });
 
+    it('returns empty array when listFolders throws an error', async () => {
+      const adapter = createMockAdapter({});
+      (adapter.listFolders as jest.Mock).mockRejectedValue(new Error('Permission denied'));
+      const storage = new SkillStorage(adapter);
+      const skills = await storage.loadAll();
+
+      expect(skills).toEqual([]);
+    });
+
+    it('skips malformed skill and continues loading valid ones', async () => {
+      const adapter = createMockAdapter({
+        '.claude/skills/good/SKILL.md': `---
+description: Valid
+---
+Prompt`,
+        '.claude/skills/bad/SKILL.md': 'content',
+      });
+      const originalRead = adapter.read as jest.Mock;
+      const originalImpl = originalRead.getMockImplementation()!;
+      originalRead.mockImplementation(async (p: string) => {
+        if (p.includes('bad')) throw new Error('Corrupt file');
+        return originalImpl(p);
+      });
+      const storage = new SkillStorage(adapter);
+      const skills = await storage.loadAll();
+
+      expect(skills).toHaveLength(1);
+      expect(skills[0].name).toBe('good');
+    });
+
     it('parses all skill frontmatter fields', async () => {
       const adapter = createMockAdapter({
         '.claude/skills/full/SKILL.md': `---
