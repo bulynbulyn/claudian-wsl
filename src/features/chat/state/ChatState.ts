@@ -4,6 +4,7 @@ import type {
   ChatStateCallbacks,
   ChatStateData,
   PendingToolCall,
+  PermissionMode,
   QueuedMessage,
   ThinkingBlockState,
   TodoItem,
@@ -37,6 +38,9 @@ function createInitialState(): ChatStateData {
     autoScrollEnabled: true, // Default; controllers will override based on settings
     responseStartTime: null,
     flavorTimerInterval: null,
+    pendingNewSessionPlan: null,
+    planFilePath: null,
+    prePlanPermissionMode: null,
   };
 }
 
@@ -310,6 +314,30 @@ export class ChatState {
 
   set flavorTimerInterval(value: ReturnType<typeof setInterval> | null) {
     this.state.flavorTimerInterval = value;
+  }
+
+  get pendingNewSessionPlan(): string | null {
+    return this.state.pendingNewSessionPlan;
+  }
+
+  set pendingNewSessionPlan(value: string | null) {
+    this.state.pendingNewSessionPlan = value;
+  }
+
+  get planFilePath(): string | null {
+    return this.state.planFilePath;
+  }
+
+  set planFilePath(value: string | null) {
+    this.state.planFilePath = value;
+  }
+
+  get prePlanPermissionMode(): PermissionMode | null {
+    return this.state.prePlanPermissionMode;
+  }
+
+  set prePlanPermissionMode(value: PermissionMode | null) {
+    this.state.prePlanPermissionMode = value;
   }
 
   // ============================================

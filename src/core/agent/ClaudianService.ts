@@ -15,6 +15,7 @@ import type {
   CanUseTool,
   McpServerConfig,
   Options,
+  PermissionMode as SDKPermissionMode,
   PermissionResult,
   Query,
   SDKMessage,
@@ -43,11 +44,14 @@ import {
   buildPermissionUpdates,
   getActionDescription,
 } from '../security';
-import { TOOL_ASK_USER_QUESTION, TOOL_SKILL } from '../tools/toolNames';
+import { TOOL_ASK_USER_QUESTION, TOOL_ENTER_PLAN_MODE, TOOL_EXIT_PLAN_MODE, TOOL_SKILL } from '../tools/toolNames';
 import type {
   ApprovalDecision,
   ChatMessage,
+  ExitPlanModeCallback,
+  ExitPlanModeDecision,
   ImageAttachment,
+  PermissionMode,
   SlashCommand,
   StreamChunk,
 } from '../types';
@@ -119,6 +123,8 @@ export class ClaudianService {
   private approvalCallback: ApprovalCallback | null = null;
   private approvalDismisser: (() => void) | null = null;
   private askUserQuestionCallback: AskUserQuestionCallback | null = null;
+  private exitPlanModeCallback: ExitPlanModeCallback | null = null;
+  private permissionModeSyncCallback: ((sdkMode: string) => void) | null = null;
   private vaultPath: string | null = null;
   private currentExternalContextPaths: string[] = [];
   private readyStateListeners = new Set<(ready: boolean) => void>();
@@ -281,6 +287,8 @@ export class ClaudianService {
     const config = this.buildPersistentQueryConfig(vaultPath, cliPath, externalContextPaths);
     this.currentConfig = config;
 
+    // await is intentional: yields to microtask queue so fire-and-forget callers
+    // (e.g. setSessionId → ensureReady) don't synchronously set persistentQuery
     const options = await this.buildPersistentQueryOptions(
       vaultPath,
       cliPath,
@@ -597,10 +605,26 @@ export class ClaudianService {
         if (event.agents) {
           try { this.plugin.agentManager.setBuiltinAgentNames(event.agents); } catch { /* non-critical */ }
         }
+        if (event.permissionMode && this.permissionModeSyncCallback) {
+          try { this.permissionModeSyncCallback(event.permissionMode); } catch { /* non-critical */ }
+        }
       } else if (isStreamChunk(event)) {
         if (message.type === 'assistant' && handler?.sawStreamText && event.type === 'text') {
           continue;
         }
+
+        // SDK auto-approves EnterPlanMode (checkPermissions → allow),
+        // so canUseTool is never called. Detect the tool_use in the stream
+        // and fire the sync callback to update the UI.
+        if (event.type === 'tool_use' && event.name === TOOL_ENTER_PLAN_MODE) {
+          if (this.currentConfig) {
+            this.currentConfig.permissionMode = 'plan';
+          }
+          if (this.permissionModeSyncCallback) {
+            try { this.permissionModeSyncCallback('plan'); } catch { /* non-critical */ }
+          }
+        }
+
         if (handler) {
           // Add sessionId to usage chunks (consistent with cold-start path)
           if (event.type === 'usage') {
@@ -1062,7 +1086,7 @@ export class ClaudianService {
     // Since we always start with allowDangerouslySkipPermissions: true,
     // we can dynamically switch between modes without restarting
     if (this.currentConfig && permissionMode !== this.currentConfig.permissionMode) {
-      const sdkMode = permissionMode === 'yolo' ? 'bypassPermissions' : 'acceptEdits';
+      const sdkMode = this.mapToSDKPermissionMode(permissionMode);
       try {
         await this.persistentQuery.setPermissionMode(sdkMode);
         this.currentConfig.permissionMode = permissionMode;
@@ -1388,6 +1412,14 @@ export class ClaudianService {
     this.askUserQuestionCallback = callback;
   }
 
+  setExitPlanModeCallback(callback: ExitPlanModeCallback | null): void {
+    this.exitPlanModeCallback = callback;
+  }
+
+  setPermissionModeSyncCallback(callback: ((sdkMode: string) => void) | null): void {
+    this.permissionModeSyncCallback = callback;
+  }
+
   private createApprovalCallback(): CanUseTool {
     return async (toolName, input, options): Promise<PermissionResult> => {
       if (this.currentAllowedTools !== null) {
@@ -1398,6 +1430,38 @@ export class ClaudianService {
           return {
             behavior: 'deny',
             message: `Tool "${toolName}" is not allowed for this query.${allowedList}`,
+          };
+        }
+      }
+
+      // ExitPlanMode uses a dedicated callback — bypasses normal approval flow
+      if (toolName === TOOL_EXIT_PLAN_MODE && this.exitPlanModeCallback) {
+        try {
+          const decision: ExitPlanModeDecision | null = await this.exitPlanModeCallback(input, options.signal);
+          if (decision === null) {
+            return { behavior: 'deny', message: 'User cancelled.', interrupt: true };
+          }
+          if (decision.type === 'feedback') {
+            return { behavior: 'deny', message: decision.text, interrupt: false };
+          }
+          // Callback already restored plugin.settings.permissionMode
+          const sdkMode = this.mapToSDKPermissionMode(this.plugin.settings.permissionMode);
+          // Sync config so applyDynamicUpdates doesn't re-send
+          if (this.currentConfig) {
+            this.currentConfig.permissionMode = this.plugin.settings.permissionMode;
+          }
+          return {
+            behavior: 'allow',
+            updatedInput: input,
+            updatedPermissions: [
+              { type: 'setMode', mode: sdkMode, destination: 'session' },
+            ],
+          };
+        } catch (error) {
+          return {
+            behavior: 'deny',
+            message: `Failed to handle plan mode exit: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            interrupt: true,
           };
         }
       }
@@ -1454,5 +1518,11 @@ export class ClaudianService {
         };
       }
     };
+  }
+
+  private mapToSDKPermissionMode(mode: PermissionMode): SDKPermissionMode {
+    if (mode === 'yolo') return 'bypassPermissions';
+    if (mode === 'plan') return 'plan';
+    return 'acceptEdits';
   }
 }

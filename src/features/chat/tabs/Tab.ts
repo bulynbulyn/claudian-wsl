@@ -2,7 +2,7 @@ import type { Component } from 'obsidian';
 
 import { ClaudianService } from '../../../core/agent';
 import type { McpServerManager } from '../../../core/mcp';
-import type { ClaudeModel, Conversation, SlashCommand, ThinkingBudget } from '../../../core/types';
+import type { ClaudeModel, Conversation, PermissionMode, SlashCommand, ThinkingBudget } from '../../../core/types';
 import { DEFAULT_CLAUDE_MODELS, DEFAULT_THINKING_BUDGET, getContextWindowSize } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
 import { SlashCommandDropdown } from '../../../shared/components/SlashCommandDropdown';
@@ -427,6 +427,7 @@ function initializeInputToolbar(tab: TabData, plugin: ClaudianPlugin): void {
     onPermissionModeChange: async (mode) => {
       plugin.settings.permissionMode = mode;
       await plugin.saveSettings();
+      dom.inputWrapper.toggleClass('claudian-input-plan-mode', mode === 'plan');
     },
   });
 
@@ -459,6 +460,8 @@ function initializeInputToolbar(tab: TabData, plugin: ClaudianPlugin): void {
     plugin.settings.persistentExternalContextPaths = paths;
     await plugin.saveSettings();
   });
+
+  dom.inputWrapper.toggleClass('claudian-input-plan-mode', plugin.settings.permissionMode === 'plan');
 }
 
 export interface InitializeTabUIOptions {
@@ -654,7 +657,7 @@ export function initializeTabControllers(
       }
       try {
         await initializeTabService(tab, plugin, mcpManager);
-        setupServiceCallbacks(tab);
+        setupServiceCallbacks(tab, plugin);
         return true;
       } catch {
         return false;
@@ -688,6 +691,20 @@ export function wireTabInputEvents(tab: TabData, plugin: ClaudianPlugin): void {
 
   // Input keydown handler
   const keydownHandler = (e: KeyboardEvent) => {
+    if (e.key === 'Tab' && e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      const current = plugin.settings.permissionMode;
+      if (current === 'plan') {
+        const restoreMode = tab.state.prePlanPermissionMode ?? 'normal';
+        tab.state.prePlanPermissionMode = null;
+        updatePlanModeUI(tab, plugin, restoreMode);
+      } else {
+        tab.state.prePlanPermissionMode = current;
+        updatePlanModeUI(tab, plugin, 'plan');
+      }
+      return;
+    }
+
     // Check for # trigger first (empty input + # keystroke)
     if (ui.instructionModeManager?.handleTriggerKey(e)) {
       return;
@@ -882,7 +899,7 @@ export function getTabTitle(tab: TabData, plugin: ClaudianPlugin): string {
 }
 
 /** Shared between Tab.ts and TabManager.ts to avoid duplication. */
-export function setupServiceCallbacks(tab: TabData): void {
+export function setupServiceCallbacks(tab: TabData, plugin: ClaudianPlugin): void {
   if (tab.service && tab.controllers.inputController) {
     tab.service.setApprovalCallback(
       async (toolName, input, description, options) =>
@@ -897,5 +914,45 @@ export function setupServiceCallbacks(tab: TabData): void {
         await tab.controllers.inputController?.handleAskUserQuestion(input, signal)
         ?? null
     );
+    tab.service.setExitPlanModeCallback(
+      async (input, signal) => {
+        const decision = await tab.controllers.inputController?.handleExitPlanMode(input, signal) ?? null;
+        // Revert only on approve; feedback and cancel keep plan mode active.
+        if (decision !== null && decision.type !== 'feedback') {
+          // Only restore permission mode if still in plan mode — user may have toggled out via Shift+Tab
+          if (plugin.settings.permissionMode === 'plan') {
+            const restoreMode = tab.state.prePlanPermissionMode ?? 'normal';
+            tab.state.prePlanPermissionMode = null;
+            updatePlanModeUI(tab, plugin, restoreMode);
+          }
+          if (decision.type === 'approve-new-session') {
+            tab.state.pendingNewSessionPlan = decision.planContent;
+            tab.state.cancelRequested = true;
+          }
+        }
+        return decision;
+      }
+    );
+    tab.service.setPermissionModeSyncCallback((sdkMode) => {
+      let mode: PermissionMode;
+      if (sdkMode === 'bypassPermissions') mode = 'yolo';
+      else if (sdkMode === 'plan') mode = 'plan';
+      else mode = 'normal';
+
+      if (plugin.settings.permissionMode !== mode) {
+        // Save pre-plan mode when entering plan (for Shift+Tab toggle restore)
+        if (mode === 'plan' && tab.state.prePlanPermissionMode === null) {
+          tab.state.prePlanPermissionMode = plugin.settings.permissionMode;
+        }
+        updatePlanModeUI(tab, plugin, mode);
+      }
+    });
   }
+}
+
+function updatePlanModeUI(tab: TabData, plugin: ClaudianPlugin, mode: PermissionMode): void {
+  plugin.settings.permissionMode = mode;
+  void plugin.saveSettings();
+  tab.ui.permissionToggle?.updateDisplay();
+  tab.dom.inputWrapper.toggleClass('claudian-input-plan-mode', mode === 'plan');
 }

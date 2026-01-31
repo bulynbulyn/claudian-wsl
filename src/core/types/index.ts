@@ -86,6 +86,8 @@ export {
   type AskUserQuestionItem,
   type AskUserQuestionOption,
   type AsyncSubagentStatus,
+  type ExitPlanModeCallback,
+  type ExitPlanModeDecision,
   type SubagentInfo,
   type SubagentMode,
   type ToolCallInfo,

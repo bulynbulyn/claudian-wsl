@@ -125,11 +125,7 @@ export interface SessionState {
   sessionInvalidated: boolean;
 }
 
-/** SDK tools that require canUseTool interception (not supported in bypassPermissions mode). */
-export const UNSUPPORTED_SDK_TOOLS = [
-  'EnterPlanMode',
-  'ExitPlanMode',
-] as const;
+export const UNSUPPORTED_SDK_TOOLS = [] as const;
 
 /** Built-in subagents that don't apply to Obsidian context. */
 export const DISABLED_BUILTIN_SUBAGENTS = [

@@ -1,6 +1,6 @@
 import type { ClaudianService } from '../../../core/agent';
 import { extractResolvedAnswers, parseTodoInput } from '../../../core/tools';
-import { isWriteEditTool, TOOL_AGENT_OUTPUT, TOOL_ASK_USER_QUESTION, TOOL_TASK, TOOL_TODO_WRITE } from '../../../core/tools/toolNames';
+import { isWriteEditTool, skipsBlockedDetection, TOOL_AGENT_OUTPUT, TOOL_ASK_USER_QUESTION, TOOL_TASK, TOOL_TODO_WRITE, TOOL_WRITE } from '../../../core/tools/toolNames';
 import type { ChatMessage, StreamChunk, SubagentInfo, ToolCallInfo } from '../../../core/types';
 import type { SDKToolUseResult } from '../../../core/types/diff';
 import type ClaudianPlugin from '../../../main';
@@ -64,7 +64,7 @@ export class StreamController {
         if (state.currentTextEl) {
           this.finalizeCurrentTextBlock(msg);
         }
-        await this.appendThinking(chunk.content, msg);
+        await this.appendThinking(chunk.content);
         break;
 
       case 'text':
@@ -187,6 +187,11 @@ export class StreamController {
           }
         }
 
+        // Capture plan file path on input updates (file_path may arrive in a later chunk)
+        if (existingToolCall.name === TOOL_WRITE) {
+          this.capturePlanFilePath(existingToolCall.input);
+        }
+
         // If already rendered, update the label
         const toolEl = state.toolCallElements.get(chunk.id);
         if (toolEl) {
@@ -224,6 +229,11 @@ export class StreamController {
       }
     }
 
+    // Track Write to ~/.claude/plans/ for plan mode (used by approve-new-session)
+    if (chunk.name === TOOL_WRITE) {
+      this.capturePlanFilePath(chunk.input);
+    }
+
     // Buffer the tool call instead of rendering immediately
     if (state.currentContentEl) {
       state.pendingTools.set(chunk.id, {
@@ -231,6 +241,13 @@ export class StreamController {
         parentEl: state.currentContentEl,
       });
       this.showThinkingIndicator();
+    }
+  }
+
+  private capturePlanFilePath(input: Record<string, unknown>): void {
+    const filePath = input.file_path as string | undefined;
+    if (filePath && filePath.replace(/\\/g, '/').includes('/.claude/plans/')) {
+      this.deps.state.planFilePath = filePath;
     }
   }
 
@@ -314,7 +331,15 @@ export class StreamController {
     const isBlocked = isBlockedToolResult(chunk.content, chunk.isError);
 
     if (existingToolCall) {
-      existingToolCall.status = isBlocked ? 'blocked' : (chunk.isError ? 'error' : 'completed');
+      // Tools that resolve via dedicated callbacks (not content-based) skip
+      // blocked detection — their status is determined solely by isError
+      if (chunk.isError) {
+        existingToolCall.status = 'error';
+      } else if (!skipsBlockedDetection(existingToolCall.name) && isBlocked) {
+        existingToolCall.status = 'blocked';
+      } else {
+        existingToolCall.status = 'completed';
+      }
       existingToolCall.result = chunk.content;
 
       if (existingToolCall.name === TOOL_ASK_USER_QUESTION && chunk.toolUseResult) {
@@ -377,7 +402,7 @@ export class StreamController {
   // Thinking Block Management
   // ============================================
 
-  async appendThinking(content: string, msg: ChatMessage): Promise<void> {
+  async appendThinking(content: string): Promise<void> {
     const { state, renderer } = this.deps;
     if (!state.currentContentEl) return;
 

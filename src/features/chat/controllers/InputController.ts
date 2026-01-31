@@ -2,7 +2,8 @@ import { Notice } from 'obsidian';
 
 import type { ApprovalCallbackOptions, ClaudianService } from '../../../core/agent';
 import { detectBuiltInCommand } from '../../../core/commands';
-import type { ApprovalDecision, ChatMessage } from '../../../core/types';
+import { TOOL_EXIT_PLAN_MODE } from '../../../core/tools/toolNames';
+import type { ApprovalDecision, ChatMessage, ExitPlanModeDecision } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
 import { InstructionModal } from '../../../shared/modals/InstructionConfirmModal';
 import { appendCurrentNote } from '../../../utils/context';
@@ -11,8 +12,9 @@ import { appendEditorContext, type EditorSelectionContext } from '../../../utils
 import { appendMarkdownSnippet } from '../../../utils/markdown';
 import { COMPLETION_FLAVOR_WORDS } from '../constants';
 import { type InlineAskQuestionConfig, InlineAskUserQuestion } from '../rendering/InlineAskUserQuestion';
+import { InlineExitPlanMode } from '../rendering/InlineExitPlanMode';
 import type { MessageRenderer } from '../rendering/MessageRenderer';
-import { setToolIcon } from '../rendering/ToolCallRenderer';
+import { setToolIcon, updateToolCallResult } from '../rendering/ToolCallRenderer';
 import type { InstructionRefineService } from '../services/InstructionRefineService';
 import type { SubagentManager } from '../services/SubagentManager';
 import type { TitleGenerationService } from '../services/TitleGenerationService';
@@ -63,6 +65,7 @@ export class InputController {
   private deps: InputControllerDeps;
   private pendingApprovalInline: InlineAskUserQuestion | null = null;
   private pendingAskInline: InlineAskUserQuestion | null = null;
+  private pendingExitPlanModeInline: InlineExitPlanMode | null = null;
 
   constructor(deps: InputControllerDeps) {
     this.deps = deps;
@@ -311,7 +314,7 @@ export class InputController {
 
       // Skip remaining cleanup if stream was invalidated (tab closed or conversation switched)
       if (!wasInvalidated && state.streamGeneration === streamGeneration) {
-        if (wasInterrupted) {
+        if (wasInterrupted && !state.pendingNewSessionPlan) {
           await streamController.appendText('\n\n<span class="claudian-interrupted">Interrupted</span> <span class="claudian-interrupted-hint">· What should Claudian do instead?</span>');
         }
         streamController.hideThinkingIndicator();
@@ -356,9 +359,36 @@ export class InputController {
           statusPanel.clearTerminalSubagents();
         }
 
+        // approve-new-session: the tool_result chunk is dropped because cancelRequested
+        // was set before the stream loop could process it — manually set the result so
+        // the saved conversation renders correctly when revisited
+        if (state.pendingNewSessionPlan && assistantMsg.toolCalls) {
+          for (const tc of assistantMsg.toolCalls) {
+            if (tc.name === TOOL_EXIT_PLAN_MODE && !tc.result) {
+              tc.status = 'completed';
+              tc.result = 'User approved the plan and started a new session.';
+              updateToolCallResult(tc.id, tc, state.toolCallElements);
+            }
+          }
+        }
+
         await conversationController.save(true);
 
-        this.processQueuedMessage();
+        // approve-new-session: create fresh conversation and send plan content
+        // Must be inside the invalidation guard — if the tab was closed or
+        // conversation switched, we must not create a new session on stale state.
+        const planContent = state.pendingNewSessionPlan;
+        if (planContent) {
+          state.pendingNewSessionPlan = null;
+          await conversationController.createNew();
+          this.deps.getInputEl().value = planContent;
+          this.sendMessage().catch(() => {
+            // sendMessage() handles its own errors internally; this prevents
+            // unhandled rejection if an unexpected error slips through.
+          });
+        } else {
+          this.processQueuedMessage();
+        }
       }
     }
   }
@@ -734,6 +764,50 @@ export class InputController {
     });
   }
 
+  async handleExitPlanMode(
+    input: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<ExitPlanModeDecision | null> {
+    const { state, streamController } = this.deps;
+    const inputContainerEl = this.deps.getInputContainerEl();
+    const parentEl = inputContainerEl.parentElement;
+    if (!parentEl) {
+      throw new Error('Input container is detached from DOM');
+    }
+
+    streamController.hideThinkingIndicator();
+    inputContainerEl.style.display = 'none';
+
+    const enrichedInput = state.planFilePath
+      ? { ...input, planFilePath: state.planFilePath }
+      : input;
+
+    const renderContent = (el: HTMLElement, markdown: string) =>
+      this.deps.renderer.renderContent(el, markdown);
+
+    return new Promise<ExitPlanModeDecision | null>((resolve, reject) => {
+      const inline = new InlineExitPlanMode(
+        parentEl,
+        enrichedInput,
+        (decision: ExitPlanModeDecision | null) => {
+          this.pendingExitPlanModeInline = null;
+          inputContainerEl.style.display = '';
+          resolve(decision);
+        },
+        signal,
+        renderContent,
+      );
+      this.pendingExitPlanModeInline = inline;
+      try {
+        inline.render();
+      } catch (err) {
+        this.pendingExitPlanModeInline = null;
+        inputContainerEl.style.display = '';
+        reject(err);
+      }
+    });
+  }
+
   dismissPendingApproval(): void {
     if (this.pendingApprovalInline) {
       this.pendingApprovalInline.destroy();
@@ -742,6 +816,10 @@ export class InputController {
     if (this.pendingAskInline) {
       this.pendingAskInline.destroy();
       this.pendingAskInline = null;
+    }
+    if (this.pendingExitPlanModeInline) {
+      this.pendingExitPlanModeInline.destroy();
+      this.pendingExitPlanModeInline = null;
     }
   }
 
