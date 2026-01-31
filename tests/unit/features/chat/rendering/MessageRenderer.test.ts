@@ -756,9 +756,11 @@ describe('MessageRenderer', () => {
 
     beforeEach(() => {
       originalNavigator = globalThis.navigator;
+      jest.useFakeTimers();
     });
 
     afterEach(() => {
+      jest.useRealTimers();
       Object.defineProperty(globalThis, 'navigator', {
         value: originalNavigator,
         writable: true,
