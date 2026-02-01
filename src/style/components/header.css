@@ -37,7 +37,7 @@
 .claudian-header-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 12px;
   flex-shrink: 0;
   margin-inline-start: auto;
 }
@@ -55,15 +55,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
-  border-radius: 4px;
   cursor: pointer;
-  color: var(--text-muted);
-  transition: background 0.15s ease, color 0.15s ease;
+  color: var(--text-faint);
+  transition: color 0.15s ease;
 }
 
 .claudian-header-btn:hover {
-  background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 

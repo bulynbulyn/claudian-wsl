@@ -488,7 +488,7 @@ export class ConversationController {
       updates.lastResponseAt = Date.now();
     }
 
-    if (options && Object.prototype.hasOwnProperty.call(options, 'resumeSessionAt')) {
+    if (options) {
       updates.resumeSessionAt = options.resumeSessionAt;
     }
 

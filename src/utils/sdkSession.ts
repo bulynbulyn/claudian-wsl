@@ -643,16 +643,9 @@ export async function loadSDKSessionMessages(
 
   const chatMessages: ChatMessage[] = [];
   let pendingAssistant: ChatMessage | null = null;
-  const seenUuids = new Set<string>();
 
   // Merge consecutive assistant messages until an actual user message appears
   for (const sdkMsg of filteredEntries) {
-    // Dedup: SDK may write the same message twice (e.g., around compaction)
-    if (sdkMsg.uuid) {
-      if (seenUuids.has(sdkMsg.uuid)) continue;
-      seenUuids.add(sdkMsg.uuid);
-    }
-
     if (isSystemInjectedMessage(sdkMsg)) continue;
 
     // Skip synthetic assistant messages (e.g., "No response requested." after /compact)

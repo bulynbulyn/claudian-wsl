@@ -20,20 +20,16 @@
   justify-content: center;
   width: 24px;
   height: 24px;
-  border-radius: 4px;
-  color: var(--text-muted);
-  opacity: 0.5;
-  transition: all 0.2s ease;
+  color: var(--text-faint);
+  transition: color 0.15s ease;
 }
 
 .claudian-mcp-selector-icon-wrapper:hover .claudian-mcp-selector-icon {
-  background: var(--background-modifier-hover);
-  opacity: 0.8;
+  color: var(--text-normal);
 }
 
 .claudian-mcp-selector-icon.active {
   color: var(--claudian-brand);
-  opacity: 1;
   animation: mcp-glow 2s ease-in-out infinite;
 }
 

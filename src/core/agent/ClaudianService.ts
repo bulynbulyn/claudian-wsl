@@ -464,8 +464,7 @@ export class ClaudianService {
       externalContextPaths,
     };
 
-    const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
-    return options;
+    return QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
   }
 
   /**
