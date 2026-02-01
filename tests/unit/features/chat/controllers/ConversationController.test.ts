@@ -13,7 +13,7 @@ const mockNotice = Notice as jest.Mock;
 
 function createMockDeps(overrides: Partial<ConversationControllerDeps> = {}): ConversationControllerDeps {
   const state = new ChatState();
-  const inputEl = { value: '' } as HTMLTextAreaElement;
+  const inputEl = { value: '', focus: jest.fn() } as unknown as HTMLTextAreaElement;
   const historyDropdown = createMockEl();
   let welcomeEl: any = createMockEl();
   const messagesEl = createMockEl();
@@ -1999,6 +1999,11 @@ describe('ConversationController - Rewind', () => {
       'conv-1',
       expect.objectContaining({ resumeSessionAt: 'prev-a' })
     );
+
+    // Should populate input with rewound message content
+    const inputEl = deps.getInputEl();
+    expect(inputEl.value).toBe('test');
+    expect(inputEl.focus).toHaveBeenCalled();
 
     // Should show success notice with file count
     const noticeMsg = mockNotice.mock.calls[0][0] as string;

@@ -393,6 +393,10 @@ export class ConversationController {
 
     state.truncateAt(userMessageId);
 
+    const inputEl = this.deps.getInputEl();
+    inputEl.value = userMsg.content;
+    inputEl.focus();
+
     const welcomeEl = renderer.renderMessages(state.messages, () => this.getGreeting());
     this.deps.setWelcomeEl(welcomeEl);
     this.updateWelcomeVisibility();
