@@ -36,7 +36,7 @@ export const BUILT_IN_COMMANDS: BuiltInCommand[] = [
     description: 'Add external context directory',
     action: 'add-dir',
     hasArgs: true,
-    argumentHint: 'path/to/directory',
+    argumentHint: '[path/to/directory]',
   },
 ];
 

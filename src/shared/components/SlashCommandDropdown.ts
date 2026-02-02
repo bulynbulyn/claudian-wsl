@@ -7,6 +7,7 @@
 
 import { getBuiltInCommandsForDropdown } from '../../core/commands';
 import type { SlashCommand } from '../../core/types';
+import { normalizeArgumentHint } from '../../utils/slashCommand';
 
 /**
  * SDK commands to filter out from the dropdown.
@@ -292,7 +293,7 @@ export class SlashCommandDropdown {
 
         if (cmd.argumentHint) {
           const hintEl = itemEl.createSpan({ cls: 'claudian-slash-hint' });
-          hintEl.setText(cmd.argumentHint);
+          hintEl.setText(normalizeArgumentHint(cmd.argumentHint));
         }
 
         if (cmd.description) {
