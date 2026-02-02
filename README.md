@@ -252,6 +252,7 @@ src/
 - [x] `/compact` command
 - [x] Plan mode
 - [x] `rewind` and `fork` support
+- [x] `!command` support
 - [ ] Tool renderers refinement
 - [ ] Hooks and other advanced features
 - [ ] More to come!
