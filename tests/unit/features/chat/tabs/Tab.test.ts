@@ -173,6 +173,9 @@ const createMockInputController = () => ({
   cancelStreaming: jest.fn(),
   handleInstructionSubmit: jest.fn(),
   updateQueueIndicator: jest.fn(),
+  handleResumeKeydown: jest.fn().mockReturnValue(false),
+  isResumeDropdownVisible: jest.fn().mockReturnValue(false),
+  destroyResumeDropdown: jest.fn(),
 });
 
 jest.mock('@/features/chat/ui', () => ({
@@ -689,7 +692,9 @@ describe('Tab - Destruction', () => {
       const cancelInstructionRefine = jest.fn();
       const cancelTitleGeneration = jest.fn();
       const destroyTodoPanel = jest.fn();
+      const destroyResumeDropdown = jest.fn();
 
+      tab.controllers.inputController = { destroyResumeDropdown } as any;
       tab.ui.fileContextManager = { destroy: destroyFileContext } as any;
       tab.ui.slashCommandDropdown = { destroy: destroySlashDropdown } as any;
       tab.ui.instructionModeManager = { destroy: destroyInstructionMode } as any;
@@ -699,6 +704,7 @@ describe('Tab - Destruction', () => {
 
       await destroyTab(tab);
 
+      expect(destroyResumeDropdown).toHaveBeenCalled();
       expect(destroyFileContext).toHaveBeenCalled();
       expect(destroySlashDropdown).toHaveBeenCalled();
       expect(destroyInstructionMode).toHaveBeenCalled();
@@ -1148,6 +1154,32 @@ describe('Tab - Event Handler Behavior', () => {
       keydownHandler(event);
 
       expect(mockSlashCommandDropdown.handleKeydown).toHaveBeenCalled();
+    });
+
+    it('should handle resume dropdown keydown', () => {
+      const options = createMockOptions();
+      const tab = createTab(options);
+
+      tab.ui.instructionModeManager = mockInstructionModeManager as any;
+      tab.ui.slashCommandDropdown = mockSlashCommandDropdown as any;
+      tab.ui.fileContextManager = mockFileContextManager as any;
+      tab.controllers.inputController = mockInputController as any;
+      tab.controllers.selectionController = mockSelectionController as any;
+
+      mockInstructionModeManager.handleTriggerKey.mockReturnValue(false);
+      mockInstructionModeManager.handleKeydown.mockReturnValue(false);
+      mockInputController.handleResumeKeydown.mockReturnValueOnce(true);
+
+      wireTabInputEvents(tab, options.plugin);
+
+      const listeners = (tab.dom.inputEl as any).getEventListeners();
+      const keydownHandler = listeners.get('keydown')[0];
+      const event = { key: 'ArrowDown', preventDefault: jest.fn() };
+      keydownHandler(event);
+
+      expect(mockInputController.handleResumeKeydown).toHaveBeenCalled();
+      expect(mockSlashCommandDropdown.handleKeydown).not.toHaveBeenCalled();
+      expect(mockFileContextManager.handleMentionKeydown).not.toHaveBeenCalled();
     });
 
     it('should handle file context mention keydown', () => {
@@ -1807,8 +1839,13 @@ describe('Tab - Controller Configuration', () => {
       mockFileContextManager.isMentionDropdownVisible.mockReturnValue(true);
       expect(config.shouldSkipEscapeHandling()).toBe(true);
 
-      // Test when nothing active
+      // Test when resume dropdown is visible
       mockFileContextManager.isMentionDropdownVisible.mockReturnValue(false);
+      mockInputController.isResumeDropdownVisible.mockReturnValue(true);
+      expect(config.shouldSkipEscapeHandling()).toBe(true);
+
+      // Test when nothing active
+      mockInputController.isResumeDropdownVisible.mockReturnValue(false);
       expect(config.shouldSkipEscapeHandling()).toBe(false);
     });
 
