@@ -91,3 +91,4 @@ dev
 # package-lock.json
 
 .claude/
+.codex/
