@@ -1,8 +1,7 @@
+import { createMockEl } from '@test/helpers/mockElement';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-
-import { createMockEl } from '@test/helpers/mockElement';
 
 import { InlineExitPlanMode } from '@/features/chat/rendering/InlineExitPlanMode';
 
