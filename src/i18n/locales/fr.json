@@ -46,7 +46,9 @@
       "unavailableNoResponse": "Impossible de bifurquer : aucune réponse pour bifurquer",
       "errorMessageNotFound": "Message not found",
       "errorNoSession": "No session ID available",
-      "errorNoActiveTab": "No active tab"
+      "errorNoActiveTab": "No active tab",
+      "commandNoMessages": "Impossible de bifurquer : aucun message dans la conversation",
+      "commandNoAssistantUuid": "Impossible de bifurquer : aucune réponse de l’assistant avec des identifiants"
     },
     "bangBash": {
       "placeholder": "> Run a bash command...",

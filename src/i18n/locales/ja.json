@@ -46,7 +46,9 @@
       "unavailableNoResponse": "分岐できません：分岐元の応答がありません",
       "errorMessageNotFound": "Message not found",
       "errorNoSession": "No session ID available",
-      "errorNoActiveTab": "No active tab"
+      "errorNoActiveTab": "No active tab",
+      "commandNoMessages": "フォークできません: 会話にメッセージがありません",
+      "commandNoAssistantUuid": "フォークできません: 識別子付きのアシスタント応答がありません"
     },
     "bangBash": {
       "placeholder": "> Run a bash command...",

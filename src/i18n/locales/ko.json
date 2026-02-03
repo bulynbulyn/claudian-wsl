@@ -46,7 +46,9 @@
       "unavailableNoResponse": "분기 불가: 분기할 응답이 없습니다",
       "errorMessageNotFound": "Message not found",
       "errorNoSession": "No session ID available",
-      "errorNoActiveTab": "No active tab"
+      "errorNoActiveTab": "No active tab",
+      "commandNoMessages": "포크할 수 없습니다: 대화에 메시지가 없습니다",
+      "commandNoAssistantUuid": "포크할 수 없습니다: 식별자가 있는 어시스턴트 응답이 없습니다"
     },
     "bangBash": {
       "placeholder": "> Run a bash command...",

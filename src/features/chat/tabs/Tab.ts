@@ -575,7 +575,7 @@ export interface ForkContext {
   sourceSessionId: string;
   resumeAt: string;
   sourceTitle?: string;
-  /** 1-based index of the user message where the fork happens (counting only user messages). */
+  /** 1-based index used for fork title suffix (counts only non-interrupt user messages). */
   forkAtUserMessage?: number;
   currentNote?: string;
 }
@@ -586,6 +586,46 @@ function deepCloneMessages(messages: ChatMessage[]): ChatMessage[] {
     return sc(messages);
   }
   return JSON.parse(JSON.stringify(messages)) as ChatMessage[];
+}
+
+function countUserMessagesForForkTitle(messages: ChatMessage[]): number {
+  // Keep fork numbering stable by excluding non-semantic user messages.
+  return messages.filter(m => m.role === 'user' && !m.isInterrupt && !m.isRebuiltContext).length;
+}
+
+interface ForkSource {
+  sourceSessionId: string;
+  sourceTitle?: string;
+  currentNote?: string;
+}
+
+/**
+ * Resolves session ID and conversation metadata needed for forking.
+ * Prefers the live service session ID; falls back to persisted conversation metadata.
+ * Shows a notice and returns null when no session can be resolved.
+ */
+function resolveForkSource(tab: TabData, plugin: ClaudianPlugin): ForkSource | null {
+  let sourceSessionId = tab.service?.getSessionId() ?? null;
+
+  if (!sourceSessionId && tab.conversationId) {
+    const conversation = plugin.getConversationSync(tab.conversationId);
+    sourceSessionId = conversation?.sdkSessionId ?? conversation?.sessionId ?? conversation?.forkSource?.sessionId ?? null;
+  }
+
+  if (!sourceSessionId) {
+    new Notice(t('chat.fork.failed', { error: t('chat.fork.errorNoSession') }));
+    return null;
+  }
+
+  const sourceConversation = tab.conversationId
+    ? plugin.getConversationSync(tab.conversationId)
+    : undefined;
+
+  return {
+    sourceSessionId,
+    sourceTitle: sourceConversation?.title,
+    currentNote: sourceConversation?.currentNote,
+  };
 }
 
 async function handleForkRequest(
@@ -608,8 +648,7 @@ async function handleForkRequest(
     return;
   }
 
-  const userMsg = msgs[userIdx];
-  if (!userMsg.sdkUserUuid) {
+  if (!msgs[userIdx].sdkUserUuid) {
     new Notice(t('chat.fork.unavailableNoUuid'));
     return;
   }
@@ -620,38 +659,60 @@ async function handleForkRequest(
     return;
   }
 
-  // Prefer service sessionId (current SDK state); fall back to conversation metadata if service is lazy/uninitialized.
-  const serviceSessionId = tab.service?.getSessionId() ?? null;
-  let sourceSessionId = serviceSessionId;
+  const source = resolveForkSource(tab, plugin);
+  if (!source) return;
 
-  if (!sourceSessionId && tab.conversationId) {
-    const conversation = plugin.getConversationSync(tab.conversationId);
-    sourceSessionId =
-      conversation?.sdkSessionId ?? conversation?.sessionId ?? conversation?.forkSource?.sessionId ?? null;
-  }
+  await forkRequestCallback({
+    messages: deepCloneMessages(msgs.slice(0, userIdx)),
+    sourceSessionId: source.sourceSessionId,
+    resumeAt: rewindCtx.prevAssistantUuid,
+    sourceTitle: source.sourceTitle,
+    forkAtUserMessage: countUserMessagesForForkTitle(msgs.slice(0, userIdx + 1)),
+    currentNote: source.currentNote,
+  });
+}
 
-  if (!sourceSessionId) {
-    new Notice(t('chat.fork.failed', { error: t('chat.fork.errorNoSession') }));
+async function handleForkAll(
+  tab: TabData,
+  plugin: ClaudianPlugin,
+  forkRequestCallback: (forkContext: ForkContext) => Promise<void>,
+): Promise<void> {
+  const { state } = tab;
+
+  if (state.isStreaming) {
+    new Notice(t('chat.fork.unavailableStreaming'));
     return;
   }
 
-  // Slice messages before the clicked user message
-  const messagesBeforeFork = deepCloneMessages(msgs.slice(0, userIdx));
+  const msgs = state.messages;
+  if (msgs.length === 0) {
+    new Notice(t('chat.fork.commandNoMessages'));
+    return;
+  }
 
-  const sourceConversation = tab.conversationId
-    ? plugin.getConversationSync(tab.conversationId)
-    : undefined;
+  let lastAssistantUuid: string | undefined;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i].role === 'assistant' && msgs[i].sdkAssistantUuid) {
+      lastAssistantUuid = msgs[i].sdkAssistantUuid;
+      break;
+    }
+  }
 
-  // 1-based user message number (the message being forked at)
-  const forkAtUserMessage = msgs.slice(0, userIdx + 1).filter(m => m.role === 'user').length;
+  if (!lastAssistantUuid) {
+    new Notice(t('chat.fork.commandNoAssistantUuid'));
+    return;
+  }
+
+  const source = resolveForkSource(tab, plugin);
+  if (!source) return;
 
   await forkRequestCallback({
-    messages: messagesBeforeFork,
-    sourceSessionId,
-    resumeAt: rewindCtx.prevAssistantUuid,
-    sourceTitle: sourceConversation?.title,
-    forkAtUserMessage,
-    currentNote: sourceConversation?.currentNote,
+    messages: deepCloneMessages(msgs),
+    sourceSessionId: source.sourceSessionId,
+    resumeAt: lastAssistantUuid,
+    sourceTitle: source.sourceTitle,
+    forkAtUserMessage: countUserMessagesForForkTitle(msgs) + 1,
+    currentNote: source.currentNote,
   });
 }
 
@@ -790,6 +851,9 @@ export function initializeTabControllers(
       }
     },
     openConversation,
+    onForkAll: forkRequestCallback
+      ? () => handleForkAll(tab, plugin, forkRequestCallback)
+      : undefined,
   });
 
   // Navigation controller

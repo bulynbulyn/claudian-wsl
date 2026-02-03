@@ -46,7 +46,9 @@
       "unavailableNoResponse": "Невозможно ответвить: нет ответа для ответвления",
       "errorMessageNotFound": "Message not found",
       "errorNoSession": "No session ID available",
-      "errorNoActiveTab": "No active tab"
+      "errorNoActiveTab": "No active tab",
+      "commandNoMessages": "Нельзя форкнуть: в диалоге нет сообщений",
+      "commandNoAssistantUuid": "Нельзя форкнуть: нет ответа ассистента с идентификаторами"
     },
     "bangBash": {
       "placeholder": "> Run a bash command...",

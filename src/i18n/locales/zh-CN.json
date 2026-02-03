@@ -46,7 +46,9 @@
       "unavailableNoResponse": "无法分叉：没有可分叉的响应",
       "errorMessageNotFound": "Message not found",
       "errorNoSession": "No session ID available",
-      "errorNoActiveTab": "No active tab"
+      "errorNoActiveTab": "No active tab",
+      "commandNoMessages": "无法分叉：对话中没有消息",
+      "commandNoAssistantUuid": "无法分叉：没有带标识符的助手回复"
     },
     "bangBash": {
       "placeholder": "> 运行命令...",
