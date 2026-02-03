@@ -147,6 +147,29 @@
   padding-inline-start: 20px;
 }
 
+/* Full-width tables */
+.claudian-message-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+
+.claudian-message-content th,
+.claudian-message-content td {
+  border: 1px solid var(--background-modifier-border);
+  padding: 6px 10px;
+  text-align: start;
+}
+
+.claudian-message-content th {
+  background: var(--background-secondary);
+  font-weight: 600;
+}
+
+.claudian-message-content tr:hover {
+  background: var(--background-secondary-alt);
+}
+
 .claudian-messages::-webkit-scrollbar {
   width: 6px;
 }
