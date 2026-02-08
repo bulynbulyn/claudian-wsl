@@ -3,6 +3,7 @@ import * as fsPromises from 'fs/promises';
 import * as os from 'os';
 
 import {
+  collectAsyncSubagentResults,
   deleteSDKSession,
   encodeVaultPathForSDK,
   filterActiveBranch,
@@ -1611,6 +1612,250 @@ describe('sdkSession', () => {
       expect(result.messages[1].content).toBe('Hi!');
       expect(result.messages[2].content).toBe('New branch');
       expect(result.messages[3].content).toBe('New response');
+    });
+  });
+
+  describe('collectAsyncSubagentResults', () => {
+    it('extracts task-notification data from queue-operation enqueue entries', () => {
+      const entries: SDKNativeMessage[] = [
+        {
+          type: 'queue-operation',
+          operation: 'enqueue',
+          content: `<task-notification>
+<task-id>ae5eb9a</task-id>
+<status>completed</status>
+<summary>Agent "Review code" completed</summary>
+<result>Found 3 issues in the codebase.
+
+1. Missing error handling in auth module.
+2. Unused import in utils.ts.
+3. Race condition in fetchData.</result>
+</task-notification>`,
+        },
+      ];
+
+      const results = collectAsyncSubagentResults(entries);
+
+      expect(results.size).toBe(1);
+      const entry = results.get('ae5eb9a')!;
+      expect(entry.status).toBe('completed');
+      expect(entry.summary).toBe('Agent "Review code" completed');
+      expect(entry.result).toContain('Found 3 issues');
+      expect(entry.result).toContain('Race condition in fetchData.');
+    });
+
+    it('collects multiple queue-operation entries', () => {
+      const entries: SDKNativeMessage[] = [
+        {
+          type: 'queue-operation',
+          operation: 'enqueue',
+          content: '<task-notification><task-id>agent-1</task-id><status>completed</status><result>Result 1</result></task-notification>',
+        },
+        {
+          type: 'queue-operation',
+          operation: 'enqueue',
+          content: '<task-notification><task-id>agent-2</task-id><status>error</status><result>Task failed</result></task-notification>',
+        },
+      ];
+
+      const results = collectAsyncSubagentResults(entries);
+
+      expect(results.size).toBe(2);
+      expect(results.get('agent-1')!.status).toBe('completed');
+      expect(results.get('agent-2')!.status).toBe('error');
+      expect(results.get('agent-2')!.result).toBe('Task failed');
+    });
+
+    it('skips dequeue operations', () => {
+      const entries: SDKNativeMessage[] = [
+        {
+          type: 'queue-operation',
+          operation: 'dequeue',
+          sessionId: 'session-1',
+        },
+      ];
+
+      const results = collectAsyncSubagentResults(entries);
+      expect(results.size).toBe(0);
+    });
+
+    it('skips entries without task-notification content', () => {
+      const entries: SDKNativeMessage[] = [
+        {
+          type: 'queue-operation',
+          operation: 'enqueue',
+          content: 'some other content',
+        },
+      ];
+
+      const results = collectAsyncSubagentResults(entries);
+      expect(results.size).toBe(0);
+    });
+
+    it('skips entries without task-id or result', () => {
+      const entries: SDKNativeMessage[] = [
+        {
+          type: 'queue-operation',
+          operation: 'enqueue',
+          content: '<task-notification><status>completed</status><result>No task-id</result></task-notification>',
+        },
+        {
+          type: 'queue-operation',
+          operation: 'enqueue',
+          content: '<task-notification><task-id>has-id</task-id><status>completed</status></task-notification>',
+        },
+      ];
+
+      const results = collectAsyncSubagentResults(entries);
+      expect(results.size).toBe(0);
+    });
+
+    it('defaults status to completed when status tag is missing', () => {
+      const entries: SDKNativeMessage[] = [
+        {
+          type: 'queue-operation',
+          operation: 'enqueue',
+          content: '<task-notification><task-id>no-status</task-id><result>Done</result></task-notification>',
+        },
+      ];
+
+      const results = collectAsyncSubagentResults(entries);
+      expect(results.get('no-status')!.status).toBe('completed');
+    });
+
+    it('ignores non-queue-operation messages', () => {
+      const entries: SDKNativeMessage[] = [
+        { type: 'user', uuid: 'u1', message: { content: 'hello' } },
+        { type: 'assistant', uuid: 'a1', message: { content: [{ type: 'text', text: 'hi' }] } },
+      ];
+
+      const results = collectAsyncSubagentResults(entries);
+      expect(results.size).toBe(0);
+    });
+  });
+
+  describe('loadSDKSessionMessages - async subagent hydration', () => {
+    it('populates toolCall.subagent for async Task tools from queue-operation results', async () => {
+      mockExistsSync.mockReturnValue(true);
+      mockFsPromises.readFile.mockImplementation(async (filePath: any) => {
+        const p = String(filePath);
+        if (p.endsWith('.jsonl') && !p.includes('subagents')) {
+          return [
+            '{"type":"user","uuid":"u1","timestamp":"2024-01-15T10:00:00Z","message":{"content":"Run background task"}}',
+            // Assistant spawns async Task
+            '{"type":"assistant","uuid":"a1","timestamp":"2024-01-15T10:01:00Z","message":{"content":[{"type":"tool_use","id":"task-1","name":"Task","input":{"description":"Review code","prompt":"Check for bugs","run_in_background":true}}]}}',
+            // Task tool_result with agentId (SDK launch shape)
+            `{"type":"user","uuid":"u2","timestamp":"2024-01-15T10:01:01Z","toolUseResult":{"isAsync":true,"agentId":"ae5eb9a","status":"async_launched","description":"Review code","prompt":"Check for bugs","outputFile":"/tmp/agent.output"},"message":{"content":[{"type":"tool_result","tool_use_id":"task-1","content":"Task launched in background."}]}}`,
+            // Queue-operation with full result
+            `{"type":"queue-operation","operation":"enqueue","content":"<task-notification><task-id>ae5eb9a</task-id><status>completed</status><summary>Agent completed</summary><result>Found 3 issues:\\n1. Missing error handling\\n2. Unused import\\n3. Race condition</result></task-notification>"}`,
+            // Assistant continues after
+            '{"type":"assistant","uuid":"a2","timestamp":"2024-01-15T10:05:00Z","message":{"content":[{"type":"text","text":"The review found 3 issues."}]}}',
+          ].join('\n');
+        }
+        // Subagent sidecar file
+        return '';
+      });
+
+      const result = await loadSDKSessionMessages('/Users/test/vault', 'session-async-hydrate');
+
+      // Should have: user message, merged assistant with Task tool, assistant follow-up
+      expect(result.messages.length).toBeGreaterThanOrEqual(2);
+
+      const assistantMsg = result.messages.find(m => m.role === 'assistant' && m.toolCalls?.some(tc => tc.name === 'Task'));
+      expect(assistantMsg).toBeDefined();
+
+      const taskToolCall = assistantMsg!.toolCalls!.find(tc => tc.name === 'Task')!;
+      expect(taskToolCall.subagent).toBeDefined();
+      expect(taskToolCall.subagent!.mode).toBe('async');
+      expect(taskToolCall.subagent!.agentId).toBe('ae5eb9a');
+      expect(taskToolCall.subagent!.status).toBe('completed');
+      expect(taskToolCall.subagent!.asyncStatus).toBe('completed');
+      expect(taskToolCall.subagent!.result).toContain('Found 3 issues');
+      expect(taskToolCall.subagent!.result).toContain('Race condition');
+      // toolCall.result should also be updated
+      expect(taskToolCall.result).toContain('Found 3 issues');
+      expect(taskToolCall.status).toBe('completed');
+    });
+
+    it('uses truncated API result when no queue-operation exists', async () => {
+      mockExistsSync.mockReturnValue(true);
+      mockFsPromises.readFile.mockImplementation(async (filePath: any) => {
+        const p = String(filePath);
+        if (p.endsWith('.jsonl') && !p.includes('subagents')) {
+          return [
+            '{"type":"user","uuid":"u1","timestamp":"2024-01-15T10:00:00Z","message":{"content":"Run task"}}',
+            '{"type":"assistant","uuid":"a1","timestamp":"2024-01-15T10:01:00Z","message":{"content":[{"type":"tool_use","id":"task-1","name":"Task","input":{"description":"Test task","prompt":"test","run_in_background":true}}]}}',
+            `{"type":"user","uuid":"u2","timestamp":"2024-01-15T10:01:01Z","toolUseResult":{"isAsync":true,"agentId":"abc123"},"message":{"content":[{"type":"tool_result","tool_use_id":"task-1","content":"Task launched."}]}}`,
+            // No queue-operation entry
+          ].join('\n');
+        }
+        return '';
+      });
+
+      const result = await loadSDKSessionMessages('/Users/test/vault', 'session-no-queue-op');
+
+      const assistantMsg = result.messages.find(m => m.toolCalls?.some(tc => tc.name === 'Task'));
+      const taskToolCall = assistantMsg!.toolCalls!.find(tc => tc.name === 'Task')!;
+
+      expect(taskToolCall.subagent).toBeDefined();
+      expect(taskToolCall.subagent!.agentId).toBe('abc123');
+      // Falls back to the API content (truncated)
+      expect(taskToolCall.subagent!.result).toBe('Task launched.');
+    });
+
+    it('does not build SubagentInfo for sync Task tools', async () => {
+      mockExistsSync.mockReturnValue(true);
+      mockFsPromises.readFile.mockImplementation(async (filePath: any) => {
+        const p = String(filePath);
+        if (p.endsWith('.jsonl') && !p.includes('subagents')) {
+          return [
+            '{"type":"user","uuid":"u1","timestamp":"2024-01-15T10:00:00Z","message":{"content":"Run sync task"}}',
+            '{"type":"assistant","uuid":"a1","timestamp":"2024-01-15T10:01:00Z","message":{"content":[{"type":"tool_use","id":"task-1","name":"Task","input":{"description":"Sync task","prompt":"test","run_in_background":false}}]}}',
+            '{"type":"user","uuid":"u2","timestamp":"2024-01-15T10:01:01Z","toolUseResult":{},"message":{"content":[{"type":"tool_result","tool_use_id":"task-1","content":"Sync result"}]}}',
+          ].join('\n');
+        }
+        return '';
+      });
+
+      const result = await loadSDKSessionMessages('/Users/test/vault', 'session-sync-task');
+
+      const assistantMsg = result.messages.find(m => m.toolCalls?.some(tc => tc.name === 'Task'));
+      const taskToolCall = assistantMsg!.toolCalls!.find(tc => tc.name === 'Task')!;
+
+      // Sync tasks should NOT get SubagentInfo from this pass
+      expect(taskToolCall.subagent).toBeUndefined();
+    });
+
+    it('loads subagent tool calls from sidecar JSONL', async () => {
+      mockExistsSync.mockReturnValue(true);
+      mockFsPromises.readFile.mockImplementation(async (filePath: any) => {
+        const p = String(filePath);
+        if (p.includes('subagents/agent-ae5eb9a.jsonl')) {
+          return [
+            '{"type":"assistant","timestamp":"2024-01-15T10:02:00Z","message":{"content":[{"type":"tool_use","id":"sub-tool-1","name":"Grep","input":{"pattern":"TODO"}}]}}',
+            '{"type":"user","timestamp":"2024-01-15T10:02:01Z","message":{"content":[{"type":"tool_result","tool_use_id":"sub-tool-1","content":"3 matches found"}]}}',
+          ].join('\n');
+        }
+        if (p.endsWith('.jsonl')) {
+          return [
+            '{"type":"user","uuid":"u1","timestamp":"2024-01-15T10:00:00Z","message":{"content":"Review"}}',
+            '{"type":"assistant","uuid":"a1","timestamp":"2024-01-15T10:01:00Z","message":{"content":[{"type":"tool_use","id":"task-1","name":"Task","input":{"description":"Review","prompt":"check","run_in_background":true}}]}}',
+            `{"type":"user","uuid":"u2","timestamp":"2024-01-15T10:01:01Z","toolUseResult":{"isAsync":true,"agentId":"ae5eb9a"},"message":{"content":[{"type":"tool_result","tool_use_id":"task-1","content":"Launched"}]}}`,
+            `{"type":"queue-operation","operation":"enqueue","content":"<task-notification><task-id>ae5eb9a</task-id><status>completed</status><result>Done reviewing</result></task-notification>"}`,
+          ].join('\n');
+        }
+        return '';
+      });
+
+      const result = await loadSDKSessionMessages('/Users/test/vault', 'session-sidecar');
+
+      const assistantMsg = result.messages.find(m => m.toolCalls?.some(tc => tc.name === 'Task'));
+      const taskToolCall = assistantMsg!.toolCalls!.find(tc => tc.name === 'Task')!;
+
+      expect(taskToolCall.subagent).toBeDefined();
+      expect(taskToolCall.subagent!.toolCalls).toHaveLength(1);
+      expect(taskToolCall.subagent!.toolCalls[0].name).toBe('Grep');
+      expect(taskToolCall.subagent!.toolCalls[0].result).toBe('3 matches found');
     });
   });
 });

@@ -530,6 +530,43 @@ describe('SubagentManager', () => {
       expect(result?.asyncStatus).toBe('completed');
     });
 
+    it('returns error message when toolUseResult has retrieval_status error', () => {
+      const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'agent-1', 'out-1');
+
+      const toolUseResult = {
+        retrieval_status: 'error',
+        error: 'Agent process crashed',
+      };
+
+      const result = manager.handleAgentOutputToolResult(
+        'out-1',
+        '{}',
+        false,
+        toolUseResult
+      );
+      expect(result?.asyncStatus).toBe('completed');
+      expect(result?.result).toBe('Error: Agent process crashed');
+    });
+
+    it('returns generic error when retrieval_status is error without error field', () => {
+      const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'agent-1', 'out-1');
+
+      const toolUseResult = {
+        retrieval_status: 'error',
+      };
+
+      const result = manager.handleAgentOutputToolResult(
+        'out-1',
+        '{}',
+        false,
+        toolUseResult
+      );
+      expect(result?.asyncStatus).toBe('completed');
+      expect(result?.result).toBe('Error: Task retrieval failed');
+    });
+
     it('finalizes with plain text as result when no running indicators', () => {
       const { manager } = createManager();
       setupLinkedAgentOutput(manager, 'task-1', 'agent-1', 'out-1');

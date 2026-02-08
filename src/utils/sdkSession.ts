@@ -14,8 +14,8 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { extractResolvedAnswers, extractResolvedAnswersFromResultText } from '../core/tools';
-import { TOOL_ASK_USER_QUESTION } from '../core/tools/toolNames';
-import type { ChatMessage, ContentBlock, ImageAttachment, ImageMediaType, ToolCallInfo } from '../core/types';
+import { TOOL_ASK_USER_QUESTION, TOOL_TASK } from '../core/tools/toolNames';
+import type { ChatMessage, ContentBlock, ImageAttachment, ImageMediaType, SubagentInfo, ToolCallInfo } from '../core/types';
 import { extractContentBeforeXmlContext } from './context';
 import { extractDiffData } from './diff';
 
@@ -51,6 +51,10 @@ export interface SDKNativeMessage {
   sourceToolUseID?: string;
   /** Meta messages are system-injected, not actual user input. */
   isMeta?: boolean;
+  /** Queue operation type (enqueue/dequeue) — present on queue-operation messages. */
+  operation?: string;
+  /** Content string for queue-operation enqueue entries (e.g., task-notification XML). */
+  content?: string;
 }
 
 export interface SDKNativeContentBlock {
@@ -639,6 +643,57 @@ function collectStructuredPatchResults(sdkMessages: SDKNativeMessage[]): Map<str
   return results;
 }
 
+interface AsyncSubagentResult {
+  result: string;
+  status: string;
+  summary?: string;
+}
+
+/**
+ * Collects full async subagent results from queue-operation enqueue entries.
+ *
+ * The SDK stores a `queue-operation` entry with `operation: 'enqueue'` and a `content`
+ * field containing `<task-notification>` XML when a background agent completes.
+ * The XML includes `<task-id>`, `<status>`, `<summary>`, and `<result>` tags.
+ *
+ * @returns Map keyed by task-id (agentId) → full result + status
+ */
+export function collectAsyncSubagentResults(
+  sdkMessages: SDKNativeMessage[]
+): Map<string, AsyncSubagentResult> {
+  const results = new Map<string, AsyncSubagentResult>();
+
+  for (const sdkMsg of sdkMessages) {
+    if (sdkMsg.type !== 'queue-operation') continue;
+    if (sdkMsg.operation !== 'enqueue') continue;
+    if (typeof sdkMsg.content !== 'string') continue;
+    if (!sdkMsg.content.includes('<task-notification>')) continue;
+
+    const taskId = extractXmlTag(sdkMsg.content, 'task-id');
+    const status = extractXmlTag(sdkMsg.content, 'status');
+    const result = extractXmlTag(sdkMsg.content, 'result');
+    if (!taskId || !result) continue;
+
+    const summary = extractXmlTag(sdkMsg.content, 'summary') ?? undefined;
+
+    results.set(taskId, {
+      result,
+      status: status ?? 'completed',
+      summary,
+    });
+  }
+
+  return results;
+}
+
+function extractXmlTag(content: string, tagName: string): string | null {
+  const regex = new RegExp(`<${tagName}>\\s*([\\s\\S]*?)\\s*</${tagName}>`, 'i');
+  const match = content.match(regex);
+  if (!match || !match[1]) return null;
+  const trimmed = match[1].trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 /**
  * Checks if a user message is system-injected (not actual user input).
  * These include:
@@ -840,6 +895,68 @@ function mergeAssistantMessage(target: ChatMessage, source: ChatMessage): void {
  * @param sessionId - The session ID
  * @returns Result object with messages, skipped line count, and any error
  */
+/**
+ * Extracts the agentId from a Task tool's toolUseResult (async launch shape).
+ * The SDK stores `{ isAsync: true, agentId: '...' }` on the tool result.
+ */
+function extractAgentIdFromToolUseResult(toolUseResult: unknown): string | null {
+  if (!toolUseResult || typeof toolUseResult !== 'object') return null;
+  const record = toolUseResult as Record<string, unknown>;
+
+  const directAgentId = record.agentId ?? record.agent_id;
+  if (typeof directAgentId === 'string' && directAgentId.length > 0) {
+    return directAgentId;
+  }
+
+  const data = record.data;
+  if (data && typeof data === 'object') {
+    const nested = data as Record<string, unknown>;
+    const nestedAgentId = nested.agent_id ?? nested.agentId;
+    if (typeof nestedAgentId === 'string' && nestedAgentId.length > 0) {
+      return nestedAgentId;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Builds a SubagentInfo for an async Task tool call from stored data.
+ * Uses the toolUseResult (launch shape → agentId) and queue-operation results (full result).
+ */
+function buildAsyncSubagentInfo(
+  toolCall: ToolCallInfo,
+  toolUseResult: unknown,
+  asyncResults: Map<string, AsyncSubagentResult>
+): SubagentInfo | null {
+  const agentId = extractAgentIdFromToolUseResult(toolUseResult);
+  if (!agentId) return null;
+
+  const queueResult = asyncResults.get(agentId);
+  const description = (toolCall.input?.description as string) || 'Background task';
+  const prompt = (toolCall.input?.prompt as string) || '';
+
+  // Determine final result: prefer queue-operation result (full), fall back to tool_result content
+  const finalResult = queueResult?.result ?? toolCall.result;
+  const isCompleted = queueResult?.status === 'completed' || toolCall.status === 'completed';
+  const isError = queueResult?.status === 'error' || toolCall.status === 'error';
+
+  const status: SubagentInfo['status'] = isError ? 'error' : isCompleted ? 'completed' : 'running';
+
+  return {
+    id: toolCall.id,
+    description,
+    prompt,
+    mode: 'async',
+    isExpanded: false,
+    status,
+    toolCalls: [],
+    asyncStatus: status === 'running' ? 'running' : status === 'error' ? 'error' : 'completed',
+    agentId,
+    result: finalResult,
+  };
+}
+
 export async function loadSDKSessionMessages(
   vaultPath: string,
   sessionId: string,
@@ -855,6 +972,7 @@ export async function loadSDKSessionMessages(
 
   const toolResults = collectToolResults(filteredEntries);
   const toolUseResults = collectStructuredPatchResults(filteredEntries);
+  const asyncSubagentResults = collectAsyncSubagentResults(filteredEntries);
 
   const chatMessages: ChatMessage[] = [];
   let pendingAssistant: ChatMessage | null = null;
@@ -921,6 +1039,54 @@ export async function loadSDKSessionMessages(
       if (toolCall.name !== TOOL_ASK_USER_QUESTION || toolCall.resolvedAnswers) continue;
       const answers = extractResolvedAnswersFromResultText(toolCall.result);
       if (answers) toolCall.resolvedAnswers = answers;
+    }
+  }
+
+  // Build SubagentInfo for async Task tool calls from toolUseResult + queue-operation data
+  if (toolUseResults.size > 0 || asyncSubagentResults.size > 0) {
+    const sidecarLoads: Array<{ subagent: SubagentInfo; promise: Promise<ToolCallInfo[]> }> = [];
+
+    for (const msg of chatMessages) {
+      if (msg.role !== 'assistant' || !msg.toolCalls) continue;
+      for (const toolCall of msg.toolCalls) {
+        if (toolCall.name !== TOOL_TASK) continue;
+        if (toolCall.subagent) continue;
+        if (toolCall.input?.run_in_background !== true) continue;
+
+        const toolUseResult = toolUseResults.get(toolCall.id);
+        const subagent = buildAsyncSubagentInfo(
+          toolCall,
+          toolUseResult,
+          asyncSubagentResults
+        );
+        if (subagent) {
+          toolCall.subagent = subagent;
+          if (subagent.result !== undefined) {
+            toolCall.result = subagent.result;
+          }
+          if (subagent.status === 'completed') toolCall.status = 'completed';
+          else if (subagent.status === 'error') toolCall.status = 'error';
+
+          // Load tool calls from subagent sidecar JSONL in parallel
+          if (subagent.agentId && isValidAgentId(subagent.agentId)) {
+            sidecarLoads.push({
+              subagent,
+              promise: loadSubagentToolCalls(vaultPath, sessionId, subagent.agentId),
+            });
+          }
+        }
+      }
+    }
+
+    // Hydrate subagent tool calls from sidecar files
+    if (sidecarLoads.length > 0) {
+      const results = await Promise.all(sidecarLoads.map(s => s.promise));
+      for (let i = 0; i < sidecarLoads.length; i++) {
+        const toolCalls = results[i];
+        if (toolCalls.length > 0) {
+          sidecarLoads[i].subagent.toolCalls = toolCalls;
+        }
+      }
     }
   }
 

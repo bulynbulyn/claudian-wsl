@@ -870,6 +870,11 @@ export class SubagentManager {
 
     const record = toolUseResult as Record<string, unknown>;
 
+    if (record.retrieval_status === 'error') {
+      const errorMsg = typeof record.error === 'string' ? record.error : 'Task retrieval failed';
+      return `Error: ${errorMsg}`;
+    }
+
     const result = this.extractResultFromTaskObject(record.task)
       ?? this.extractResultFromCandidateString(record.result)
       ?? this.extractResultFromCandidateString(record.output);
