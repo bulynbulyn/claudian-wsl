@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
 import type { SubagentInfo, ToolCallInfo } from '@/core/types';
 import { SubagentManager } from '@/features/chat/services/SubagentManager';
 
@@ -78,6 +82,25 @@ describe('SubagentManager', () => {
       expect(running?.agentId).toBe('agent-123');
       expect(updates[updates.length - 1].agentId).toBe('agent-123');
       expect(manager.isPendingAsyncTask('task-1')).toBe(false);
+    });
+
+    it('transitions from pending to running when agent_id exists only in toolUseResult', () => {
+      const { manager, updates } = createManager();
+      const parentEl = createMockEl();
+
+      manager.handleTaskToolUse('task-structured', { description: 'Background', run_in_background: true }, parentEl);
+      manager.handleTaskToolResult(
+        'task-structured',
+        'Task launched',
+        false,
+        { data: { agent_id: 'agent-structured-1' } }
+      );
+
+      const running = manager.getByAgentId('agent-structured-1');
+      expect(running?.asyncStatus).toBe('running');
+      expect(running?.agentId).toBe('agent-structured-1');
+      expect(updates[updates.length - 1].agentId).toBe('agent-structured-1');
+      expect(manager.isPendingAsyncTask('task-structured')).toBe(false);
     });
 
     it('moves to error when Task tool_result parsing fails', () => {
@@ -540,6 +563,212 @@ describe('SubagentManager', () => {
       expect(result?.result).toContain('completed');
     });
 
+    it('extracts only final assistant result from XML output payload', () => {
+      const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'a6ac482', 'out-1');
+
+      const outputLines = [
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'I will search first.' }],
+          },
+        }),
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'tool-1', name: 'Grep', input: { pattern: 'martini' } }],
+          },
+        }),
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Final answer: 24 matches across 6 files.' }],
+          },
+        }),
+      ].join('\n');
+
+      const xmlPayload = `<retrieval_status>success</retrieval_status>
+<task_id>a6ac482</task_id>
+<status>completed</status>
+<output>
+${outputLines}
+</output>`;
+
+      const result = manager.handleAgentOutputToolResult('out-1', xmlPayload, false);
+      expect(result?.result).toBe('Final answer: 24 matches across 6 files.');
+    });
+
+    it('extracts final assistant result from structured toolUseResult.task.result', () => {
+      const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'agent-structured', 'out-1');
+
+      const outputLines = [
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Intermediate step' }],
+          },
+        }),
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Final summary from structured result.' }],
+          },
+        }),
+      ].join('\n');
+
+      const structuredToolUseResult = {
+        retrieval_status: 'success',
+        task: {
+          task_id: 'agent-structured',
+          status: 'completed',
+          result: outputLines,
+          output: outputLines,
+        },
+      };
+
+      const result = manager.handleAgentOutputToolResult(
+        'out-1',
+        '{"retrieval_status":"success"}',
+        false,
+        structuredToolUseResult
+      );
+      expect(result?.result).toBe('Final summary from structured result.');
+    });
+
+    it('extracts full result from SDK toolUseResult.content array', () => {
+      const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'agent-sdk-content', 'out-1');
+
+      const fullResult = 'This is the full multi-line result.\n\nLine 2 of the result.\nLine 3 with details.';
+      const sdkToolUseResult = {
+        status: 'completed',
+        content: [
+          { type: 'text', text: fullResult },
+        ],
+        agentId: 'agent-sdk-content',
+        prompt: 'Do something',
+        totalDurationMs: 5000,
+        totalTokens: 1000,
+        totalToolUseCount: 5,
+      };
+
+      const result = manager.handleAgentOutputToolResult(
+        'out-1',
+        '{}',
+        false,
+        sdkToolUseResult
+      );
+      expect(result?.result).toBe(fullResult);
+    });
+
+    it('extracts result from SDK content array with multiple text blocks', () => {
+      const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'agent-multi', 'out-1');
+
+      const sdkToolUseResult = {
+        status: 'completed',
+        content: [
+          { type: 'text', text: 'Main result text here.' },
+          { type: 'text', text: 'agentId: agent-multi\n<usage>total_tokens: 100</usage>' },
+        ],
+        agentId: 'agent-multi',
+      };
+
+      const result = manager.handleAgentOutputToolResult(
+        'out-1',
+        '{}',
+        false,
+        sdkToolUseResult
+      );
+      // Should return the first text block (actual result), not the metadata block
+      expect(result?.result).toBe('Main result text here.');
+    });
+
+    it('reads full output file when inline output is truncated', () => {
+      const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'agent-full-output', 'out-1');
+
+      const tempDir = mkdtempSync(join(tmpdir(), 'subagent-output-'));
+      const fullOutputFile = join(tempDir, 'agent.output');
+      const fullOutput = [
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Recovered final answer from full output file.' }],
+          },
+        }),
+      ].join('\n');
+      writeFileSync(fullOutputFile, fullOutput, 'utf-8');
+
+      const inlineOutput = `[Truncated. Full output: ${fullOutputFile}]`;
+      const xmlPayload = `<retrieval_status>success</retrieval_status>
+<task_id>agent-full-output</task_id>
+<status>completed</status>
+<output>
+${inlineOutput}
+</output>`;
+
+      try {
+        const result = manager.handleAgentOutputToolResult('out-1', xmlPayload, false);
+        expect(result?.result).toBe('Recovered final answer from full output file.');
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
+
+    it('ignores truncated full output files outside trusted temp roots', () => {
+      const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'agent-untrusted-output', 'out-1');
+
+      const fullOutputFile = join(process.cwd(), 'agent-untrusted.output');
+      const fullOutput = [
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Should not be loaded from untrusted path.' }],
+          },
+        }),
+      ].join('\n');
+      writeFileSync(fullOutputFile, fullOutput, 'utf-8');
+
+      const inlineOutput = `[Truncated. Full output: ${fullOutputFile}]`;
+      const xmlPayload = `<retrieval_status>success</retrieval_status>
+<task_id>agent-untrusted-output</task_id>
+<status>completed</status>
+<output>
+${inlineOutput}
+</output>`;
+
+      try {
+        const result = manager.handleAgentOutputToolResult('out-1', xmlPayload, false);
+        expect(result?.result).toBe(inlineOutput);
+      } finally {
+        rmSync(fullOutputFile, { force: true });
+      }
+    });
+
+    it('extracts direct result tag when present', () => {
+      const { manager } = createManager();
+      setupLinkedAgentOutput(manager, 'task-1', 'agent-x', 'out-1');
+
+      const taggedPayload = `<status>completed</status>
+<result>
+Only this is the final result.
+</result>`;
+
+      const result = manager.handleAgentOutputToolResult('out-1', taggedPayload, false);
+      expect(result?.result).toBe('Only this is the final result.');
+    });
+
     it('falls back to first agent when agentId is missing from agents map', () => {
       const { manager } = createManager();
       setupLinkedAgentOutput(manager, 'task-1', 'agent-x', 'out-1');
@@ -677,7 +906,7 @@ describe('SubagentManager', () => {
       expect((result as any).info.asyncStatus).toBe('pending');
     });
 
-    it('buffers task when run_in_background is unknown', () => {
+    it('buffers task when run_in_background is missing', () => {
       const { manager } = createManager();
       const parentEl = createMockEl();
 
@@ -689,6 +918,29 @@ describe('SubagentManager', () => {
 
       expect(result.action).toBe('buffered');
       expect(manager.hasPendingTask('task-unknown')).toBe(true);
+    });
+
+    it('upgrades buffered task to async when run_in_background=true arrives later', () => {
+      const { manager } = createManager();
+      const parentEl = createMockEl();
+
+      const first = manager.handleTaskToolUse(
+        'task-upgrade',
+        { prompt: 'test' },
+        parentEl
+      );
+      expect(first.action).toBe('buffered');
+      expect(manager.hasPendingTask('task-upgrade')).toBe(true);
+
+      const second = manager.handleTaskToolUse(
+        'task-upgrade',
+        { run_in_background: true, description: 'Background' },
+        parentEl
+      );
+
+      expect(second.action).toBe('created_async');
+      expect((second as any).info.id).toBe('task-upgrade');
+      expect(manager.hasPendingTask('task-upgrade')).toBe(false);
     });
 
     it('returns label_updated for already rendered sync subagent', () => {
@@ -746,18 +998,24 @@ describe('SubagentManager', () => {
       expect(manager.getByTaskId('task-1')?.prompt).toBe('full prompt text');
     });
 
-    it('merges input for buffered task and renders when run_in_background known', () => {
+    it('merges buffered input and renders once content element becomes available', () => {
       const { manager } = createManager();
       const parentEl = createMockEl();
 
-      // First chunk - unknown
-      manager.handleTaskToolUse('task-1', { prompt: 'test' }, parentEl);
+      // First chunk without content target must be buffered.
+      manager.handleTaskToolUse('task-1', { description: 'Initial description' }, null);
       expect(manager.hasPendingTask('task-1')).toBe(true);
 
-      // Second chunk with run_in_background
-      const result = manager.handleTaskToolUse('task-1', { run_in_background: false }, parentEl);
+      // Second chunk arrives with a content target, additional input, and confirmed mode.
+      const result = manager.handleTaskToolUse(
+        'task-1',
+        { prompt: 'latest prompt', run_in_background: false },
+        parentEl
+      );
 
       expect(result.action).toBe('created_sync');
+      expect((result as any).subagentState.info.description).toBe('Initial description');
+      expect((result as any).subagentState.info.prompt).toBe('latest prompt');
       expect(manager.hasPendingTask('task-1')).toBe(false);
     });
 
@@ -796,9 +1054,9 @@ describe('SubagentManager', () => {
       const { manager } = createManager();
       const parentEl = createMockEl();
 
-      manager.handleTaskToolUse('task-1', { prompt: 'test' }, parentEl);
+      manager.handleTaskToolUse('task-1', { prompt: 'test' }, null);
 
-      const result = manager.renderPendingTask('task-1');
+      const result = manager.renderPendingTask('task-1', parentEl);
       expect(result).not.toBeNull();
       expect(result?.mode).toBe('sync');
       expect(manager.hasPendingTask('task-1')).toBe(false);
@@ -839,12 +1097,108 @@ describe('SubagentManager', () => {
       const { manager } = createManager();
       const parentEl = createMockEl();
 
-      manager.handleTaskToolUse('task-1', { prompt: 'test' }, parentEl);
+      manager.handleTaskToolUse('task-1', { prompt: 'test' }, null);
       expect(manager.subagentsSpawnedThisStream).toBe(0);
 
       const result = manager.renderPendingTask('task-1', parentEl);
       expect(result).toBeNull();
       expect(manager.subagentsSpawnedThisStream).toBe(0);
+    });
+  });
+
+  describe('renderPendingTaskFromTaskResult', () => {
+    it('returns null for unknown tool id', () => {
+      const { manager } = createManager();
+      const result = manager.renderPendingTaskFromTaskResult('unknown', 'ok', false);
+      expect(result).toBeNull();
+    });
+
+    it('infers async from agent_id markers when mode is still unknown', () => {
+      const { manager } = createManager();
+      const parentEl = createMockEl();
+
+      manager.handleTaskToolUse('task-1', { prompt: 'test' }, parentEl);
+      const result = manager.renderPendingTaskFromTaskResult(
+        'task-1',
+        '{"agent_id":"agent-123"}',
+        false
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.mode).toBe('async');
+      expect(manager.hasPendingTask('task-1')).toBe(false);
+    });
+
+    it('falls back to sync when no async evidence is present', () => {
+      const { manager } = createManager();
+      const parentEl = createMockEl();
+
+      manager.handleTaskToolUse('task-1', { prompt: 'test' }, parentEl);
+      const result = manager.renderPendingTaskFromTaskResult(
+        'task-1',
+        '{"foo":"bar"}',
+        false
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.mode).toBe('sync');
+      expect(manager.getSyncSubagent('task-1')).toBeDefined();
+    });
+
+    it('honors explicit async mode from input even without task-result markers', () => {
+      const { manager } = createManager();
+      const parentEl = createMockEl();
+
+      manager.handleTaskToolUse(
+        'task-1',
+        { prompt: 'test', run_in_background: true },
+        null
+      );
+      const result = manager.renderPendingTaskFromTaskResult(
+        'task-1',
+        '{"foo":"bar"}',
+        false,
+        parentEl
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.mode).toBe('async');
+    });
+
+    it('infers async from toolUseResult markers when task-result text has no agent id', () => {
+      const { manager } = createManager();
+      const parentEl = createMockEl();
+
+      manager.handleTaskToolUse('task-1', { prompt: 'test' }, parentEl);
+      const result = manager.renderPendingTaskFromTaskResult(
+        'task-1',
+        'Launching task...',
+        false,
+        parentEl,
+        {
+          isAsync: true,
+          status: 'async_launched',
+          agentId: 'agent-xyz',
+        }
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.mode).toBe('async');
+    });
+
+    it('resolves to sync on errored task result when mode is unknown', () => {
+      const { manager } = createManager();
+      const parentEl = createMockEl();
+
+      manager.handleTaskToolUse('task-1', { prompt: 'test' }, parentEl);
+      const result = manager.renderPendingTaskFromTaskResult(
+        'task-1',
+        '{"agent_id":"agent-123"}',
+        true
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.mode).toBe('sync');
     });
   });
 
@@ -918,6 +1272,33 @@ describe('SubagentManager', () => {
       expect(manager.getSyncSubagent('task-1')).toBeUndefined();
     });
 
+    it('extracts result from SDK toolUseResult.content for sync subagent', () => {
+      const { finalizeSubagentBlock } = jest.requireMock('@/features/chat/rendering');
+      const { manager } = createManager();
+      const parentEl = createMockEl();
+
+      manager.handleTaskToolUse('task-sdk', { run_in_background: false }, parentEl);
+
+      const sdkToolUseResult = {
+        status: 'completed',
+        content: [
+          { type: 'text', text: 'Full sync subagent result with multiple lines.\n\nSecond paragraph.' },
+          { type: 'text', text: 'agentId: agent-sync\n<usage>total_tokens: 500</usage>' },
+        ],
+        agentId: 'agent-sync',
+      };
+
+      const info = manager.finalizeSyncSubagent('task-sdk', '{}', false, sdkToolUseResult);
+
+      expect(info).not.toBeNull();
+      // Verify the extracted result (first content block) was passed to the renderer
+      expect(finalizeSubagentBlock).toHaveBeenCalledWith(
+        expect.anything(),
+        'Full sync subagent result with multiple lines.\n\nSecond paragraph.',
+        false
+      );
+    });
+
     it('returns null when finalizing nonexistent subagent', () => {
       const { manager } = createManager();
 
@@ -962,7 +1343,7 @@ describe('SubagentManager', () => {
       const parentEl = createMockEl();
 
       manager.handleTaskToolUse('task-sync', { run_in_background: false }, parentEl);
-      manager.handleTaskToolUse('task-pending', { prompt: 'test' }, parentEl);
+      manager.handleTaskToolUse('task-pending', { prompt: 'test' }, null);
 
       expect(manager.getSyncSubagent('task-sync')).toBeDefined();
       expect(manager.hasPendingTask('task-pending')).toBe(true);

@@ -28,13 +28,13 @@ export {
   type TodoItem,
 } from './TodoListRenderer';
 export {
-  formatToolInput,
   getToolLabel,
+  getToolName,
+  getToolSummary,
   isBlockedToolResult,
   renderStoredToolCall,
   renderToolCall,
   setToolIcon,
-  truncateResult,
   updateToolCallResult,
 } from './ToolCallRenderer';
 export {

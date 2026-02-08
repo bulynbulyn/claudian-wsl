@@ -38,6 +38,7 @@ export interface ToolCallInfo {
   isExpanded?: boolean;
   diffData?: ToolDiffData;
   resolvedAnswers?: AskUserAnswers;
+  subagent?: SubagentInfo;
 }
 
 export type ExitPlanModeDecision =
