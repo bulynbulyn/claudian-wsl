@@ -1303,6 +1303,31 @@ describe('InputController - Message Queue', () => {
       expect(deps.state.isStreaming).toBe(false);
       expect(deps.state.cancelRequested).toBe(false);
     });
+
+    it('should append interrupted text when cancelRequested is set after last stream chunk', async () => {
+      deps = createSendableDeps();
+
+      ((deps as any).mockAgentService.query as jest.Mock).mockImplementation(() => {
+        return (async function* () {
+          yield { type: 'text', content: 'partial' };
+        })();
+      });
+      (deps.streamController.handleStreamChunk as jest.Mock).mockImplementation(async () => {
+        deps.state.cancelRequested = true;
+      });
+
+      inputEl = deps.getInputEl() as ReturnType<typeof createMockInputEl>;
+      inputEl.value = 'test message';
+      controller = new InputController(deps);
+
+      await controller.sendMessage();
+
+      expect(deps.streamController.appendText).toHaveBeenCalledWith(
+        expect.stringContaining('Interrupted')
+      );
+      expect(deps.state.isStreaming).toBe(false);
+      expect(deps.state.cancelRequested).toBe(false);
+    });
   });
 
   describe('Duration footer', () => {

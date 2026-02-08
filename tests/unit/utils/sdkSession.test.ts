@@ -672,6 +672,22 @@ describe('sdkSession', () => {
       expect(chatMsg!.content).toBe('[Request interrupted by user]');
     });
 
+    it('does not mark non-canonical interrupt text variants', () => {
+      const sdkMsg: SDKNativeMessage = {
+        type: 'user',
+        uuid: 'interrupt-non-canonical',
+        timestamp: '2024-01-15T10:30:00Z',
+        message: {
+          content: 'prefix [Request interrupted by user]',
+        },
+      };
+
+      const chatMsg = parseSDKMessageToChat(sdkMsg);
+
+      expect(chatMsg).not.toBeNull();
+      expect(chatMsg!.isInterrupt).toBeUndefined();
+    });
+
     it('does not mark regular user messages as interrupt', () => {
       const sdkMsg: SDKNativeMessage = {
         type: 'user',
@@ -984,6 +1000,20 @@ describe('sdkSession', () => {
       const interruptMsg = result.messages.find(m => m.isInterrupt);
       expect(interruptMsg).toBeDefined();
       expect(interruptMsg!.isInterrupt).toBe(true);
+    });
+
+    it('does not treat embedded compaction stderr mentions as interrupt markers', async () => {
+      mockExistsSync.mockReturnValue(true);
+      mockFsPromises.readFile.mockResolvedValue([
+        '{"type":"user","uuid":"u1","timestamp":"2024-01-15T10:00:00Z","message":{"content":"Hello"}}',
+        '{"type":"assistant","uuid":"a1","timestamp":"2024-01-15T10:01:00Z","message":{"content":[{"type":"text","text":"Hi!"}]}}',
+        '{"type":"user","uuid":"u2","timestamp":"2024-01-15T10:02:01Z","message":{"content":"## Context\\n<local-command-stderr>Error: Compaction canceled.</local-command-stderr>"}}',
+      ].join('\n'));
+
+      const result = await loadSDKSessionMessages('/Users/test/vault', 'session-compact-quoted-cancel');
+
+      expect(result.messages).toHaveLength(2);
+      expect(result.messages.some(m => m.isInterrupt)).toBe(false);
     });
 
     it('preserves slash command invocations with clean displayContent', async () => {
@@ -1325,6 +1355,21 @@ describe('sdkSession', () => {
       const chatMsg = parseSDKMessageToChat(sdkMsg);
       expect(chatMsg).not.toBeNull();
       expect(chatMsg!.isInterrupt).toBe(true);
+    });
+
+    it('does not mark quoted compact cancellation mention as interrupt', () => {
+      const sdkMsg: SDKNativeMessage = {
+        type: 'user',
+        uuid: 'interrupt-compact-quoted',
+        timestamp: '2024-01-15T10:30:00Z',
+        message: {
+          content: '## Context\n<local-command-stderr>Error: Compaction canceled.</local-command-stderr>',
+        },
+      };
+
+      const chatMsg = parseSDKMessageToChat(sdkMsg);
+      expect(chatMsg).not.toBeNull();
+      expect(chatMsg!.isInterrupt).toBeUndefined();
     });
 
     it('marks compact cancellation stderr as interrupt', () => {

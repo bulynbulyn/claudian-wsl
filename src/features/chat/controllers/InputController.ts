@@ -374,7 +374,8 @@ export class InputController {
 
       // Skip remaining cleanup if stream was invalidated (tab closed or conversation switched)
       if (!wasInvalidated && state.streamGeneration === streamGeneration) {
-        if (wasInterrupted && !state.pendingNewSessionPlan) {
+        const didCancelThisTurn = wasInterrupted || state.cancelRequested;
+        if (didCancelThisTurn && !state.pendingNewSessionPlan) {
           await streamController.appendText('\n\n<span class="claudian-interrupted">Interrupted</span> <span class="claudian-interrupted-hint">· What should Claudian do instead?</span>');
         }
         streamController.hideThinkingIndicator();
@@ -383,7 +384,7 @@ export class InputController {
 
         // Capture response duration before resetting state (skip for interrupted responses and compaction)
         const hasCompactBoundary = assistantMsg.contentBlocks?.some(b => b.type === 'compact_boundary');
-        if (!wasInterrupted && !hasCompactBoundary) {
+        if (!didCancelThisTurn && !hasCompactBoundary) {
           const durationSeconds = state.responseStartTime
             ? Math.floor((performance.now() - state.responseStartTime) / 1000)
             : 0;

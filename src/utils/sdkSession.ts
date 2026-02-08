@@ -18,6 +18,7 @@ import { TOOL_ASK_USER_QUESTION, TOOL_TASK } from '../core/tools/toolNames';
 import type { ChatMessage, ContentBlock, ImageAttachment, ImageMediaType, SubagentInfo, ToolCallInfo } from '../core/types';
 import { extractContentBeforeXmlContext } from './context';
 import { extractDiffData } from './diff';
+import { isCompactionCanceledStderr, isInterruptSignalText } from './interrupt';
 import { extractFinalResultFromSubagentJsonl } from './subagentJsonl';
 
 export interface SDKSessionReadResult {
@@ -606,11 +607,7 @@ export function parseSDKMessageToChat(
     displayContent = commandNameMatch ? commandNameMatch[1] : extractDisplayContent(textContent);
   }
 
-  const isInterrupt = sdkMsg.type === 'user' && (
-    textContent === '[Request interrupted by user]' ||
-    textContent === '[Request interrupted by user for tool use]' ||
-    (textContent.includes('<local-command-stderr>') && textContent.includes('Compaction canceled'))
-  );
+  const isInterrupt = sdkMsg.type === 'user' && isInterruptSignalText(textContent);
 
   const isRebuiltContext = sdkMsg.type === 'user' && isRebuiltContextContent(textContent);
 
@@ -745,7 +742,7 @@ function isSystemInjectedMessage(sdkMsg: SDKNativeMessage): boolean {
 
   // Preserve user-invoked slash commands (have both <command-name> and <command-message>)
   if (text.includes('<command-name>') && text.includes('<command-message>')) return false;
-  if (text.includes('<local-command-stderr>') && text.includes('Compaction canceled')) return false;
+  if (isCompactionCanceledStderr(text)) return false;
 
   // Filter system-injected messages
   if (text.startsWith('This session is being continued from a previous conversation')) return true;
