@@ -1,6 +1,7 @@
 import { createMockEl, type MockElement } from '@test/helpers/mockElement';
 import { TFile } from 'obsidian';
 
+import { VaultFolderCache } from '@/features/chat/ui/file-context/state/VaultFolderCache';
 import type { FileContextCallbacks } from '@/features/chat/ui/FileContext';
 import { FileContextManager } from '@/features/chat/ui/FileContext';
 import type { ExternalContextFile } from '@/utils/externalContextScanner';
@@ -79,6 +80,7 @@ function createMockApp(options: {
       on: jest.fn(() => ({ id: 'event-ref' })),
       offref: jest.fn(),
       getAbstractFileByPath: jest.fn((filePath: string) => fileMap.get(filePath) || null),
+      getAllLoadedFiles: jest.fn(() => Array.from(fileMap.values())),
       getMarkdownFiles: jest.fn(() => Array.from(fileMap.values())),
     },
     workspace: {
@@ -271,6 +273,33 @@ describe('FileContextManager', () => {
     expect(attached.has('clipping/file.md')).toBe(true);
 
     manager.destroy();
+  });
+
+  it('wires getCachedVaultFolders through VaultFolderCache.getFolders', () => {
+    const folder = { name: 'src', path: 'src' } as any;
+    const getFoldersSpy = jest
+      .spyOn(VaultFolderCache.prototype, 'getFolders')
+      .mockReturnValue([folder]);
+    const app = createMockApp();
+    const manager = new FileContextManager(
+      app,
+      containerEl as any,
+      inputEl,
+      createMockCallbacks()
+    );
+
+    inputEl.value = '@src';
+    inputEl.selectionStart = 4;
+    inputEl.selectionEnd = 4;
+    manager.handleInputChange();
+    jest.advanceTimersByTime(200);
+
+    expect(getFoldersSpy).toHaveBeenCalled();
+    const folderLabel = findByClass(containerEl, 'claudian-mention-name-folder');
+    expect(folderLabel?.textContent).toBe('@src/');
+
+    manager.destroy();
+    getFoldersSpy.mockRestore();
   });
 
   it('filters context files and attaches absolute path', () => {
@@ -580,13 +609,22 @@ describe('FileContextManager', () => {
     });
   });
 
-  describe('markFilesCacheDirty', () => {
-    it('should not throw when called', () => {
+  describe('cache dirty marking', () => {
+    it('should not throw when marking file cache dirty', () => {
       const app = createMockApp();
       const manager = new FileContextManager(
         app, containerEl as any, inputEl, createMockCallbacks()
       );
-      expect(() => manager.markFilesCacheDirty()).not.toThrow();
+      expect(() => manager.markFileCacheDirty()).not.toThrow();
+      manager.destroy();
+    });
+
+    it('should not throw when marking folder cache dirty', () => {
+      const app = createMockApp();
+      const manager = new FileContextManager(
+        app, containerEl as any, inputEl, createMockCallbacks()
+      );
+      expect(() => manager.markFolderCacheDirty()).not.toThrow();
       manager.destroy();
     });
   });

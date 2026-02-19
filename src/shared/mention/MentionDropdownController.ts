@@ -10,6 +10,7 @@ import {
   type AgentMentionProvider,
   createExternalContextEntry,
   type ExternalContextEntry,
+  type FolderMentionItem,
   type MentionItem,
 } from './types';
 
@@ -29,6 +30,7 @@ export interface MentionDropdownCallbacks {
   setMentionedMcpServers: (mentions: Set<string>) => boolean;
   addMentionedMcpServer: (name: string) => void;
   getExternalContexts: () => string[];
+  getCachedVaultFolders: () => Array<Pick<FolderMentionItem, 'name' | 'path'>>;
   getCachedMarkdownFiles: () => TFile[];
   normalizePathForVault: (path: string | undefined | null) => string | null;
 }
@@ -315,7 +317,15 @@ export class MentionDropdownController {
         });
       }
 
-      this.selectedMentionIndex = 0;
+      const firstVaultItemIndex = this.filteredMentionItems.length;
+      const vaultItemCount = this.appendVaultItems(searchLower);
+
+      if (this.filteredContextFiles.length === 0 && vaultItemCount > 0) {
+        this.selectedMentionIndex = firstVaultItemIndex;
+      } else {
+        this.selectedMentionIndex = 0;
+      }
+
       this.renderMentionDropdown();
       return;
     }
@@ -361,40 +371,67 @@ export class MentionDropdownController {
       }
     }
 
-    const firstVaultFileIndex = this.filteredMentionItems.length;
+    const firstVaultItemIndex = this.filteredMentionItems.length;
+    const vaultItemCount = this.appendVaultItems(searchLower);
 
-    const allFiles = this.callbacks.getCachedMarkdownFiles();
-    const vaultFiles = allFiles
-      .filter(file => {
-        const pathLower = file.path.toLowerCase();
-        const nameLower = file.name.toLowerCase();
-        return pathLower.includes(searchLower) || nameLower.includes(searchLower);
-      })
-      .sort((a, b) => {
-        const aNameMatch = a.name.toLowerCase().startsWith(searchLower);
-        const bNameMatch = b.name.toLowerCase().startsWith(searchLower);
-        if (aNameMatch && !bNameMatch) return -1;
-        if (!aNameMatch && bNameMatch) return 1;
-        return b.stat.mtime - a.stat.mtime;
-      })
-      .slice(0, 100);
-
-    for (const file of vaultFiles) {
-      this.filteredMentionItems.push({
-        type: 'file',
-        name: file.name,
-        path: file.path,
-        file,
-      });
-    }
-
-    if (vaultFiles.length > 0) {
-      this.selectedMentionIndex = firstVaultFileIndex;
-    } else {
-      this.selectedMentionIndex = 0;
-    }
+    this.selectedMentionIndex = vaultItemCount > 0 ? firstVaultItemIndex : 0;
 
     this.renderMentionDropdown();
+  }
+
+  private appendVaultItems(searchLower: string): number {
+    type ScoredItem =
+      | { type: 'folder'; name: string; path: string; startsWithQuery: boolean }
+      | { type: 'file'; name: string; path: string; file: TFile; startsWithQuery: boolean };
+
+    const compare = (a: ScoredItem, b: ScoredItem): number => {
+      if (a.startsWithQuery !== b.startsWithQuery) return a.startsWithQuery ? -1 : 1;
+      return a.path.localeCompare(b.path);
+    };
+
+    const scoredFolders: ScoredItem[] = this.callbacks.getCachedVaultFolders()
+      .map(f => ({
+        name: f.name,
+        path: f.path.replace(/\\/g, '/').replace(/\/+$/, ''),
+      }))
+      .filter(f =>
+        f.path.length > 0 &&
+        (f.path.toLowerCase().includes(searchLower) || f.name.toLowerCase().includes(searchLower))
+      )
+      .map(f => ({
+        type: 'folder' as const,
+        name: f.name,
+        path: f.path,
+        startsWithQuery: f.name.toLowerCase().startsWith(searchLower),
+      }))
+      .sort(compare)
+      .slice(0, 50);
+
+    const scoredFiles: ScoredItem[] = this.callbacks.getCachedMarkdownFiles()
+      .filter(f =>
+        f.path.toLowerCase().includes(searchLower) || f.name.toLowerCase().includes(searchLower)
+      )
+      .map(f => ({
+        type: 'file' as const,
+        name: f.name,
+        path: f.path,
+        file: f,
+        startsWithQuery: f.name.toLowerCase().startsWith(searchLower),
+      }))
+      .sort(compare)
+      .slice(0, 100);
+
+    const merged = [...scoredFolders, ...scoredFiles].sort(compare);
+
+    for (const item of merged) {
+      if (item.type === 'folder') {
+        this.filteredMentionItems.push({ type: 'folder', name: item.name, path: item.path });
+      } else {
+        this.filteredMentionItems.push({ type: 'file', name: item.name, path: item.path, file: item.file });
+      }
+    }
+
+    return merged.length;
   }
 
   private renderMentionDropdown(): void {
@@ -404,6 +441,7 @@ export class MentionDropdownController {
       emptyText: 'No matches',
       getItemClass: (item) => {
         if (item.type === 'mcp-server') return 'mcp-server';
+        if (item.type === 'folder') return 'vault-folder';
         if (item.type === 'agent') return 'agent';
         if (item.type === 'agent-folder') return 'agent-folder';
         if (item.type === 'context-file') return 'context-file';
@@ -414,6 +452,8 @@ export class MentionDropdownController {
         const iconEl = itemEl.createSpan({ cls: 'claudian-mention-icon' });
         if (item.type === 'mcp-server') {
           iconEl.innerHTML = MCP_ICON_SVG;
+        } else if (item.type === 'folder') {
+          setIcon(iconEl, 'folder');
         } else if (item.type === 'agent' || item.type === 'agent-folder') {
           setIcon(iconEl, 'bot');
         } else if (item.type === 'context-file') {
@@ -452,6 +492,11 @@ export class MentionDropdownController {
             cls: 'claudian-mention-name claudian-mention-name-context',
           });
           nameEl.setText(item.name);
+        } else if (item.type === 'folder') {
+          const nameEl = textEl.createSpan({
+            cls: 'claudian-mention-name claudian-mention-name-folder',
+          });
+          nameEl.setText(`@${item.path}/`);
         } else {
           const pathEl = textEl.createSpan({ cls: 'claudian-mention-path' });
           pathEl.setText(item.path || item.name);
@@ -559,6 +604,11 @@ export class MentionDropdownController {
       }
 
       const replacement = `${displayName} `;
+      this.inputEl.value = beforeAt + replacement + afterCursor;
+      this.inputEl.selectionStart = this.inputEl.selectionEnd = beforeAt.length + replacement.length;
+    } else if (selectedItem.type === 'folder') {
+      const normalizedPath = this.callbacks.normalizePathForVault(selectedItem.path);
+      const replacement = `@${normalizedPath ?? selectedItem.path}/ `;
       this.inputEl.value = beforeAt + replacement + afterCursor;
       this.inputEl.selectionStart = this.inputEl.selectionEnd = beforeAt.length + replacement.length;
     } else {
