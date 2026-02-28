@@ -662,7 +662,10 @@ describe('McpTester', () => {
     expect(result.tools).toEqual([{ name: 'tool-a', description: 'Tool A', inputSchema: { type: 'object' } }]);
     expect(StreamableHTTPClientTransport).toHaveBeenCalledWith(
       expect.any(URL),
-      expect.objectContaining({ requestInit: { headers: { Authorization: 'token' } } }),
+      expect.objectContaining({
+        fetch: expect.any(Function),
+        requestInit: { headers: { Authorization: 'token' } },
+      }),
     );
   });
 
@@ -682,7 +685,10 @@ describe('McpTester', () => {
     expect(result.tools).toEqual([{ name: 'tool-a', description: 'Tool A', inputSchema: { type: 'object' } }]);
     expect(SSEClientTransport).toHaveBeenCalledWith(
       expect.any(URL),
-      expect.objectContaining({ requestInit: { headers: { Authorization: 'token' } } }),
+      expect.objectContaining({
+        fetch: expect.any(Function),
+        requestInit: { headers: { Authorization: 'token' } },
+      }),
     );
   });
 

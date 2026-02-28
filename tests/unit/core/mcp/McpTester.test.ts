@@ -86,6 +86,7 @@ describe('testMcpServer', () => {
 
   describe('sse server', () => {
     it('should connect to an SSE server', async () => {
+      const { SSEClientTransport } = jest.requireMock('@modelcontextprotocol/sdk/client/sse');
       const server: ClaudianMcpServer = {
         name: 'sse-test',
         config: { type: 'sse' as const, url: 'https://example.com/sse' },
@@ -97,11 +98,18 @@ describe('testMcpServer', () => {
 
       expect(result.success).toBe(true);
       expect(result.tools).toHaveLength(2);
+      expect(SSEClientTransport).toHaveBeenCalledWith(
+        expect.any(URL),
+        expect.objectContaining({
+          fetch: expect.any(Function),
+        }),
+      );
     });
   });
 
   describe('http server', () => {
     it('should connect to an HTTP server', async () => {
+      const { StreamableHTTPClientTransport } = jest.requireMock('@modelcontextprotocol/sdk/client/streamableHttp');
       const server: ClaudianMcpServer = {
         name: 'http-test',
         config: { type: 'http' as const, url: 'https://example.com/api' },
@@ -112,9 +120,16 @@ describe('testMcpServer', () => {
       const result = await testMcpServer(server);
 
       expect(result.success).toBe(true);
+      expect(StreamableHTTPClientTransport).toHaveBeenCalledWith(
+        expect.any(URL),
+        expect.objectContaining({
+          fetch: expect.any(Function),
+        }),
+      );
     });
 
     it('should pass headers when configured', async () => {
+      const { StreamableHTTPClientTransport } = jest.requireMock('@modelcontextprotocol/sdk/client/streamableHttp');
       const server: ClaudianMcpServer = {
         name: 'http-auth',
         config: {
@@ -129,6 +144,13 @@ describe('testMcpServer', () => {
       const result = await testMcpServer(server);
 
       expect(result.success).toBe(true);
+      expect(StreamableHTTPClientTransport).toHaveBeenCalledWith(
+        expect.any(URL),
+        expect.objectContaining({
+          fetch: expect.any(Function),
+          requestInit: { headers: { Authorization: 'Bearer token' } },
+        }),
+      );
     });
   });
 
