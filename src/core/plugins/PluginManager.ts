@@ -7,6 +7,7 @@
  */
 
 import * as fs from 'fs';
+import { Notice } from 'obsidian';
 import * as os from 'os';
 import * as path from 'path';
 
@@ -94,6 +95,9 @@ export class PluginManager {
         if (!entries || entries.length === 0) continue;
 
         const entriesArray = Array.isArray(entries) ? entries : [entries];
+        if (!Array.isArray(entries)) {
+          new Notice(`Claudian: plugin "${pluginId}" has malformed entry in installed_plugins.json (expected array, got ${typeof entries})`);
+        }
         const entry = selectInstalledPluginEntry(entriesArray, normalizedVaultPath);
         if (!entry) continue;
 
