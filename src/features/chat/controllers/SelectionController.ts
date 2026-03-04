@@ -64,11 +64,17 @@ export class SelectionController {
 
   private poll(): void {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!view) return;
+    if (!view) {
+      this.clearWhenMarkdownIsNotActive();
+      return;
+    }
 
     const editor = view.editor;
     const editorView = getEditorView(editor);
-    if (!editorView) return;
+    if (!editorView) {
+      this.clearWhenMarkdownIsNotActive();
+      return;
+    }
 
     const selectedText = editor.getSelection();
 
@@ -117,6 +123,16 @@ export class SelectionController {
       this.storedSelection = null;
       this.updateIndicator();
     }
+  }
+
+  private clearWhenMarkdownIsNotActive(): void {
+    if (!this.storedSelection) return;
+    if (document.activeElement === this.inputEl) return;
+
+    this.inputHandoffGraceUntil = null;
+    this.clearHighlight();
+    this.storedSelection = null;
+    this.updateIndicator();
   }
 
   // ============================================

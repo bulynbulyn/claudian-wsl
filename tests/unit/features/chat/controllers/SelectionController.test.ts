@@ -127,6 +127,20 @@ describe('SelectionController', () => {
     expect(hideSelectionHighlight).toHaveBeenCalledWith(editorView);
   });
 
+  it('clears markdown selection when active view is no longer markdown', () => {
+    controller.start();
+    jest.advanceTimersByTime(250);
+    expect(controller.hasSelection()).toBe(true);
+
+    app.workspace.getActiveViewOfType.mockReturnValue(null);
+    (global as any).document.activeElement = null;
+    jest.advanceTimersByTime(250);
+
+    expect(controller.hasSelection()).toBe(false);
+    expect(indicatorEl.style.display).toBe('none');
+    expect(hideSelectionHighlight).toHaveBeenCalledWith(editorView);
+  });
+
   it('preserves selection when input focus arrives after a slow editor blur handoff', () => {
     controller.start();
     jest.advanceTimersByTime(250);
