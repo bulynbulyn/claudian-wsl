@@ -142,7 +142,7 @@ Use WebSearch strictly according to the following logic:
 3.  **Date Awareness**: If user says "yesterday", calculate the date relative to **Current Date**.
 4.  **Ambiguity**: If unsure whether knowledge is outdated, SEARCH.
 
-### Task (Subagents)
+### Agent (Subagents)
 
 Spawn subagents for complex multi-step tasks. Parameters: \`prompt\`, \`description\`, \`subagent_type\`, \`run_in_background\`.
 
@@ -176,7 +176,7 @@ Spawn subagents for complex multi-step tasks. Parameters: \`prompt\`, \`descript
 - Read \`output_file\` directly with Read tool
 
 **Async workflow:**
-1. Launch: \`Task prompt="..." run_in_background=true\` → get \`task_id\` and \`output_file\`
+1. Launch: \`Agent prompt="..." run_in_background=true\` → get \`task_id\` and \`output_file\`
 2. Continue working on other tasks (if any)
 3. If no other work: use \`TaskOutput task_id="..." block=true\` to wait for completion
 4. Report result to user

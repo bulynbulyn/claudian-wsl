@@ -12,7 +12,7 @@
  * ```
  */
 
-import { TOOL_TASK } from '../tools/toolNames';
+import { isSubagentToolName } from '../tools/toolNames';
 import type {
   ChatMessage,
   Conversation,
@@ -406,7 +406,7 @@ export class SessionStorage {
 
   /**
    * Extracts subagentData from messages for persistence.
-   * Collects subagent info from Task tool calls.
+   * Collects subagent info from Agent tool calls, including legacy Task transcripts.
    */
   private extractSubagentData(messages: ChatMessage[]): Record<string, SubagentInfo> {
     const result: Record<string, SubagentInfo> = {};
@@ -416,7 +416,7 @@ export class SessionStorage {
 
       if (msg.toolCalls) {
         for (const toolCall of msg.toolCalls) {
-          if (toolCall.name !== TOOL_TASK || !toolCall.subagent) continue;
+          if (!isSubagentToolName(toolCall.name) || !toolCall.subagent) continue;
           result[toolCall.subagent.id] = toolCall.subagent;
         }
       }
