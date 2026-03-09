@@ -1,3 +1,6 @@
+import { RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
+import type { DecorationSet } from '@codemirror/view';
+import { Decoration, EditorView, WidgetType } from '@codemirror/view';
 import type { App, Editor, MarkdownView, TFile } from 'obsidian';
 import { Notice } from 'obsidian';
 
@@ -24,14 +27,6 @@ import { type InlineEditMode, InlineEditService } from '../InlineEditService';
 export type InlineEditContext =
   | { mode: 'selection'; selectedText: string }
   | { mode: 'cursor'; cursorContext: CursorContext };
-import { RangeSetBuilder,StateEffect, StateField } from '@codemirror/state';
-import type {
-  DecorationSet} from '@codemirror/view';
-import {
-  Decoration,
-  EditorView,
-  WidgetType,
-} from '@codemirror/view';
 
 const showInlineEdit = StateEffect.define<{
   inputPos: number;
@@ -276,7 +271,7 @@ class InlineEditController {
   private slashCommandDropdown: SlashCommandDropdown | null = null;
   private mentionDropdown: MentionDropdownController | null = null;
   private folderCache: VaultFolderCache | null = null;
-  private hasShownMarkdownFilesError = false;
+  private hasShownVaultFilesError = false;
 
   constructor(
     private app: App,
@@ -443,7 +438,7 @@ class InlineEditController {
         getExternalContexts: this.getExternalContexts,
         getCachedVaultFolders: () =>
           this.folderCache?.getFolders().map(f => ({ name: f.name, path: f.path })) ?? [],
-        getCachedMarkdownFiles: () => this.getMarkdownFilesSafely(),
+        getCachedVaultFiles: () => this.getVaultFilesSafely(),
         normalizePathForVault: (rawPath) => this.normalizePathForVault(rawPath),
       },
       { fixed: true }
@@ -693,10 +688,10 @@ class InlineEditController {
   private resolveContextFilesFromMessage(message: string): string[] {
     if (!message.includes('@')) return [];
 
-    const markdownFiles = this.getMarkdownFilesSafely();
+    const vaultFiles = this.getVaultFilesSafely();
 
     const pathLookup = new Map<string, string>();
-    for (const file of markdownFiles) {
+    for (const file of vaultFiles) {
       const normalized = this.normalizePathForVault(file.path);
       if (!normalized) continue;
       const lookupKey = normalizeForPlatformLookup(normalizeMentionPath(normalized));
@@ -736,13 +731,13 @@ class InlineEditController {
     return [...resolved];
   }
 
-  private getMarkdownFilesSafely(): TFile[] {
+  private getVaultFilesSafely(): TFile[] {
     try {
-      return this.app.vault.getMarkdownFiles();
+      return this.app.vault.getFiles();
     } catch {
-      if (!this.hasShownMarkdownFilesError) {
-        this.hasShownMarkdownFilesError = true;
-        new Notice('Failed to load vault markdown files. Vault @-mentions may be unavailable.');
+      if (!this.hasShownVaultFilesError) {
+        this.hasShownVaultFilesError = true;
+        new Notice('Failed to load vault files. Vault @-mentions may be unavailable.');
       }
       return [];
     }

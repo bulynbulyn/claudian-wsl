@@ -1,7 +1,6 @@
-import type { App } from 'obsidian';
-import type { TFile } from 'obsidian';
+import type { App, TFile } from 'obsidian';
 
-export class MarkdownFileCache {
+export class VaultFileCache {
   private app: App;
   private cachedFiles: TFile[] = [];
   private dirty = true;
@@ -32,7 +31,7 @@ export class MarkdownFileCache {
 
   private tryRefreshFiles(): void {
     try {
-      this.cachedFiles = this.app.vault.getMarkdownFiles();
+      this.cachedFiles = this.app.vault.getFiles();
       this.dirty = false;
     } catch {
       // Keep stale cache on failure. If data exists, avoid retrying each call.

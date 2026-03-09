@@ -13,7 +13,7 @@ import { buildExternalContextDisplayEntries } from '../../../utils/externalConte
 import { externalContextScanner } from '../../../utils/externalContextScanner';
 import { getVaultPath, normalizePathForVault as normalizePathForVaultUtil } from '../../../utils/path';
 import { FileContextState } from './file-context/state/FileContextState';
-import { MarkdownFileCache } from './file-context/state/MarkdownFileCache';
+import { VaultFileCache } from './file-context/state/VaultFileCache';
 import { VaultFolderCache } from './file-context/state/VaultFolderCache';
 import { FileChipsView } from './file-context/view/FileChipsView';
 
@@ -32,7 +32,7 @@ export class FileContextManager {
   private dropdownContainerEl: HTMLElement;
   private inputEl: HTMLTextAreaElement;
   private state: FileContextState;
-  private fileCache: MarkdownFileCache;
+  private fileCache: VaultFileCache;
   private folderCache: VaultFolderCache;
   private chipsView: FileChipsView;
   private mentionDropdown: MentionDropdownController;
@@ -59,7 +59,7 @@ export class FileContextManager {
     this.callbacks = callbacks;
 
     this.state = new FileContextState();
-    this.fileCache = new MarkdownFileCache(this.app);
+    this.fileCache = new VaultFileCache(this.app);
     this.fileCache.initializeInBackground();
     this.folderCache = new VaultFolderCache(this.app);
     this.folderCache.initializeInBackground();
@@ -99,7 +99,7 @@ export class FileContextManager {
         getExternalContexts: () => this.callbacks.getExternalContexts?.() || [],
         getCachedVaultFolders: () =>
           this.folderCache.getFolders().map(folder => ({ name: folder.name, path: folder.path })),
-        getCachedMarkdownFiles: () => this.fileCache.getFiles(),
+        getCachedVaultFiles: () => this.fileCache.getFiles(),
         normalizePathForVault: (rawPath) => this.normalizePathForVault(rawPath),
       }
     );

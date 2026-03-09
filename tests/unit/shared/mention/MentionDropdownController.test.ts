@@ -55,7 +55,7 @@ function createMockCallbacks(overrides: Partial<MentionDropdownCallbacks> = {}):
     addMentionedMcpServer: jest.fn((name: string) => mentionedServers.add(name)),
     getExternalContexts: jest.fn().mockReturnValue([]),
     getCachedVaultFolders: jest.fn().mockReturnValue([]),
-    getCachedMarkdownFiles: jest.fn().mockReturnValue([]),
+    getCachedVaultFiles: jest.fn().mockReturnValue([]),
     normalizePathForVault: jest.fn((path: string | undefined | null) => path ?? null),
     ...overrides,
   };
@@ -491,7 +491,7 @@ describe('MentionDropdownController', () => {
       })) as any[];
 
       const limitedCallbacks = createMockCallbacks({
-        getCachedMarkdownFiles: jest.fn().mockReturnValue(largeFileSet),
+        getCachedVaultFiles: jest.fn().mockReturnValue(largeFileSet),
       });
 
       const testController = new MentionDropdownController(
@@ -562,7 +562,7 @@ describe('MentionDropdownController', () => {
         getCachedVaultFolders: jest.fn().mockReturnValue([
           { name: 'src', path: 'src' },
         ]),
-        getCachedMarkdownFiles: jest.fn().mockReturnValue([
+        getCachedVaultFiles: jest.fn().mockReturnValue([
           {
             path: 'note.md',
             name: 'note.md',
@@ -690,7 +690,7 @@ describe('MentionDropdownController', () => {
         getCachedVaultFolders: jest.fn().mockReturnValue([
           { name: 'alpha', path: 'alpha' },
         ]),
-        getCachedMarkdownFiles: jest.fn().mockReturnValue([
+        getCachedVaultFiles: jest.fn().mockReturnValue([
           {
             path: 'zeta.md',
             name: 'zeta.md',

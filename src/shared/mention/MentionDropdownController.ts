@@ -27,7 +27,7 @@ export interface MentionDropdownCallbacks {
   addMentionedMcpServer: (name: string) => void;
   getExternalContexts: () => string[];
   getCachedVaultFolders: () => Array<Pick<FolderMentionItem, 'name' | 'path'>>;
-  getCachedMarkdownFiles: () => TFile[];
+  getCachedVaultFiles: () => TFile[];
   normalizePathForVault: (path: string | undefined | null) => string | null;
 }
 
@@ -367,7 +367,7 @@ export class MentionDropdownController {
       .sort(compare)
       .slice(0, 50);
 
-    const scoredFiles: ScoredItem[] = this.callbacks.getCachedMarkdownFiles()
+    const scoredFiles: ScoredItem[] = this.callbacks.getCachedVaultFiles()
       .filter(f =>
         f.path.toLowerCase().includes(searchLower) || f.name.toLowerCase().includes(searchLower)
       )

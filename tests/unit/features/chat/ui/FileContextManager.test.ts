@@ -81,7 +81,7 @@ function createMockApp(options: {
       offref: jest.fn(),
       getAbstractFileByPath: jest.fn((filePath: string) => fileMap.get(filePath) || null),
       getAllLoadedFiles: jest.fn(() => Array.from(fileMap.values())),
-      getMarkdownFiles: jest.fn(() => Array.from(fileMap.values())),
+      getFiles: jest.fn(() => Array.from(fileMap.values())),
     },
     workspace: {
       getActiveFile: jest.fn(() => {

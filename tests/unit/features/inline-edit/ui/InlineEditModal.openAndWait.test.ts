@@ -89,7 +89,7 @@ describe('InlineEditModal - openAndWait', () => {
     try {
       const app = {
         vault: {
-          getMarkdownFiles: jest.fn().mockReturnValue([]),
+          getFiles: jest.fn().mockReturnValue([]),
           getAllLoadedFiles: jest.fn().mockReturnValue([]),
         },
         workspace: {
@@ -171,7 +171,7 @@ describe('InlineEditModal - openAndWait', () => {
     }
   });
 
-  it('shows a single notice and degrades gracefully when getMarkdownFiles throws', async () => {
+  it('shows a single notice and degrades gracefully when getFiles throws', async () => {
     const originalDocument = (global as any).document;
     (global as any).document = {
       body: createMockEl('body'),
@@ -184,7 +184,7 @@ describe('InlineEditModal - openAndWait', () => {
       const app = {
         vault: {
           adapter: { basePath: '/vault' },
-          getMarkdownFiles: jest.fn().mockImplementation(() => {
+          getFiles: jest.fn().mockImplementation(() => {
             throw new Error('vault unavailable');
           }),
           getAllLoadedFiles: jest.fn().mockReturnValue([]),
@@ -274,8 +274,8 @@ describe('InlineEditModal - openAndWait', () => {
       const resultPromise = modal.openAndWait();
 
       const callbacks = mentionDropdownCtor.mock.calls[0]?.[2];
-      expect(callbacks.getCachedMarkdownFiles()).toEqual([]);
-      expect(callbacks.getCachedMarkdownFiles()).toEqual([]);
+      expect(callbacks.getCachedVaultFiles()).toEqual([]);
+      expect(callbacks.getCachedVaultFiles()).toEqual([]);
 
       const editTextMock = jest.fn().mockResolvedValue({
         success: true,
@@ -297,7 +297,7 @@ describe('InlineEditModal - openAndWait', () => {
       const noticeMock = Notice as unknown as jest.Mock;
       expect(noticeMock).toHaveBeenCalledTimes(1);
       expect(noticeMock).toHaveBeenCalledWith(
-        'Failed to load vault markdown files. Vault @-mentions may be unavailable.'
+        'Failed to load vault files. Vault @-mentions may be unavailable.'
       );
 
       widgetRef.reject();
@@ -321,7 +321,7 @@ describe('InlineEditModal - openAndWait', () => {
       const app = {
         vault: {
           adapter: { basePath: '/vault' },
-          getMarkdownFiles: jest.fn().mockReturnValue([
+          getFiles: jest.fn().mockReturnValue([
             { path: 'notes/a.md' },
             { path: 'notes/b.md' },
           ]),
@@ -425,7 +425,7 @@ describe('InlineEditModal - openAndWait', () => {
       const app = {
         vault: {
           adapter: { basePath: '/vault' },
-          getMarkdownFiles: jest.fn().mockReturnValue([{ path: 'notes/local.md' }]),
+          getFiles: jest.fn().mockReturnValue([{ path: 'notes/local.md' }]),
           getAllLoadedFiles: jest.fn().mockReturnValue([]),
         },
         workspace: {
@@ -550,7 +550,7 @@ describe('InlineEditModal - openAndWait', () => {
       const app = {
         vault: {
           adapter: { basePath: '/vault' },
-          getMarkdownFiles: jest.fn().mockReturnValue([
+          getFiles: jest.fn().mockReturnValue([
             { path: 'notes/my note.md' },
           ]),
           getAllLoadedFiles: jest.fn().mockReturnValue([]),
@@ -640,7 +640,7 @@ describe('InlineEditModal - openAndWait', () => {
     }
   });
 
-  it('resolves external @mentions when vault has no markdown files', async () => {
+  it('resolves external @mentions when vault has no files', async () => {
     const originalDocument = (global as any).document;
     (global as any).document = {
       body: createMockEl('body'),
@@ -653,7 +653,7 @@ describe('InlineEditModal - openAndWait', () => {
       const app = {
         vault: {
           adapter: { basePath: '/vault' },
-          getMarkdownFiles: jest.fn().mockReturnValue([]),
+          getFiles: jest.fn().mockReturnValue([]),
           getAllLoadedFiles: jest.fn().mockReturnValue([]),
         },
         workspace: {
