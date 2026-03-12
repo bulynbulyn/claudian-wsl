@@ -254,6 +254,7 @@ src/
 - [x] `rewind` and `fork` support (including `/fork` command)
 - [x] `!command` support
 - [x] Tool renderers refinement
+- [ ] Codex SDK integration
 - [ ] Hooks and other advanced features
 - [ ] More to come!
 
@@ -263,7 +264,13 @@ Licensed under the [MIT License](LICENSE).
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/image?repos=YishenTu/claudian&type=date&legend=top-left)](https://www.star-history.com/?type=date&legend=top-left&repos=YishenTu%2Fclaudian)
+<a href="https://www.star-history.com/?repos=YishenTu%2Fclaudian&type=date&legend=top-left">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=YishenTu/claudian&type=date&legend=top-left&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=YishenTu/claudian&type=date&legend=top-left" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=YishenTu/claudian&type=date&legend=top-left" />
+  </picture>
+</a>
 
 ## Acknowledgments
 
