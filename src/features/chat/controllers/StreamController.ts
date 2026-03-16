@@ -175,6 +175,16 @@ export class StreamController {
         break;
       }
 
+      case 'context_window_update': {
+        // Authoritative context window from SDK result — override heuristic value
+        if (state.usage && chunk.contextWindow > 0) {
+          const contextWindow = chunk.contextWindow;
+          const percentage = Math.min(100, Math.max(0, Math.round((state.usage.contextTokens / contextWindow) * 100)));
+          state.usage = { ...state.usage, contextWindow, percentage };
+        }
+        break;
+      }
+
     }
 
     this.scrollToBottom();

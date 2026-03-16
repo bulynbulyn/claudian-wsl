@@ -241,6 +241,14 @@
       "invalid": "Invalid format. Use: 256k, 1m, or exact count (1000-10000000)."
     },
     "advanced": "Advanced",
+    "enableOpus1M": {
+      "name": "Opus 1M context window",
+      "desc": "Show Opus 1M in the model selector. Included with Max, Team, and Enterprise plans. API and Pro users need extra usage."
+    },
+    "enableSonnet1M": {
+      "name": "Sonnet 1M context window",
+      "desc": "Show Sonnet 1M in the model selector. Requires extra usage on Max, Team, and Enterprise plans. API and Pro users need extra usage."
+    },
     "enableChrome": {
       "name": "Enable Chrome extension",
       "desc": "Allow Claude to interact with Chrome via the claude-in-chrome extension. Requires the extension to be installed. Requires session restart."

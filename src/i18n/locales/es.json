@@ -241,6 +241,14 @@
       "invalid": "Formato inválido. Use: 256k, 1m o número exacto (1000-10000000)."
     },
     "advanced": "Avanzado",
+    "enableOpus1M": {
+      "name": "Ventana de contexto Opus 1M",
+      "desc": "Mostrar Opus 1M en el selector de modelos. Incluido en planes Max, Team y Enterprise. Usuarios de API y Pro necesitan uso adicional."
+    },
+    "enableSonnet1M": {
+      "name": "Ventana de contexto Sonnet 1M",
+      "desc": "Mostrar Sonnet 1M en el selector de modelos. Requiere uso adicional en planes Max, Team y Enterprise. Usuarios de API y Pro necesitan uso adicional."
+    },
     "enableChrome": {
       "name": "Habilitar extensión de Chrome",
       "desc": "Permitir que Claude interactúe con Chrome a través de la extensión claude-in-chrome. Requiere que la extensión esté instalada. Requiere reinicio de sesión."

@@ -36,6 +36,8 @@ function createMockCallbacks(overrides: Record<string, any> = {}) {
       model: 'sonnet',
       thinkingBudget: 'low',
       permissionMode: 'normal',
+      enableOpus1M: false,
+      enableSonnet1M: false,
     }),
     getEnvironmentVariables: jest.fn().mockReturnValue(''),
     ...overrides,
@@ -73,6 +75,8 @@ describe('ModelSelector', () => {
       model: 'nonexistent',
       thinkingBudget: 'low',
       permissionMode: 'normal',
+      enableOpus1M: false,
+      enableSonnet1M: false,
     });
     selector.updateDisplay();
     const label = parentEl.querySelector('.claudian-model-label');
@@ -125,12 +129,54 @@ describe('ModelSelector', () => {
       model: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
       thinkingBudget: 'low',
       permissionMode: 'normal',
+      enableOpus1M: false,
+      enableSonnet1M: false,
     });
     selector.renderOptions();
     selector.updateDisplay();
     // Custom models should be available in dropdown
     const label = parentEl.querySelector('.claudian-model-label');
     expect(label?.textContent).toBeDefined();
+  });
+
+  it('should not filter custom env models when 1M toggles are enabled', () => {
+    callbacks.getEnvironmentVariables.mockReturnValue(
+      'ANTHROPIC_MODEL=opus'
+    );
+    callbacks.getSettings.mockReturnValue({
+      model: 'opus',
+      thinkingBudget: 'low',
+      permissionMode: 'normal',
+      enableOpus1M: true,
+      enableSonnet1M: true,
+    });
+
+    selector.renderOptions();
+    selector.updateDisplay();
+
+    const label = parentEl.querySelector('.claudian-model-label');
+    expect(label?.textContent).toBe('Opus');
+  });
+
+  it('should show 1M variants instead of standard variants when enabled', () => {
+    callbacks.getSettings.mockReturnValue({
+      model: 'opus[1m]',
+      thinkingBudget: 'medium',
+      permissionMode: 'normal',
+      enableOpus1M: true,
+      enableSonnet1M: true,
+    });
+
+    selector.renderOptions();
+    selector.updateDisplay();
+
+    const dropdown = parentEl.querySelector('.claudian-model-dropdown');
+    const options = dropdown?.children || [];
+    expect(options.find((o: any) => o.children[0]?.textContent === 'Opus 1M')).toBeDefined();
+    expect(options.find((o: any) => o.children[0]?.textContent === 'Sonnet 1M')).toBeDefined();
+    expect(options.find((o: any) => o.children[0]?.textContent === 'Opus')).toBeUndefined();
+    expect(options.find((o: any) => o.children[0]?.textContent === 'Sonnet')).toBeUndefined();
+    expect(parentEl.querySelector('.claudian-model-label')?.textContent).toBe('Opus 1M');
   });
 });
 
@@ -166,6 +212,8 @@ describe('ThinkingBudgetSelector', () => {
       model: 'sonnet',
       thinkingBudget: 'off',
       permissionMode: 'normal',
+      enableOpus1M: false,
+      enableSonnet1M: false,
     });
     selector.updateDisplay();
     const current = parentEl.querySelector('.claudian-thinking-current');
@@ -239,6 +287,8 @@ describe('PermissionToggle', () => {
       model: 'sonnet',
       thinkingBudget: 'low',
       permissionMode: 'yolo',
+      enableOpus1M: false,
+      enableSonnet1M: false,
     });
     const parentEl2 = createMockEl();
     new PermissionToggle(parentEl2, callbacks);
@@ -252,6 +302,8 @@ describe('PermissionToggle', () => {
       model: 'sonnet',
       thinkingBudget: 'low',
       permissionMode: 'plan',
+      enableOpus1M: false,
+      enableSonnet1M: false,
     });
     const parentEl2 = createMockEl();
     new PermissionToggle(parentEl2, callbacks);

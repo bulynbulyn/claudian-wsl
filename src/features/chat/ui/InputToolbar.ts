@@ -11,6 +11,7 @@ import type {
 } from '../../../core/types';
 import {
   DEFAULT_CLAUDE_MODELS,
+  filterVisibleModelOptions,
   THINKING_BUDGETS
 } from '../../../core/types';
 import { CHECK_ICON_SVG, MCP_ICON_SVG } from '../../../shared/icons';
@@ -22,6 +23,8 @@ export interface ToolbarSettings {
   model: ClaudeModel;
   thinkingBudget: ThinkingBudget;
   permissionMode: PermissionMode;
+  enableOpus1M: boolean;
+  enableSonnet1M: boolean;
 }
 
 export interface ToolbarCallbacks {
@@ -46,23 +49,19 @@ export class ModelSelector {
   }
 
   private getAvailableModels() {
-    let models: { value: string; label: string; description: string }[] = [];
+    const models = [...DEFAULT_CLAUDE_MODELS];
 
     if (this.callbacks.getEnvironmentVariables) {
       const envVarsStr = this.callbacks.getEnvironmentVariables();
       const envVars = parseEnvironmentVariables(envVarsStr);
       const customModels = getModelsFromEnvironment(envVars);
-
       if (customModels.length > 0) {
-        models = customModels;
-      } else {
-        models = [...DEFAULT_CLAUDE_MODELS];
+        return customModels;
       }
-    } else {
-      models = [...DEFAULT_CLAUDE_MODELS];
     }
 
-    return models;
+    const settings = this.callbacks.getSettings();
+    return filterVisibleModelOptions(models, settings.enableOpus1M, settings.enableSonnet1M);
   }
 
   private render() {

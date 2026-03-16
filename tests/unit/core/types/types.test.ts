@@ -9,9 +9,12 @@ import type {
   ToolCallInfo
 } from '@/core/types';
 import {
+  CONTEXT_WINDOW_1M,
   CONTEXT_WINDOW_STANDARD,
   createPermissionRule,
+  DEFAULT_CLAUDE_MODELS,
   DEFAULT_SETTINGS,
+  filterVisibleModelOptions,
   getBashToolBlockedCommands,
   getCliPlatformKey,
   getContextWindowSize,
@@ -20,6 +23,7 @@ import {
   getDefaultBlockedCommands,
   legacyPermissionsToCCPermissions,
   legacyPermissionToCCRule,
+  normalizeVisibleModelVariant,
   parseCCPermissionRule,
   VIEW_TYPE_CLAUDIAN
 } from '@/core/types';
@@ -119,6 +123,8 @@ describe('types.ts', () => {
         maxTabs: 3,
         enableChrome: false,
         enableBangBash: false,
+        enableOpus1M: false,
+        enableSonnet1M: false,
         tabBarPosition: 'input',
         enableAutoScroll: true,
         openInMainTab: false,
@@ -158,6 +164,8 @@ describe('types.ts', () => {
         maxTabs: 3,
         enableChrome: false,
         enableBangBash: false,
+        enableOpus1M: false,
+        enableSonnet1M: false,
         tabBarPosition: 'input',
         enableAutoScroll: true,
         openInMainTab: false,
@@ -197,6 +205,8 @@ describe('types.ts', () => {
         maxTabs: 5,
         enableChrome: false,
         enableBangBash: false,
+        enableOpus1M: false,
+        enableSonnet1M: false,
         tabBarPosition: 'header',
         enableAutoScroll: false,
         openInMainTab: false,
@@ -786,6 +796,65 @@ describe('types.ts', () => {
       it('should accept valid positive custom limit', () => {
         const customLimits = { 'custom-model': 256000 };
         expect(getContextWindowSize('custom-model', customLimits)).toBe(256000);
+      });
+    });
+
+    describe('[1m] suffix detection', () => {
+      it('should return 1M context window for models with [1m] suffix', () => {
+        expect(getContextWindowSize('opus[1m]')).toBe(CONTEXT_WINDOW_1M);
+        expect(getContextWindowSize('sonnet[1m]')).toBe(CONTEXT_WINDOW_1M);
+      });
+
+      it('should return 1M for full model IDs with [1m] suffix', () => {
+        expect(getContextWindowSize('claude-opus-4-6[1m]')).toBe(CONTEXT_WINDOW_1M);
+        expect(getContextWindowSize('claude-sonnet-4-6[1m]')).toBe(CONTEXT_WINDOW_1M);
+      });
+
+      it('should prefer custom limits over [1m] suffix', () => {
+        const customLimits = { 'opus[1m]': 500000 };
+        expect(getContextWindowSize('opus[1m]', customLimits)).toBe(500000);
+      });
+
+      it('should return standard for models without [1m] suffix', () => {
+        expect(getContextWindowSize('opus')).toBe(CONTEXT_WINDOW_STANDARD);
+        expect(getContextWindowSize('sonnet')).toBe(CONTEXT_WINDOW_STANDARD);
+      });
+    });
+
+    describe('filterVisibleModelOptions', () => {
+      it('should hide 1M variants when toggles are disabled', () => {
+        const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, false, false).map((model) => model.value);
+        expect(models).toEqual(['haiku', 'sonnet', 'opus']);
+      });
+
+      it('should swap in 1M variants when toggles are enabled', () => {
+        const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, true, true).map((model) => model.value);
+        expect(models).toEqual(['haiku', 'sonnet[1m]', 'opus[1m]']);
+      });
+
+      it('should swap only opus when enableOpus1M is true and enableSonnet1M is false', () => {
+        const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, true, false).map((model) => model.value);
+        expect(models).toEqual(['haiku', 'sonnet', 'opus[1m]']);
+      });
+
+      it('should swap only sonnet when enableSonnet1M is true and enableOpus1M is false', () => {
+        const models = filterVisibleModelOptions(DEFAULT_CLAUDE_MODELS, false, true).map((model) => model.value);
+        expect(models).toEqual(['haiku', 'sonnet[1m]', 'opus']);
+      });
+    });
+
+    describe('normalizeVisibleModelVariant', () => {
+      it('should normalize built-in variants to the visible option', () => {
+        expect(normalizeVisibleModelVariant('sonnet', true, true)).toBe('sonnet[1m]');
+        expect(normalizeVisibleModelVariant('sonnet[1m]', false, false)).toBe('sonnet');
+        expect(normalizeVisibleModelVariant('opus', true, false)).toBe('opus[1m]');
+        expect(normalizeVisibleModelVariant('opus[1m]', false, true)).toBe('opus');
+      });
+
+      it('should leave unrelated model ids unchanged', () => {
+        expect(normalizeVisibleModelVariant('', true, true)).toBe('');
+        expect(normalizeVisibleModelVariant('haiku', true, true)).toBe('haiku');
+        expect(normalizeVisibleModelVariant('custom-model', true, true)).toBe('custom-model');
       });
     });
   });

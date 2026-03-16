@@ -250,6 +250,8 @@ export interface ClaudianSettings {
   titleGenerationModel: string;  // Model for auto title generation (empty = auto)
   enableChrome: boolean;  // Enable Chrome extension support (passes --chrome flag)
   enableBangBash: boolean;  // Enable ! bash mode for direct command execution
+  enableOpus1M: boolean;  // Show Opus 1M model variant (opus[1m])
+  enableSonnet1M: boolean;  // Show Sonnet 1M model variant (sonnet[1m])
 
   // Content settings
   excludedTags: string[];
@@ -316,6 +318,8 @@ export const DEFAULT_SETTINGS: ClaudianSettings = {
   titleGenerationModel: '',  // Empty = auto (ANTHROPIC_DEFAULT_HAIKU_MODEL or claude-haiku-4-5)
   enableChrome: false,  // Disabled by default
   enableBangBash: false,  // Disabled by default
+  enableOpus1M: false,  // Disabled by default
+  enableSonnet1M: false,  // Disabled by default
 
   // Content settings
   excludedTags: [],

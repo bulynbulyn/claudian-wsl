@@ -92,6 +92,22 @@ describe('ClaudianSettingsStorage', () => {
       expect(result.claudeCliPath).toBe('/legacy/path');
     });
 
+    it('should remove legacy show1MModel from the stored file', async () => {
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({
+        model: 'sonnet',
+        show1MModel: true,
+      }));
+
+      const result = await storage.load();
+
+      expect(result.enableSonnet1M).toBe(DEFAULT_SETTINGS.enableSonnet1M);
+      expect(mockAdapter.write).toHaveBeenCalledWith(
+        CLAUDIAN_SETTINGS_PATH,
+        JSON.stringify({ model: 'sonnet' }, null, 2)
+      );
+    });
+
     it('should throw on JSON parse error', async () => {
       mockAdapter.exists.mockResolvedValue(true);
       mockAdapter.read.mockResolvedValue('invalid json');
@@ -380,4 +396,3 @@ describe('normalizeBlockedCommands', () => {
     expect(normalizeBlockedCommands(true)).toEqual(defaults);
   });
 });
-

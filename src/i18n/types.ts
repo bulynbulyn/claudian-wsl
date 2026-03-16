@@ -211,6 +211,10 @@ export type TranslationKey =
 
   // Settings - Advanced
   | 'settings.advanced'
+  | 'settings.enableOpus1M.name'
+  | 'settings.enableOpus1M.desc'
+  | 'settings.enableSonnet1M.name'
+  | 'settings.enableSonnet1M.desc'
   | 'settings.enableChrome.name'
   | 'settings.enableChrome.desc'
   | 'settings.enableBangBash.name'

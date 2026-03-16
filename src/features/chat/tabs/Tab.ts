@@ -430,6 +430,8 @@ function initializeInputToolbar(tab: TabData, plugin: ClaudianPlugin): void {
       model: plugin.settings.model,
       thinkingBudget: plugin.settings.thinkingBudget,
       permissionMode: plugin.settings.permissionMode,
+      enableOpus1M: plugin.settings.enableOpus1M,
+      enableSonnet1M: plugin.settings.enableSonnet1M,
     }),
     getEnvironmentVariables: () => plugin.getActiveEnvironmentVariables(),
     onModelChange: async (model: ClaudeModel) => {

@@ -18,8 +18,82 @@ interface MessageUsage {
   cache_read_input_tokens?: number;
 }
 
+interface ContextWindowEntry {
+  model: string;
+  contextWindow: number;
+}
+
 function isResultError(message: { type: 'result'; subtype: string }): message is SDKResultError {
   return !!message.subtype && message.subtype !== 'success';
+}
+
+function getBuiltInModelSignature(model: string): { family: 'haiku' | 'sonnet' | 'opus'; is1M: boolean } | null {
+  const normalized = model.trim().toLowerCase();
+  if (normalized === 'haiku') {
+    return { family: 'haiku', is1M: false };
+  }
+  if (normalized === 'sonnet' || normalized === 'sonnet[1m]') {
+    return { family: 'sonnet', is1M: normalized.endsWith('[1m]') };
+  }
+  if (normalized === 'opus' || normalized === 'opus[1m]') {
+    return { family: 'opus', is1M: normalized.endsWith('[1m]') };
+  }
+  return null;
+}
+
+function getModelUsageSignature(model: string): { family: 'haiku' | 'sonnet' | 'opus'; is1M: boolean } | null {
+  const normalized = model.trim().toLowerCase();
+  if (normalized.includes('haiku')) {
+    return { family: 'haiku', is1M: false };
+  }
+  if (normalized.includes('sonnet')) {
+    return { family: 'sonnet', is1M: normalized.endsWith('[1m]') };
+  }
+  if (normalized.includes('opus')) {
+    return { family: 'opus', is1M: normalized.endsWith('[1m]') };
+  }
+  return null;
+}
+
+function selectContextWindowEntry(
+  modelUsage: Record<string, { contextWindow?: number }>,
+  intendedModel?: string
+): ContextWindowEntry | null {
+  const entries: ContextWindowEntry[] = Object.entries(modelUsage)
+    .flatMap(([model, usage]) =>
+      typeof usage?.contextWindow === 'number' && usage.contextWindow > 0
+        ? [{ model, contextWindow: usage.contextWindow }]
+        : []
+    );
+
+  if (entries.length === 0) {
+    return null;
+  }
+
+  if (entries.length === 1) {
+    return entries[0];
+  }
+
+  if (!intendedModel) {
+    return null;
+  }
+
+  const exactMatches = entries.filter((entry) => entry.model === intendedModel);
+  if (exactMatches.length === 1) {
+    return exactMatches[0];
+  }
+
+  const intendedSignature = getBuiltInModelSignature(intendedModel);
+  if (!intendedSignature) {
+    return null;
+  }
+
+  const signatureMatches = entries.filter((entry) => {
+    const entrySignature = getModelUsageSignature(entry.model);
+    return entrySignature?.family === intendedSignature.family && entrySignature.is1M === intendedSignature.is1M;
+  });
+
+  return signatureMatches.length === 1 ? signatureMatches[0] : null;
 }
 
 /**
@@ -181,6 +255,14 @@ export function* transformSDKMessage(
 
       // Usage is now extracted from assistant messages for accuracy (excludes subagent tokens)
       // Result message usage is aggregated across main + subagents, causing inaccurate spikes
+
+      if ('modelUsage' in message && message.modelUsage) {
+        const modelUsage = message.modelUsage as Record<string, { contextWindow?: number }>;
+        const selectedEntry = selectContextWindowEntry(modelUsage, options?.intendedModel);
+        if (selectedEntry) {
+          yield { type: 'context_window_update', contextWindow: selectedEntry.contextWindow };
+        }
+      }
       break;
 
     default:

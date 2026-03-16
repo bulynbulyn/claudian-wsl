@@ -16,10 +16,13 @@ export {
 // Model types
 export {
   type ClaudeModel,
+  CONTEXT_WINDOW_1M,
   CONTEXT_WINDOW_STANDARD,
   DEFAULT_CLAUDE_MODELS,
   DEFAULT_THINKING_BUDGET,
+  filterVisibleModelOptions,
   getContextWindowSize,
+  normalizeVisibleModelVariant,
   THINKING_BUDGETS,
   type ThinkingBudget,
 } from './models';

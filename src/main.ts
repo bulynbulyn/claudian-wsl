@@ -26,6 +26,7 @@ import {
   DEFAULT_SETTINGS,
   getCliPlatformKey,
   getHostnameKey,
+  normalizeVisibleModelVariant,
   VIEW_TYPE_CLAUDIAN,
 } from './core/types';
 import { ClaudianView } from './features/chat/ClaudianView';
@@ -252,6 +253,8 @@ export default class ClaudianPlugin extends Plugin {
       this.settings.permissionMode = 'normal';
     }
 
+    const didNormalizeModelVariants = this.normalizeModelVariantSettings();
+
     // Initialize and migrate legacy CLI paths to hostname-based paths
     this.settings.claudeCliPathsByHost ??= {};
     const hostname = getHostnameKey();
@@ -353,7 +356,7 @@ export default class ClaudianPlugin extends Plugin {
     this.runtimeEnvironmentVariables = this.settings.environmentVariables || '';
     const { changed, invalidatedConversations } = this.reconcileModelWithEnvironment(this.runtimeEnvironmentVariables);
 
-    if (changed || didMigrateCliPath) {
+    if (changed || didMigrateCliPath || didNormalizeModelVariants) {
       await this.saveSettings();
     }
 
@@ -388,6 +391,36 @@ export default class ClaudianPlugin extends Plugin {
       }
     }
     return updated;
+  }
+
+  normalizeModelVariantSettings(): boolean {
+    const { enableOpus1M, enableSonnet1M } = this.settings;
+    let changed = false;
+
+    const normalize = (model: string): string =>
+      normalizeVisibleModelVariant(model, enableOpus1M, enableSonnet1M);
+
+    const normalizedModel = normalize(this.settings.model);
+    if (this.settings.model !== normalizedModel) {
+      this.settings.model = normalizedModel;
+      changed = true;
+    }
+
+    const normalizedTitleModel = normalize(this.settings.titleGenerationModel);
+    if (this.settings.titleGenerationModel !== normalizedTitleModel) {
+      this.settings.titleGenerationModel = normalizedTitleModel;
+      changed = true;
+    }
+
+    if (this.settings.lastClaudeModel) {
+      const normalizedLastClaudeModel = normalize(this.settings.lastClaudeModel);
+      if (this.settings.lastClaudeModel !== normalizedLastClaudeModel) {
+        this.settings.lastClaudeModel = normalizedLastClaudeModel;
+        changed = true;
+      }
+    }
+
+    return changed;
   }
 
   /** Persists settings to storage. */

@@ -682,7 +682,7 @@ describe('transformSDKMessage', () => {
   });
 
   describe('result messages', () => {
-    it('yields nothing for successful result messages (usage extracted from assistant messages now)', () => {
+    it('yields context_window_update for successful result messages with modelUsage', () => {
       const message = msg({
         type: 'result',
         modelUsage: {
@@ -701,10 +701,12 @@ describe('transformSDKMessage', () => {
 
       const results = [...transformSDKMessage(message)];
 
-      expect(results).toEqual([]);
+      expect(results).toEqual([
+        { type: 'context_window_update', contextWindow: 200000 },
+      ]);
     });
 
-    it('yields error for failed result messages', () => {
+    it('yields error and context_window_update for failed result messages', () => {
       const message = msg({
         type: 'result',
         subtype: 'error_max_turns',
@@ -715,7 +717,132 @@ describe('transformSDKMessage', () => {
 
       expect(results).toEqual([
         { type: 'error', content: 'Hit maximum turn limit' },
+        { type: 'context_window_update', contextWindow: 200000 },
       ]);
+    });
+
+    it('yields context_window_update with 1M for [1m] models', () => {
+      const message = msg({
+        type: 'result',
+        modelUsage: {
+          'claude-opus-4-6[1m]': {
+            inputTokens: 1000,
+            outputTokens: 300,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            webSearchRequests: 0,
+            costUSD: 0.01,
+            contextWindow: 1000000,
+            maxOutputTokens: 32000,
+          },
+        },
+      });
+
+      const results = [...transformSDKMessage(message)];
+
+      expect(results).toEqual([
+        { type: 'context_window_update', contextWindow: 1000000 },
+      ]);
+    });
+
+    it('prefers the exact intended model when modelUsage includes multiple entries', () => {
+      const message = msg({
+        type: 'result',
+        modelUsage: {
+          'custom-subagent-model': {
+            inputTokens: 1000,
+            outputTokens: 300,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            webSearchRequests: 0,
+            costUSD: 0.01,
+            contextWindow: 1000000,
+            maxOutputTokens: 32000,
+          },
+          'custom-main-model': {
+            inputTokens: 1000,
+            outputTokens: 300,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            webSearchRequests: 0,
+            costUSD: 0.01,
+            contextWindow: 200000,
+            maxOutputTokens: 32000,
+          },
+        },
+      });
+
+      const results = [...transformSDKMessage(message, { intendedModel: 'custom-main-model' })];
+
+      expect(results).toEqual([
+        { type: 'context_window_update', contextWindow: 200000 },
+      ]);
+    });
+
+    it('matches built-in aliases against SDK modelUsage keys when unambiguous', () => {
+      const message = msg({
+        type: 'result',
+        modelUsage: {
+          'claude-sonnet-4-5-20250514': {
+            inputTokens: 1000,
+            outputTokens: 300,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            webSearchRequests: 0,
+            costUSD: 0.01,
+            contextWindow: 200000,
+            maxOutputTokens: 32000,
+          },
+          'claude-opus-4-6[1m]': {
+            inputTokens: 1000,
+            outputTokens: 300,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            webSearchRequests: 0,
+            costUSD: 0.01,
+            contextWindow: 1000000,
+            maxOutputTokens: 32000,
+          },
+        },
+      });
+
+      const results = [...transformSDKMessage(message, { intendedModel: 'opus[1m]' })];
+
+      expect(results).toEqual([
+        { type: 'context_window_update', contextWindow: 1000000 },
+      ]);
+    });
+
+    it('does not override the heuristic when multi-model result usage is ambiguous', () => {
+      const message = msg({
+        type: 'result',
+        modelUsage: {
+          'claude-sonnet-4-5-20250514': {
+            inputTokens: 1000,
+            outputTokens: 300,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            webSearchRequests: 0,
+            costUSD: 0.01,
+            contextWindow: 200000,
+            maxOutputTokens: 32000,
+          },
+          'claude-sonnet-4-6-20260101': {
+            inputTokens: 1000,
+            outputTokens: 300,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            webSearchRequests: 0,
+            costUSD: 0.01,
+            contextWindow: 500000,
+            maxOutputTokens: 32000,
+          },
+        },
+      });
+
+      const results = [...transformSDKMessage(message, { intendedModel: 'sonnet' })];
+
+      expect(results).toEqual([]);
     });
   });
 

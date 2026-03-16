@@ -1,7 +1,7 @@
 import type { EventRef, WorkspaceLeaf } from 'obsidian';
 import { ItemView, Notice, Scope, setIcon } from 'obsidian';
 
-import { VIEW_TYPE_CLAUDIAN } from '../../core/types';
+import { getContextWindowSize, VIEW_TYPE_CLAUDIAN } from '../../core/types';
 import type ClaudianPlugin from '../../main';
 import { LOGO_SVG } from './constants';
 import { TabBar, TabManager, updatePlanModeUI } from './tabs';
@@ -77,11 +77,20 @@ export class ClaudianView extends ItemView {
     return 'bot';
   }
 
-  /** Refreshes the model selector display (used after env var changes). */
+  /** Refreshes model-dependent UI across all tabs (used after settings/env changes). */
   refreshModelSelector(): void {
-    const activeTab = this.tabManager?.getActiveTab();
-    activeTab?.ui.modelSelector?.updateDisplay();
-    activeTab?.ui.modelSelector?.renderOptions();
+    const model = this.plugin.settings.model;
+    const contextWindow = getContextWindowSize(model, this.plugin.settings.customContextLimits);
+
+    for (const tab of this.tabManager?.getAllTabs() ?? []) {
+      if (tab.state.usage) {
+        const percentage = Math.min(100, Math.max(0, Math.round((tab.state.usage.contextTokens / contextWindow) * 100)));
+        tab.state.usage = { ...tab.state.usage, model, contextWindow, percentage };
+      }
+
+      tab.ui.modelSelector?.updateDisplay();
+      tab.ui.modelSelector?.renderOptions();
+    }
   }
 
   /** Updates hidden slash commands on all tabs (used after settings change). */

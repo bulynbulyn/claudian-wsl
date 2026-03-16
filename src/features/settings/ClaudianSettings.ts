@@ -3,7 +3,7 @@ import type { App } from 'obsidian';
 import { Notice, PluginSettingTab, Setting } from 'obsidian';
 
 import { getCurrentPlatformKey, getHostnameKey } from '../../core/types';
-import { DEFAULT_CLAUDE_MODELS } from '../../core/types/models';
+import { DEFAULT_CLAUDE_MODELS, filterVisibleModelOptions } from '../../core/types/models';
 import { getAvailableLocales, getLocaleDisplayName, setLocale, t } from '../../i18n';
 import type { Locale, TranslationKey } from '../../i18n/types';
 import type ClaudianPlugin from '../../main';
@@ -81,6 +81,10 @@ export class ClaudianSettingTab extends PluginSettingTab {
   constructor(app: App, plugin: ClaudianPlugin) {
     super(app, plugin);
     this.plugin = plugin;
+  }
+
+  private normalizeModelVariantSettings(): void {
+    this.plugin.normalizeModelVariantSettings();
   }
 
   display(): void {
@@ -214,7 +218,11 @@ export class ClaudianSettingTab extends PluginSettingTab {
           // Get available models from environment or defaults
           const envVars = parseEnvironmentVariables(this.plugin.settings.environmentVariables);
           const customModels = getModelsFromEnvironment(envVars);
-          const models = customModels.length > 0 ? customModels : DEFAULT_CLAUDE_MODELS;
+          const models = filterVisibleModelOptions(
+            customModels.length > 0 ? customModels : [...DEFAULT_CLAUDE_MODELS],
+            this.plugin.settings.enableOpus1M,
+            this.plugin.settings.enableSonnet1M
+          );
 
           for (const model of models) {
             dropdown.addOption(model.value, model.label);
@@ -532,6 +540,40 @@ export class ClaudianSettingTab extends PluginSettingTab {
     });
 
     new Setting(containerEl).setName(t('settings.advanced')).setHeading();
+
+    new Setting(containerEl)
+      .setName(t('settings.enableOpus1M.name'))
+      .setDesc(t('settings.enableOpus1M.desc'))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.enableOpus1M ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.enableOpus1M = value;
+            this.normalizeModelVariantSettings();
+            await this.plugin.saveSettings();
+            for (const view of this.plugin.getAllViews()) {
+              view.refreshModelSelector();
+            }
+            this.display();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(t('settings.enableSonnet1M.name'))
+      .setDesc(t('settings.enableSonnet1M.desc'))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.enableSonnet1M ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.enableSonnet1M = value;
+            this.normalizeModelVariantSettings();
+            await this.plugin.saveSettings();
+            for (const view of this.plugin.getAllViews()) {
+              view.refreshModelSelector();
+            }
+            this.display();
+          })
+      );
 
     new Setting(containerEl)
       .setName(t('settings.enableChrome.name'))

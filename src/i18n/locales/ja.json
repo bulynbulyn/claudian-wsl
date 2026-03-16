@@ -241,6 +241,14 @@
       "invalid": "無効な形式です。使用：256k、1m、または正確な数値（1000-10000000）。"
     },
     "advanced": "詳細設定",
+    "enableOpus1M": {
+      "name": "Opus 1Mコンテキストウィンドウ",
+      "desc": "モデルセレクターにOpus 1Mを表示します。Max、Team、Enterpriseプランに含まれます。APIおよびProユーザーは追加使用量が必要です。"
+    },
+    "enableSonnet1M": {
+      "name": "Sonnet 1Mコンテキストウィンドウ",
+      "desc": "モデルセレクターにSonnet 1Mを表示します。Max、Team、Enterpriseプランでは追加使用量が必要です。APIおよびProユーザーは追加使用量が必要です。"
+    },
     "enableChrome": {
       "name": "Chrome拡張機能を有効化",
       "desc": "claude-in-chrome拡張機能を通じてClaudeがChromeと連携できるようにします。拡張機能のインストールが必要です。セッションの再起動が必要です。"

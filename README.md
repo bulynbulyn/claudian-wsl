@@ -254,6 +254,7 @@ src/
 - [x] `rewind` and `fork` support (including `/fork` command)
 - [x] `!command` support
 - [x] Tool renderers refinement
+- [x] 1M Opus and Sonnet models
 - [ ] Codex SDK integration
 - [ ] Hooks and other advanced features
 - [ ] More to come!
