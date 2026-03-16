@@ -1325,3 +1325,53 @@ describe('getExtraBinaryPaths (Windows branches)', () => {
     expect(result).toContain(';');
   });
 });
+
+describe('Obsidian CLI path integration', () => {
+  const originalPlatform = process.platform;
+  const originalExecPath = process.execPath;
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: originalPlatform });
+    Object.defineProperty(process, 'execPath', { value: originalExecPath });
+    Object.keys(process.env).forEach(key => delete process.env[key]);
+    Object.assign(process.env, originalEnv);
+    jest.resetModules();
+  });
+
+  function loadWithPlatform(platform: NodeJS.Platform, execPath: string): typeof env {
+    jest.resetModules();
+    Object.defineProperty(process, 'platform', { value: platform, writable: true });
+    Object.defineProperty(process, 'execPath', { value: execPath, configurable: true });
+    // Dynamic require needed to re-evaluate module with mocked platform/execPath
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('../../../src/utils/env');
+  }
+
+  it('uses the top-level app bundle binary dir on macOS helper processes', () => {
+    const helperExecPath = '/Applications/Obsidian.app/Contents/Frameworks/Obsidian Helper (Renderer).app/Contents/MacOS/Obsidian Helper (Renderer)';
+    process.env.PATH = '';
+
+    const mod = loadWithPlatform('darwin', helperExecPath);
+    const result = mod.getEnhancedPath();
+    const segments = result.split(':');
+
+    expect(segments).toContain('/Applications/Obsidian.app/Contents/MacOS');
+    expect(segments).not.toContain('/Applications/Obsidian.app/Contents/Frameworks/Obsidian Helper (Renderer).app/Contents/MacOS');
+  });
+
+  it('does not add transient Linux AppImage mount dirs', () => {
+    const appImageExecPath = '/tmp/.mount_Obsidian-abcd1234/usr/bin/obsidian';
+    const appImageDir = path.dirname(appImageExecPath);
+    process.env.HOME = '/home/test';
+    process.env.PATH = '';
+
+    const mod = loadWithPlatform('linux', appImageExecPath);
+    const result = mod.getEnhancedPath();
+    const segments = result.split(':');
+
+    expect(segments).not.toContain(appImageDir);
+    expect(segments).toContain('/usr/local/bin');
+    expect(segments).toContain('/home/test/.local/bin');
+  });
+});

@@ -19,6 +19,27 @@ function getHomeDir(): string {
   return process.env.HOME || process.env.USERPROFILE || '';
 }
 
+/**
+ * Linux is excluded because Obsidian registers the CLI through stable symlinks
+ * like /usr/local/bin or ~/.local/bin, while process.execPath may point to a
+ * transient AppImage mount that changes on every launch.
+ */
+function getAppProvidedCliPaths(): string[] {
+  if (process.platform === 'darwin') {
+    const appBundleMatch = process.execPath.match(/^(.+?\.app)\//);
+    if (appBundleMatch) {
+      return [path.join(appBundleMatch[1], 'Contents', 'MacOS')];
+    }
+    return [path.dirname(process.execPath)];
+  }
+
+  if (process.platform === 'win32') {
+    return [path.dirname(process.execPath)];
+  }
+
+  return [];
+}
+
 /** GUI apps like Obsidian have minimal PATH, so we add common binary locations. */
 function getExtraBinaryPaths(): string[] {
   const home = getHomeDir();
@@ -108,6 +129,8 @@ function getExtraBinaryPaths(): string[] {
       paths.push(path.join(home, '.local', 'bin'));
     }
 
+    paths.push(...getAppProvidedCliPaths());
+
     return paths;
   } else {
     // Unix paths
@@ -158,6 +181,8 @@ function getExtraBinaryPaths(): string[] {
         }
       }
     }
+
+    paths.push(...getAppProvidedCliPaths());
 
     return paths;
   }
