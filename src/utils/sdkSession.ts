@@ -13,6 +13,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
+import { extractToolResultContent } from '../core/sdk/toolResultContent';
 import { extractResolvedAnswers, extractResolvedAnswersFromResultText } from '../core/tools';
 import { isSubagentToolName, TOOL_ASK_USER_QUESTION } from '../core/tools/toolNames';
 import type { ChatMessage, ContentBlock, ImageAttachment, ImageMediaType, SubagentInfo, ToolCallInfo } from '../core/types';
@@ -167,12 +168,7 @@ function parseSubagentEvents(entry: unknown): SubagentToolEvent[] {
 
     if (block.type === 'tool_result') {
       if (typeof block.tool_use_id !== 'string') continue;
-      const contentText =
-        typeof block.content === 'string'
-          ? block.content
-          : block.content === undefined
-            ? ''
-            : JSON.stringify(block.content);
+      const contentText = extractToolResultContent(block.content);
       events.push({
         type: 'tool_result',
         toolUseId: block.tool_use_id,
@@ -494,11 +490,8 @@ function extractToolCalls(
   if (!toolResults) {
     for (const block of content) {
       if (block.type === 'tool_result' && block.tool_use_id) {
-        const resultContent = typeof block.content === 'string'
-          ? block.content
-          : JSON.stringify(block.content);
         results.set(block.tool_use_id, {
-          content: resultContent,
+          content: extractToolResultContent(block.content),
           isError: block.is_error ?? false,
         });
       }
@@ -511,7 +504,7 @@ function extractToolCalls(
       id: block.id,
       name: block.name,
       input: block.input ?? {},
-      status: result ? (result.isError ? 'error' : 'completed') : 'completed',
+      status: result ? (result.isError ? 'error' : 'completed') : 'running',
       result: result?.content,
       isExpanded: false,
     };
@@ -527,9 +520,10 @@ function mapContentBlocks(content: string | SDKNativeContentBlock[] | undefined)
     switch (block.type) {
       case 'text': {
         // Skip "(no content)" placeholder the SDK writes as the first assistant entry
-        const trimmed = block.text?.trim();
-        if (trimmed && trimmed !== '(no content)') {
-          blocks.push({ type: 'text', content: trimmed });
+        const text = block.text;
+        const trimmed = text?.trim();
+        if (text && trimmed && trimmed !== '(no content)') {
+          blocks.push({ type: 'text', content: text });
         }
         break;
       }
@@ -637,11 +631,8 @@ function collectToolResults(sdkMessages: SDKNativeMessage[]): Map<string, { cont
 
     for (const block of content) {
       if (block.type === 'tool_result' && block.tool_use_id) {
-        const resultContent = typeof block.content === 'string'
-          ? block.content
-          : JSON.stringify(block.content);
         results.set(block.tool_use_id, {
-          content: resultContent,
+          content: extractToolResultContent(block.content),
           isError: block.is_error ?? false,
         });
       }
@@ -763,6 +754,23 @@ export function filterActiveBranch(
 ): SDKNativeMessage[] {
   if (entries.length === 0) return [];
 
+  function isRealUserBranchChild(entry: SDKNativeMessage | undefined): boolean {
+    return (
+      !!entry &&
+      entry.type === 'user' &&
+      !('toolUseResult' in entry) &&
+      !entry.isMeta &&
+      !('sourceToolUseID' in entry)
+    );
+  }
+
+  function isDirectRealUserBranchChild(
+    parentUuid: string,
+    entry: SDKNativeMessage | undefined
+  ): boolean {
+    return !!entry && entry.parentUuid === parentUuid && isRealUserBranchChild(entry);
+  }
+
   // SDK may write duplicates around compaction, which inflates child counts
   const seen = new Set<string>();
   const deduped: SDKNativeMessage[] = [];
@@ -774,37 +782,140 @@ export function filterActiveBranch(
     deduped.push(entry);
   }
 
+  // Strip progress entries (subagent execution logs) from the tree.
+  // They have uuid/parentUuid chains that create false branching.
+  // Entries whose parentUuid points into a progress chain get reparented
+  // to the chain's conversation-level ancestor.
+  const progressUuids = new Set<string>();
+  const progressParentOf = new Map<string, string | null>();
+  for (const entry of deduped) {
+    if ((entry.type as string) === 'progress' && entry.uuid) {
+      progressUuids.add(entry.uuid);
+      progressParentOf.set(entry.uuid, entry.parentUuid ?? null);
+    }
+  }
+
+  function resolveParent(parentUuid: string | null | undefined): string | null | undefined {
+    if (!parentUuid) return parentUuid;
+    let cur: string | null = parentUuid;
+    let guard = progressUuids.size + 1;
+    while (cur && progressUuids.has(cur)) {
+      if (--guard < 0) break;
+      cur = progressParentOf.get(cur) ?? null;
+    }
+    return cur;
+  }
+
+  // Build maps from conversation entries only (excluding progress)
+  const convEntries: SDKNativeMessage[] = [];
+  for (const entry of deduped) {
+    if ((entry.type as string) === 'progress') continue;
+    convEntries.push(entry);
+  }
+
   const byUuid = new Map<string, SDKNativeMessage>();
   const childrenOf = new Map<string, Set<string>>();
 
-  for (const entry of deduped) {
+  for (const entry of convEntries) {
     if (entry.uuid) {
       byUuid.set(entry.uuid, entry);
     }
-    if (entry.parentUuid && entry.uuid) {
-      let children = childrenOf.get(entry.parentUuid);
+    const effectiveParent = resolveParent(entry.parentUuid) ?? null;
+    if (effectiveParent && entry.uuid) {
+      let children = childrenOf.get(effectiveParent);
       if (!children) {
         children = new Set();
-        childrenOf.set(entry.parentUuid, children);
+        childrenOf.set(effectiveParent, children);
       }
       children.add(entry.uuid);
     }
   }
 
-  const hasBranching = [...childrenOf.values()].some(children => children.size > 1);
+  function findLatestLeaf(): SDKNativeMessage | undefined {
+    for (let i = convEntries.length - 1; i >= 0; i--) {
+      const uuid = convEntries[i].uuid;
+      if (uuid && !childrenOf.has(uuid)) {
+        return convEntries[i];
+      }
+    }
+    return undefined;
+  }
+
+  const latestLeaf = findLatestLeaf();
+  const latestBranchUuids = new Set<string>();
+  const activeChildOf = new Map<string, string>();
+
+  let currentLatest: SDKNativeMessage | undefined = latestLeaf;
+  while (currentLatest?.uuid) {
+    latestBranchUuids.add(currentLatest.uuid);
+    const ep = resolveParent(currentLatest.parentUuid);
+    if (ep) {
+      activeChildOf.set(ep, currentLatest.uuid);
+    }
+    currentLatest = ep ? byUuid.get(ep) : undefined;
+  }
+
+  const conversationContentCache = new Map<string, boolean>();
+  function hasConversationContent(uuid: string): boolean {
+    const cached = conversationContentCache.get(uuid);
+    if (cached !== undefined) return cached;
+
+    const entry = byUuid.get(uuid);
+    let result = false;
+
+    if (entry?.type === 'assistant') {
+      result = true;
+    } else if (entry?.type === 'user' && !entry.isMeta && !('sourceToolUseID' in entry)) {
+      result = true;
+    } else {
+      const children = childrenOf.get(uuid);
+      if (children) {
+        for (const childUuid of children) {
+          if (hasConversationContent(childUuid)) {
+            result = true;
+            break;
+          }
+        }
+      }
+    }
+
+    conversationContentCache.set(uuid, result);
+    return result;
+  }
+
+  // A real rewind shows up along the latest branch as:
+  // 1. at least one genuine user child from a parent on that branch, and
+  // 2. another sibling subtree with conversation content that the latest branch did not take.
+  // This catches rewinds where the abandoned path continues through assistant/tool nodes,
+  // while still ignoring parallel tool calls that never create a user branch.
+  const hasBranching = [...latestBranchUuids].some(uuid => {
+    const children = childrenOf.get(uuid);
+    if (!children || children.size <= 1) return false;
+
+    const activeChildUuid = activeChildOf.get(uuid);
+    let sawRealUserChild = false;
+    let sawAlternateConversationChild = false;
+
+    for (const childUuid of children) {
+      const child = byUuid.get(childUuid);
+      if (isDirectRealUserBranchChild(uuid, child)) {
+        sawRealUserChild = true;
+      }
+      if (childUuid !== activeChildUuid && hasConversationContent(childUuid)) {
+        sawAlternateConversationChild = true;
+      }
+      if (sawRealUserChild && sawAlternateConversationChild) {
+        return true;
+      }
+    }
+
+    return false;
+  });
 
   let leaf: SDKNativeMessage | undefined;
 
   if (hasBranching) {
-    // Pick last-appearing leaf (no children) in file order — more robust than
-    // "last entry with uuid" which breaks on trailing non-dialog nodes
-    for (let i = deduped.length - 1; i >= 0; i--) {
-      const uuid = deduped[i].uuid;
-      if (uuid && !childrenOf.has(uuid)) {
-        leaf = deduped[i];
-        break;
-      }
-    }
+    leaf = latestLeaf;
 
     // When resumeSessionAt is also set (rewind on the latest branch without follow-up),
     // truncate at that point instead of using the full branch leaf
@@ -816,54 +927,92 @@ export function filterActiveBranch(
           leaf = current;
           break;
         }
-        if (current.parentUuid) {
-          current = byUuid.get(current.parentUuid);
-        } else {
-          break;
-        }
+        const ep = resolveParent(current.parentUuid);
+        current = ep ? byUuid.get(ep) : undefined;
       }
     }
   } else if (resumeSessionAt) {
     leaf = byUuid.get(resumeSessionAt);
   } else {
-    return deduped;
+    return convEntries;
   }
 
-  if (!leaf || !leaf.uuid) return deduped;
+  if (!leaf || !leaf.uuid) return convEntries;
 
   const activeUuids = new Set<string>();
   let current: SDKNativeMessage | undefined = leaf;
   while (current?.uuid) {
     activeUuids.add(current.uuid);
-    if (current.parentUuid) {
-      current = byUuid.get(current.parentUuid);
-    } else {
-      break;
+    const ep = resolveParent(current.parentUuid);
+    current = ep ? byUuid.get(ep) : undefined;
+  }
+
+  // When no real branching was detected but resumeSessionAt truncated,
+  // the active set only has the chain up to the leaf. For no-branching
+  // with truncation, this is correct. For branching, we also need to
+  // include sibling entries that are part of the same turn (parallel tool
+  // calls, tool results from the same parent) and their non-branching
+  // descendants.
+  if (hasBranching) {
+    // Seed: collect non-branch siblings of active nodes (parallel tool calls,
+    // tool results) that the main ancestor walk didn't pick up.
+    const ancestorUuids = [...activeUuids];
+    const pending: string[] = [];
+
+    for (const uuid of ancestorUuids) {
+      const children = childrenOf.get(uuid);
+      if (!children || children.size <= 1) continue;
+      const activeChildUuid = activeChildOf.get(uuid);
+      if (activeChildUuid && isDirectRealUserBranchChild(uuid, byUuid.get(activeChildUuid))) {
+        continue;
+      }
+      for (const childUuid of children) {
+        if (activeUuids.has(childUuid)) continue;
+        const child = byUuid.get(childUuid);
+        if (!child || isRealUserBranchChild(child)) continue;
+        activeUuids.add(childUuid);
+        pending.push(childUuid);
+      }
+    }
+
+    // BFS: include non-branching descendants of seeded siblings
+    while (pending.length > 0) {
+      const parentUuid = pending.pop()!;
+      const children = childrenOf.get(parentUuid);
+      if (!children) continue;
+
+      for (const childUuid of children) {
+        if (activeUuids.has(childUuid)) continue;
+        const child = byUuid.get(childUuid);
+        if (!child || isRealUserBranchChild(child)) continue;
+        activeUuids.add(childUuid);
+        pending.push(childUuid);
+      }
     }
   }
 
   // O(n) sweep: include no-uuid entries only if both nearest uuid neighbors are active
-  const n = deduped.length;
+  const n = convEntries.length;
   const prevIsActive = new Array<boolean>(n);
   const nextIsActive = new Array<boolean>(n);
 
   let lastPrevActive = false;
   for (let i = 0; i < n; i++) {
-    if (deduped[i].uuid) {
-      lastPrevActive = activeUuids.has(deduped[i].uuid!);
+    if (convEntries[i].uuid) {
+      lastPrevActive = activeUuids.has(convEntries[i].uuid!);
     }
     prevIsActive[i] = lastPrevActive;
   }
 
   let lastNextActive = false;
   for (let i = n - 1; i >= 0; i--) {
-    if (deduped[i].uuid) {
-      lastNextActive = activeUuids.has(deduped[i].uuid!);
+    if (convEntries[i].uuid) {
+      lastNextActive = activeUuids.has(convEntries[i].uuid!);
     }
     nextIsActive[i] = lastNextActive;
   }
 
-  return deduped.filter((entry, idx) => {
+  return convEntries.filter((entry, idx) => {
     if (entry.uuid) return activeUuids.has(entry.uuid);
     return prevIsActive[idx] && nextIsActive[idx];
   });
