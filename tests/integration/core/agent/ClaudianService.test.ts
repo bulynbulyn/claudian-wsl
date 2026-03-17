@@ -2186,8 +2186,9 @@ describe('ClaudianService', () => {
   });
 
   describe('persistent query dynamic updates', () => {
-    it('updates thinking tokens on the active persistent query when budget changes', async () => {
-      // Start with default thinking budget ('off')
+    it('updates thinking tokens on the active persistent query when budget changes (custom model)', async () => {
+      // Use a custom model so the legacy budget path is used
+      mockPlugin.settings.model = 'custom-model';
       mockPlugin.settings.thinkingBudget = 'off';
 
       const chunks1: any[] = [];
@@ -2202,6 +2203,24 @@ describe('ClaudianService', () => {
       const response = getLastResponse();
       // setMaxThinkingTokens should be called with the new budget value (16000 for 'high')
       expect(response?.setMaxThinkingTokens).toHaveBeenCalledWith(16000);
+    });
+
+    it('does not call setMaxThinkingTokens for adaptive models when budget changes', async () => {
+      // Adaptive model (sonnet) should use effort levels, not token budgets
+      mockPlugin.settings.model = 'sonnet';
+      mockPlugin.settings.thinkingBudget = 'off';
+
+      const chunks1: any[] = [];
+      for await (const c of service.query('first')) chunks1.push(c);
+
+      // Change thinking budget — should be ignored for adaptive models
+      mockPlugin.settings.thinkingBudget = 'high';
+
+      const chunks2: any[] = [];
+      for await (const c of service.query('second')) chunks2.push(c);
+
+      const response = getLastResponse();
+      expect(response?.setMaxThinkingTokens).not.toHaveBeenCalled();
     });
 
     it('updates permission mode via setPermissionMode when going from YOLO to normal', async () => {

@@ -71,6 +71,7 @@ function createMockPersistentQueryConfig(
   return {
     model: 'sonnet',
     thinkingTokens: null,
+    effortLevel: null,
     permissionMode: 'yolo',
     systemPromptKey: 'key1',
     disallowedToolsKey: '',
@@ -147,6 +148,12 @@ describe('QueryOptionsBuilder', () => {
       expect(QueryOptionsBuilder.needsRestart(currentConfig, newConfig)).toBe(true);
     });
 
+    it('returns true when effortLevel changes', () => {
+      const currentConfig = createMockPersistentQueryConfig({ effortLevel: 'high' });
+      const newConfig = { ...currentConfig, effortLevel: 'low' as const };
+      expect(QueryOptionsBuilder.needsRestart(currentConfig, newConfig)).toBe(true);
+    });
+
     it('returns false when only model changes (dynamic update)', () => {
       const currentConfig = createMockPersistentQueryConfig();
       const newConfig = { ...currentConfig, model: 'claude-opus-4-5' };
@@ -210,6 +217,24 @@ describe('QueryOptionsBuilder', () => {
       const config = QueryOptionsBuilder.buildPersistentQueryConfig(ctx);
 
       expect(config.thinkingTokens).toBe(16000);
+    });
+
+    it('includes effortLevel for adaptive model', () => {
+      const ctx = createMockContext({
+        settings: createMockSettings({ model: 'sonnet', effortLevel: 'max' }),
+      });
+      const config = QueryOptionsBuilder.buildPersistentQueryConfig(ctx);
+
+      expect(config.effortLevel).toBe('max');
+    });
+
+    it('sets effortLevel to null for custom model', () => {
+      const ctx = createMockContext({
+        settings: createMockSettings({ model: 'custom-model', effortLevel: 'high' }),
+      });
+      const config = QueryOptionsBuilder.buildPersistentQueryConfig(ctx);
+
+      expect(config.effortLevel).toBeNull();
     });
 
     it('includes enableChrome from settings', () => {
@@ -293,10 +318,25 @@ describe('QueryOptionsBuilder', () => {
       expect(options.canUseTool).toBe(canUseTool);
     });
 
-    it('sets thinking tokens for high budget', () => {
+    it('sets adaptive thinking with effort for Claude models', () => {
       const ctx = {
         ...createMockContext({
-          settings: createMockSettings({ thinkingBudget: 'high' }),
+          settings: createMockSettings({ model: 'sonnet', effortLevel: 'max' }),
+        }),
+        abortController: new AbortController(),
+        hooks: {},
+      };
+      const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
+
+      expect(options.thinking).toEqual({ type: 'adaptive' });
+      expect(options.effort).toBe('max');
+      expect(options.maxThinkingTokens).toBeUndefined();
+    });
+
+    it('sets thinking tokens for custom models', () => {
+      const ctx = {
+        ...createMockContext({
+          settings: createMockSettings({ model: 'custom-model', thinkingBudget: 'high' }),
         }),
         abortController: new AbortController(),
         hooks: {},
@@ -304,6 +344,7 @@ describe('QueryOptionsBuilder', () => {
       const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
 
       expect(options.maxThinkingTokens).toBe(16000);
+      expect(options.thinking).toBeUndefined();
     });
 
     it('sets resume session ID when provided', () => {
