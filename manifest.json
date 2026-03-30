@@ -1,0 +1,10 @@
+{
+  "id": "claudian-wsl",
+  "name": "Claudian WSL",
+  "version": "1.3.72-wsl.1",
+  "minAppVersion": "1.4.5",
+  "description": "Claudian with WSL2 support - Connect Windows Obsidian to Claude Code CLI running in WSL2 Linux distributions.",
+  "author": "bulynbulyn",
+  "authorUrl": "https://github.com/bulynbulyn",
+  "isDesktopOnly": true
+}
