@@ -179,81 +179,68 @@ export class ClaudianSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(container).setName(t('settings.customization')).setHeading();
+    // --- Display ---
+
+    new Setting(container).setName(t('settings.display')).setHeading();
 
     new Setting(container)
-      .setName(t('settings.userName.name'))
-      .setDesc(t('settings.userName.desc'))
-      .addText((text) => {
-        text
-          .setPlaceholder(t('settings.userName.name'))
-          .setValue(this.plugin.settings.userName)
+      .setName(t('settings.tabBarPosition.name'))
+      .setDesc(t('settings.tabBarPosition.desc'))
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption('input', t('settings.tabBarPosition.input'))
+          .addOption('header', t('settings.tabBarPosition.header'))
+          .setValue(this.plugin.settings.tabBarPosition ?? 'input')
           .onChange(async (value) => {
-            this.plugin.settings.userName = value;
+            this.plugin.settings.tabBarPosition = value as 'input' | 'header';
             await this.plugin.saveSettings();
+
+            for (const view of this.plugin.getAllViews()) {
+              view.updateLayoutForPosition();
+            }
           });
-        text.inputEl.addEventListener('blur', () => this.restartServiceForPromptChange());
       });
 
-    new Setting(container)
-      .setName(t('settings.excludedTags.name'))
-      .setDesc(t('settings.excludedTags.desc'))
-      .addTextArea((text) => {
-        text
-          .setPlaceholder('system\nprivate\ndraft')
-          .setValue(this.plugin.settings.excludedTags.join('\n'))
-          .onChange(async (value) => {
-            this.plugin.settings.excludedTags = value
-              .split(/\r?\n/)
-              .map((entry) => entry.trim().replace(/^#/, ''))
-              .filter((entry) => entry.length > 0);
-            await this.plugin.saveSettings();
-          });
-        text.inputEl.rows = 4;
-        text.inputEl.cols = 30;
-      });
+    const maxTabsSetting = new Setting(container)
+      .setName(t('settings.maxTabs.name'))
+      .setDesc(t('settings.maxTabs.desc'));
 
-    new Setting(container)
-      .setName(t('settings.mediaFolder.name'))
-      .setDesc(t('settings.mediaFolder.desc'))
-      .addText((text) => {
-        text
-          .setPlaceholder('attachments')
-          .setValue(this.plugin.settings.mediaFolder)
-          .onChange(async (value) => {
-            this.plugin.settings.mediaFolder = value.trim();
-            await this.plugin.saveSettings();
-          });
-        text.inputEl.addClass('claudian-settings-media-input');
-        text.inputEl.addEventListener('blur', () => this.restartServiceForPromptChange());
-      });
+    const maxTabsWarningEl = container.createDiv({ cls: 'claudian-max-tabs-warning' });
+    maxTabsWarningEl.style.color = 'var(--text-warning)';
+    maxTabsWarningEl.style.fontSize = '0.85em';
+    maxTabsWarningEl.style.marginTop = '-0.5em';
+    maxTabsWarningEl.style.marginBottom = '0.5em';
+    maxTabsWarningEl.style.display = 'none';
+    maxTabsWarningEl.setText(t('settings.maxTabs.warning'));
 
-    new Setting(container)
-      .setName(t('settings.systemPrompt.name'))
-      .setDesc(t('settings.systemPrompt.desc'))
-      .addTextArea((text) => {
-        text
-          .setPlaceholder(t('settings.systemPrompt.name'))
-          .setValue(this.plugin.settings.systemPrompt)
-          .onChange(async (value) => {
-            this.plugin.settings.systemPrompt = value;
-            await this.plugin.saveSettings();
-          });
-        text.inputEl.rows = 6;
-        text.inputEl.cols = 50;
-        text.inputEl.addEventListener('blur', () => this.restartServiceForPromptChange());
-      });
+    const updateMaxTabsWarning = (value: number): void => {
+      maxTabsWarningEl.style.display = value > 5 ? 'block' : 'none';
+    };
 
-    renderEnvironmentSettingsSection({
-      container,
-      plugin: this.plugin,
-      scope: 'shared',
-      heading: t('settings.environment'),
-      name: 'Shared environment',
-      desc: 'Provider-neutral runtime variables shared across all providers. Use this for PATH, proxy, cert, and temp variables.',
-      placeholder: 'PATH=/opt/homebrew/bin:/usr/local/bin\nHTTPS_PROXY=http://proxy.example.com:8080\nSSL_CERT_FILE=/path/to/cert.pem',
-      renderCustomContextLimits: (target) => this.renderCustomContextLimits(target),
+    maxTabsSetting.addSlider((slider) => {
+      slider
+        .setLimits(3, 10, 1)
+        .setValue(this.plugin.settings.maxTabs ?? 3)
+        .setDynamicTooltip()
+        .onChange(async (value) => {
+          this.plugin.settings.maxTabs = value;
+          await this.plugin.saveSettings();
+          updateMaxTabsWarning(value);
+        });
+      updateMaxTabsWarning(this.plugin.settings.maxTabs ?? 3);
     });
+
+    new Setting(container)
+      .setName(t('settings.openInMainTab.name'))
+      .setDesc(t('settings.openInMainTab.desc'))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.openInMainTab)
+          .onChange(async (value) => {
+            this.plugin.settings.openInMainTab = value;
+            await this.plugin.saveSettings();
+          })
+      );
 
     new Setting(container)
       .setName(t('settings.enableAutoScroll.name'))
@@ -266,6 +253,10 @@ export class ClaudianSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    // --- Conversations ---
+
+    new Setting(container).setName(t('settings.conversations')).setHeading();
 
     new Setting(container)
       .setName(t('settings.autoTitle.name'))
@@ -307,6 +298,77 @@ export class ClaudianSettingTab extends PluginSettingTab {
             });
         });
     }
+
+    // --- Content ---
+
+    new Setting(container).setName(t('settings.content')).setHeading();
+
+    new Setting(container)
+      .setName(t('settings.userName.name'))
+      .setDesc(t('settings.userName.desc'))
+      .addText((text) => {
+        text
+          .setPlaceholder(t('settings.userName.name'))
+          .setValue(this.plugin.settings.userName)
+          .onChange(async (value) => {
+            this.plugin.settings.userName = value;
+            await this.plugin.saveSettings();
+          });
+        text.inputEl.addEventListener('blur', () => this.restartServiceForPromptChange());
+      });
+
+    new Setting(container)
+      .setName(t('settings.systemPrompt.name'))
+      .setDesc(t('settings.systemPrompt.desc'))
+      .addTextArea((text) => {
+        text
+          .setPlaceholder(t('settings.systemPrompt.name'))
+          .setValue(this.plugin.settings.systemPrompt)
+          .onChange(async (value) => {
+            this.plugin.settings.systemPrompt = value;
+            await this.plugin.saveSettings();
+          });
+        text.inputEl.rows = 6;
+        text.inputEl.cols = 50;
+        text.inputEl.addEventListener('blur', () => this.restartServiceForPromptChange());
+      });
+
+    new Setting(container)
+      .setName(t('settings.excludedTags.name'))
+      .setDesc(t('settings.excludedTags.desc'))
+      .addTextArea((text) => {
+        text
+          .setPlaceholder('system\nprivate\ndraft')
+          .setValue(this.plugin.settings.excludedTags.join('\n'))
+          .onChange(async (value) => {
+            this.plugin.settings.excludedTags = value
+              .split(/\r?\n/)
+              .map((entry) => entry.trim().replace(/^#/, ''))
+              .filter((entry) => entry.length > 0);
+            await this.plugin.saveSettings();
+          });
+        text.inputEl.rows = 4;
+        text.inputEl.cols = 30;
+      });
+
+    new Setting(container)
+      .setName(t('settings.mediaFolder.name'))
+      .setDesc(t('settings.mediaFolder.desc'))
+      .addText((text) => {
+        text
+          .setPlaceholder('attachments')
+          .setValue(this.plugin.settings.mediaFolder)
+          .onChange(async (value) => {
+            this.plugin.settings.mediaFolder = value.trim();
+            await this.plugin.saveSettings();
+          });
+        text.inputEl.addClass('claudian-settings-media-input');
+        text.inputEl.addEventListener('blur', () => this.restartServiceForPromptChange());
+      });
+
+    // --- Input ---
+
+    new Setting(container).setName(t('settings.input')).setHeading();
 
     new Setting(container)
       .setName(t('settings.navMappings.name'))
@@ -362,64 +424,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
         });
       });
 
-    new Setting(container)
-      .setName(t('settings.tabBarPosition.name'))
-      .setDesc(t('settings.tabBarPosition.desc'))
-      .addDropdown((dropdown) => {
-        dropdown
-          .addOption('input', t('settings.tabBarPosition.input'))
-          .addOption('header', t('settings.tabBarPosition.header'))
-          .setValue(this.plugin.settings.tabBarPosition ?? 'input')
-          .onChange(async (value) => {
-            this.plugin.settings.tabBarPosition = value as 'input' | 'header';
-            await this.plugin.saveSettings();
-
-            for (const view of this.plugin.getAllViews()) {
-              view.updateLayoutForPosition();
-            }
-          });
-      });
-
-    new Setting(container)
-      .setName(t('settings.openInMainTab.name'))
-      .setDesc(t('settings.openInMainTab.desc'))
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.openInMainTab)
-          .onChange(async (value) => {
-            this.plugin.settings.openInMainTab = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    const maxTabsSetting = new Setting(container)
-      .setName(t('settings.maxTabs.name'))
-      .setDesc(t('settings.maxTabs.desc'));
-
-    const maxTabsWarningEl = container.createDiv({ cls: 'claudian-max-tabs-warning' });
-    maxTabsWarningEl.style.color = 'var(--text-warning)';
-    maxTabsWarningEl.style.fontSize = '0.85em';
-    maxTabsWarningEl.style.marginTop = '-0.5em';
-    maxTabsWarningEl.style.marginBottom = '0.5em';
-    maxTabsWarningEl.style.display = 'none';
-    maxTabsWarningEl.setText(t('settings.maxTabs.warning'));
-
-    const updateMaxTabsWarning = (value: number): void => {
-      maxTabsWarningEl.style.display = value > 5 ? 'block' : 'none';
-    };
-
-    maxTabsSetting.addSlider((slider) => {
-      slider
-        .setLimits(3, 10, 1)
-        .setValue(this.plugin.settings.maxTabs ?? 3)
-        .setDynamicTooltip()
-        .onChange(async (value) => {
-          this.plugin.settings.maxTabs = value;
-          await this.plugin.saveSettings();
-          updateMaxTabsWarning(value);
-        });
-      updateMaxTabsWarning(this.plugin.settings.maxTabs ?? 3);
-    });
+    // --- Hotkeys ---
 
     new Setting(container).setName(t('settings.hotkeys')).setHeading();
 
@@ -429,6 +434,19 @@ export class ClaudianSettingTab extends PluginSettingTab {
     addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:new-session', 'settings.newSessionHotkey');
     addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:new-tab', 'settings.newTabHotkey');
     addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:close-current-tab', 'settings.closeTabHotkey');
+
+    // --- Environment ---
+
+    renderEnvironmentSettingsSection({
+      container,
+      plugin: this.plugin,
+      scope: 'shared',
+      heading: t('settings.environment'),
+      name: 'Shared environment',
+      desc: 'Provider-neutral runtime variables shared across all providers. Use this for PATH, proxy, cert, and temp variables.',
+      placeholder: 'PATH=/opt/homebrew/bin:/usr/local/bin\nHTTPS_PROXY=http://proxy.example.com:8080\nSSL_CERT_FILE=/path/to/cert.pem',
+      renderCustomContextLimits: (target) => this.renderCustomContextLimits(target),
+    });
   }
 
   private renderHiddenProviderCommandSetting(

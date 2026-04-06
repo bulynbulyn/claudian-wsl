@@ -71,7 +71,13 @@
       "claude": "Claude",
       "codex": "Codex"
     },
-    "customization": "个性化设置",
+    "display": "显示",
+    "conversations": "对话",
+    "content": "内容",
+    "input": "输入",
+    "setup": "设置",
+    "models": "模型",
+    "experimental": "实验性功能",
     "userName": {
       "name": "Claudian 应该如何称呼你？",
       "desc": "用于个性化问候的用户名（留空使用通用问候）"
@@ -234,7 +240,6 @@
       "desc": "为您的自定义模型设置上下文窗口大小。留空使用默认值（200k 令牌）。",
       "invalid": "格式无效。使用：256k、1m 或精确数量（1000-10000000）。"
     },
-    "advanced": "高级",
     "enableOpus1M": {
       "name": "Opus 1M 上下文窗口",
       "desc": "在模型选择器中显示 Opus 1M。Max、Team 和 Enterprise 计划已包含。API 和 Pro 用户需要额外用量。"

@@ -62,9 +62,15 @@ export type TranslationKey =
   | 'chat.fork.commandNoMessages'
   | 'chat.fork.commandNoAssistantUuid'
 
-  // Settings - Customization
+  // Settings - Section Headings
   | 'settings.title'
-  | 'settings.customization'
+  | 'settings.display'
+  | 'settings.conversations'
+  | 'settings.content'
+  | 'settings.input'
+  | 'settings.setup'
+  | 'settings.models'
+  | 'settings.experimental'
   | 'settings.userName.name'
   | 'settings.userName.desc'
   | 'settings.excludedTags.name'
@@ -194,7 +200,6 @@ export type TranslationKey =
   | 'settings.customContextLimits.invalid'
 
   // Settings - Advanced
-  | 'settings.advanced'
   | 'settings.enableOpus1M.name'
   | 'settings.enableOpus1M.desc'
   | 'settings.enableSonnet1M.name'

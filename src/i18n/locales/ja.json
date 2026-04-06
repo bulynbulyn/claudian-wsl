@@ -71,7 +71,13 @@
       "claude": "Claude",
       "codex": "Codex"
     },
-    "customization": "カスタマイズ",
+    "display": "表示",
+    "conversations": "会話",
+    "content": "コンテンツ",
+    "input": "入力",
+    "setup": "セットアップ",
+    "models": "モデル",
+    "experimental": "実験的機能",
     "userName": {
       "name": "Claudian はどのように呼びますか？",
       "desc": "パーソナライズされた挨拶に使用する名前（空欄で一般の挨拶）"
@@ -234,7 +240,6 @@
       "desc": "カスタムモデルのコンテキストウィンドウサイズを設定します。デフォルト（200kトークン）を使用する場合は空欄のままにしてください。",
       "invalid": "無効な形式です。使用：256k、1m、または正確な数値（1000-10000000）。"
     },
-    "advanced": "詳細設定",
     "enableOpus1M": {
       "name": "Opus 1Mコンテキストウィンドウ",
       "desc": "モデルセレクターにOpus 1Mを表示します。Max、Team、Enterpriseプランに含まれます。APIおよびProユーザーは追加使用量が必要です。"

@@ -20,6 +20,39 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
     const hostnameKey = getHostnameKey();
     let installationMethod = codexSettings.installationMethod;
 
+    // --- Setup ---
+
+    new Setting(container).setName(t('settings.setup')).setHeading();
+
+    new Setting(container)
+      .setName('Enable Codex provider')
+      .setDesc('When enabled, Codex models appear in the model selector for new conversations. Existing Codex sessions are preserved.')
+      .addToggle((toggle) =>
+        toggle
+          .setValue(codexSettings.enabled)
+          .onChange(async (value) => {
+            updateCodexProviderSettings(settingsBag, { enabled: value });
+            await context.plugin.saveSettings();
+            context.refreshModelSelectors();
+          })
+      );
+
+    new Setting(container)
+      .setName('Installation method')
+      .setDesc('How Claudian should launch Codex on Windows. Native Windows uses a Windows executable path. WSL launches the Linux CLI inside a selected distro.')
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption('native-windows', 'Native Windows')
+          .addOption('wsl', 'WSL')
+          .setValue(installationMethod)
+          .onChange(async (value) => {
+            installationMethod = value === 'wsl' ? 'wsl' : 'native-windows';
+            updateCodexProviderSettings(settingsBag, { installationMethod });
+            refreshInstallationMethodUI();
+            await context.plugin.saveSettings();
+          });
+      });
+
     const getCliPathCopy = (): { desc: string; placeholder: string } => {
       if (installationMethod === 'wsl') {
         return {
@@ -130,46 +163,6 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
       return true;
     };
 
-    new Setting(container)
-      .setName('Enable Codex provider')
-      .setDesc('When enabled, Codex models appear in the model selector for new conversations. Existing Codex sessions are preserved.')
-      .addToggle((toggle) =>
-        toggle
-          .setValue(codexSettings.enabled)
-          .onChange(async (value) => {
-            updateCodexProviderSettings(settingsBag, { enabled: value });
-            await context.plugin.saveSettings();
-            context.refreshModelSelectors();
-          })
-      );
-
-    new Setting(container)
-      .setName('Installation method')
-      .setDesc('How Claudian should launch Codex on Windows. Native Windows uses a Windows executable path. WSL launches the Linux CLI inside a selected distro.')
-      .addDropdown((dropdown) => {
-        dropdown
-          .addOption('native-windows', 'Native Windows')
-          .addOption('wsl', 'WSL')
-          .setValue(installationMethod)
-          .onChange(async (value) => {
-            installationMethod = value === 'wsl' ? 'wsl' : 'native-windows';
-            updateCodexProviderSettings(settingsBag, { installationMethod });
-            refreshInstallationMethodUI();
-            await context.plugin.saveSettings();
-          });
-      });
-
-    renderEnvironmentSettingsSection({
-      container,
-      plugin: context.plugin,
-      scope: 'provider:codex',
-      heading: t('settings.environment'),
-      name: 'Codex environment',
-      desc: 'Codex-owned runtime variables only. Use this for OPENAI_* and CODEX_* settings. If Codex auto-detection needs help, add its install directory to shared PATH instead of this provider section.',
-      placeholder: 'OPENAI_API_KEY=your-key\nOPENAI_BASE_URL=https://api.openai.com/v1\nOPENAI_MODEL=gpt-5.4\nCODEX_SANDBOX=workspace-write',
-      renderCustomContextLimits: (target) => context.renderCustomContextLimits(target, 'codex'),
-    });
-
     const currentValue = codexSettings.cliPathsByHost[hostnameKey] || '';
 
     cliPathSetting.addText((text) => {
@@ -208,6 +201,10 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     refreshInstallationMethodUI();
 
+    // --- Safety ---
+
+    new Setting(container).setName(t('settings.safety')).setHeading();
+
     new Setting(container)
       .setName(t('settings.codexSafeMode.name'))
       .setDesc(t('settings.codexSafeMode.desc'))
@@ -224,6 +221,10 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
             await context.plugin.saveSettings();
           });
       });
+
+    // --- Models ---
+
+    new Setting(container).setName(t('settings.models')).setHeading();
 
     const SUMMARY_OPTIONS: { value: string; label: string }[] = [
       { value: 'auto', label: 'Auto' },
@@ -249,6 +250,8 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
         });
       });
 
+    // --- Skills ---
+
     const codexCatalog = codexWorkspace.commandCatalog;
     if (codexCatalog) {
       new Setting(container).setName('Codex Skills').setHeading();
@@ -269,6 +272,8 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
       placeholder: 'analyze\nexplain\nfix',
     });
 
+    // --- Subagents ---
+
     new Setting(container).setName('Codex Subagents').setHeading();
 
     const subagentDesc = container.createDiv({ cls: 'claudian-sp-settings-desc' });
@@ -282,6 +287,8 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
       void codexWorkspace.refreshAgentMentions?.();
     });
 
+    // --- MCP Servers ---
+
     new Setting(container).setName(t('settings.mcpServers.name')).setHeading();
     const mcpNotice = container.createDiv({ cls: 'claudian-mcp-settings-desc' });
     const mcpDesc = mcpNotice.createEl('p', { cls: 'setting-item-description' });
@@ -291,6 +298,19 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
     mcpDesc.createEl('a', {
       text: 'Learn more',
       href: 'https://developers.openai.com/codex/mcp',
+    });
+
+    // --- Environment ---
+
+    renderEnvironmentSettingsSection({
+      container,
+      plugin: context.plugin,
+      scope: 'provider:codex',
+      heading: t('settings.environment'),
+      name: 'Codex environment',
+      desc: 'Codex-owned runtime variables only. Use this for OPENAI_* and CODEX_* settings. If Codex auto-detection needs help, add its install directory to shared PATH instead of this provider section.',
+      placeholder: 'OPENAI_API_KEY=your-key\nOPENAI_BASE_URL=https://api.openai.com/v1\nOPENAI_MODEL=gpt-5.4\nCODEX_SANDBOX=workspace-write',
+      renderCustomContextLimits: (target) => context.renderCustomContextLimits(target, 'codex'),
     });
   },
 };

@@ -71,7 +71,13 @@
       "claude": "Claude",
       "codex": "Codex"
     },
-    "customization": "Personalización",
+    "display": "Pantalla",
+    "conversations": "Conversaciones",
+    "content": "Contenido",
+    "input": "Entrada",
+    "setup": "Configuración",
+    "models": "Modelos",
+    "experimental": "Experimental",
     "userName": {
       "name": "¿Cómo debería Claudian llamarte?",
       "desc": "Tu nombre para saludos personalizados (dejar vacío para saludos genéricos)"
@@ -234,7 +240,6 @@
       "desc": "Establezca tamaños de ventana de contexto para sus modelos personalizados. Deje vacío para usar el valor predeterminado (200k tokens).",
       "invalid": "Formato inválido. Use: 256k, 1m o número exacto (1000-10000000)."
     },
-    "advanced": "Avanzado",
     "enableOpus1M": {
       "name": "Ventana de contexto Opus 1M",
       "desc": "Mostrar Opus 1M en el selector de modelos. Incluido en planes Max, Team y Enterprise. Usuarios de API y Pro necesitan uso adicional."
