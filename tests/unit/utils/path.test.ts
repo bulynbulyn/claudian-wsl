@@ -1,12 +1,15 @@
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
+import type * as fsType from 'fs';
+import type * as osType from 'os';
+import type * as pathType from 'path';
 
+const fs = jest.requireActual<typeof fsType>('fs');
+const os = jest.requireActual<typeof osType>('os');
+const path = jest.requireActual<typeof pathType>('path');
+
+import { findClaudeCLIPath } from '@/providers/claude/cli/findClaudeCLIPath';
 import {
   expandHomePath,
-  findClaudeCLIPath,
-  getPathAccessType,
-  isPathInAllowedExportPaths,
+  isPathWithinDirectory,
   isPathWithinVault,
   normalizePathForComparison,
   normalizePathForFilesystem,
@@ -294,6 +297,32 @@ describe('isPathWithinVault', () => {
   });
 });
 
+describe('isPathWithinDirectory', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('expands home paths before checking containment', () => {
+    jest.spyOn(os, 'homedir').mockReturnValue('/home/test');
+
+    expect(isPathWithinDirectory('~/.claude/settings.json', '/home/test/.claude', '/vault')).toBe(true);
+  });
+
+  it('blocks symlink escapes from the allowed directory', () => {
+    const realpathMock = jest.fn((input: fsType.PathLike) => {
+      const value = String(input);
+      if (value === '/home/test/.claude') return '/home/test/.claude';
+      if (value === '/home/test/.claude/skills/link') return '/home/test/.ssh';
+      return path.resolve(value);
+    });
+
+    (fs.realpathSync as any) = realpathMock;
+    (fs.realpathSync as any).native = realpathMock;
+
+    expect(isPathWithinDirectory('/home/test/.claude/skills/link', '/home/test/.claude', '/vault')).toBe(false);
+  });
+});
+
 describe('normalizePathForVault', () => {
   const vaultPath = path.resolve('/tmp/test-vault');
 
@@ -329,117 +358,6 @@ describe('normalizePathForVault', () => {
   });
 });
 
-describe('isPathInAllowedExportPaths', () => {
-  const vaultPath = path.resolve('/tmp/test-vault');
-
-  it('returns false for empty allowedExportPaths', () => {
-    expect(isPathInAllowedExportPaths('/some/path', [], vaultPath)).toBe(false);
-  });
-
-  it('returns true for path within allowed export path', () => {
-    const exportDir = path.resolve('/tmp/exports');
-    const candidate = path.join(exportDir, 'file.txt');
-    expect(isPathInAllowedExportPaths(candidate, [exportDir], vaultPath)).toBe(true);
-  });
-
-  it('returns true for exact match of export path', () => {
-    const exportDir = path.resolve('/tmp/exports');
-    expect(isPathInAllowedExportPaths(exportDir, [exportDir], vaultPath)).toBe(true);
-  });
-
-  it('returns false for path outside all export paths', () => {
-    const exportDir = path.resolve('/tmp/exports');
-    expect(isPathInAllowedExportPaths('/other/path', [exportDir], vaultPath)).toBe(false);
-  });
-
-  it('checks multiple export paths', () => {
-    const export1 = path.resolve('/tmp/export1');
-    const export2 = path.resolve('/tmp/export2');
-    const candidate = path.join(export2, 'file.txt');
-    expect(isPathInAllowedExportPaths(candidate, [export1, export2], vaultPath)).toBe(true);
-  });
-});
-
-describe('getPathAccessType', () => {
-  const vaultPath = path.resolve('/tmp/test-vault');
-
-  it('returns none for empty candidate', () => {
-    expect(getPathAccessType('', [], [], vaultPath)).toBe('none');
-  });
-
-  it('returns vault for path inside vault', () => {
-    const candidate = path.join(vaultPath, 'notes', 'file.md');
-    expect(getPathAccessType(candidate, [], [], vaultPath)).toBe('vault');
-  });
-
-  it('returns vault for vault path itself', () => {
-    expect(getPathAccessType(vaultPath, [], [], vaultPath)).toBe('vault');
-  });
-
-  it('returns vault for ~/.claude safe subdirectory', () => {
-    expect(getPathAccessType(path.join(os.homedir(), '.claude', 'settings.json'), [], [], vaultPath)).toBe('vault');
-    expect(getPathAccessType(path.join(os.homedir(), '.claude', 'sessions', 'abc.jsonl'), [], [], vaultPath)).toBe('vault');
-    expect(getPathAccessType(path.join(os.homedir(), '.claude', 'projects', 'test'), [], [], vaultPath)).toBe('vault');
-    expect(getPathAccessType(path.join(os.homedir(), '.claude', 'commands', 'cmd.md'), [], [], vaultPath)).toBe('vault');
-    expect(getPathAccessType(path.join(os.homedir(), '.claude', 'agents', 'agent.md'), [], [], vaultPath)).toBe('vault');
-    expect(getPathAccessType(path.join(os.homedir(), '.claude', 'skills', 'skill'), [], [], vaultPath)).toBe('vault');
-    expect(getPathAccessType(path.join(os.homedir(), '.claude', 'plans', 'plan.md'), [], [], vaultPath)).toBe('vault');
-    expect(getPathAccessType(path.join(os.homedir(), '.claude', 'mcp.json'), [], [], vaultPath)).toBe('vault');
-    expect(getPathAccessType(path.join(os.homedir(), '.claude', 'claudian-settings.json'), [], [], vaultPath)).toBe('vault');
-  });
-
-  it('returns context (read-only) for unknown ~/.claude paths', () => {
-    expect(getPathAccessType(path.join(os.homedir(), '.claude', 'credentials'), [], [], vaultPath)).toBe('context');
-    expect(getPathAccessType(path.join(os.homedir(), '.claude', 'secrets.json'), [], [], vaultPath)).toBe('context');
-  });
-
-  it('returns context for ~/.claude directory itself', () => {
-    expect(getPathAccessType(path.join(os.homedir(), '.claude'), [], [], vaultPath)).toBe('context');
-  });
-
-  it('returns context for path in context paths only', () => {
-    const contextDir = path.resolve('/tmp/context-dir');
-    const candidate = path.join(contextDir, 'file.md');
-    expect(getPathAccessType(candidate, [contextDir], [], vaultPath)).toBe('context');
-  });
-
-  it('returns export for path in export paths only', () => {
-    const exportDir = path.resolve('/tmp/export-dir');
-    const candidate = path.join(exportDir, 'file.md');
-    expect(getPathAccessType(candidate, [], [exportDir], vaultPath)).toBe('export');
-  });
-
-  it('returns readwrite for path in both context and export paths', () => {
-    const sharedDir = path.resolve('/tmp/shared-dir');
-    const candidate = path.join(sharedDir, 'file.md');
-    expect(getPathAccessType(candidate, [sharedDir], [sharedDir], vaultPath)).toBe('readwrite');
-  });
-
-  it('returns none for path not in any allowed path', () => {
-    const contextDir = path.resolve('/tmp/context-dir');
-    expect(getPathAccessType('/other/path', [contextDir], [], vaultPath)).toBe('none');
-  });
-
-  it('handles undefined context and export paths', () => {
-    expect(getPathAccessType('/some/path', undefined, undefined, vaultPath)).toBe('none');
-  });
-
-  it('uses most specific matching root', () => {
-    const parentDir = path.resolve('/tmp/parent');
-    const childDir = path.join(parentDir, 'child');
-    const candidate = path.join(childDir, 'file.md');
-
-    // Parent is context only, child is both context and export
-    const result = getPathAccessType(
-      candidate,
-      [parentDir, childDir],
-      [childDir],
-      vaultPath
-    );
-    expect(result).toBe('readwrite');
-  });
-});
-
 describe('findClaudeCLIPath', () => {
   afterEach(() => {
     jest.restoreAllMocks();
@@ -460,7 +378,7 @@ describe('findClaudeCLIPath', () => {
       p => String(p) === claudePath
     );
     jest.spyOn(fs, 'statSync').mockImplementation(
-      p => ({ isFile: () => String(p) === claudePath }) as fs.Stats
+      p => ({ isFile: () => String(p) === claudePath }) as fsType.Stats
     );
 
     const result = findClaudeCLIPath(isWindows ? 'C:\\custom\\bin' : '/custom/bin');
@@ -479,7 +397,7 @@ describe('findClaudeCLIPath', () => {
       p => String(p) === commonPath
     );
     jest.spyOn(fs, 'statSync').mockImplementation(
-      p => ({ isFile: () => String(p) === commonPath }) as fs.Stats
+      p => ({ isFile: () => String(p) === commonPath }) as fsType.Stats
     );
 
     const result = findClaudeCLIPath();
@@ -496,7 +414,7 @@ describe('findClaudeCLIPath', () => {
       p => String(p) === cliJsPath
     );
     jest.spyOn(fs, 'statSync').mockImplementation(
-      p => ({ isFile: () => String(p) === cliJsPath }) as fs.Stats
+      p => ({ isFile: () => String(p) === cliJsPath }) as fsType.Stats
     );
 
     const result = findClaudeCLIPath();
@@ -512,7 +430,7 @@ describe('findClaudeCLIPath', () => {
       p => String(p) === envClaudePath
     );
     jest.spyOn(fs, 'statSync').mockImplementation(
-      p => ({ isFile: () => String(p) === envClaudePath }) as fs.Stats
+      p => ({ isFile: () => String(p) === envClaudePath }) as fsType.Stats
     );
 
     try {
@@ -568,7 +486,7 @@ describe('findClaudeCLIPath', () => {
       return [];
     }) as typeof fs.readdirSync);
     jest.spyOn(fs, 'statSync').mockImplementation(
-      () => ({ isFile: () => true }) as fs.Stats
+      () => ({ isFile: () => true }) as fsType.Stats
     );
 
     const result = findClaudeCLIPath();
@@ -606,7 +524,7 @@ describe('findClaudeCLIPath', () => {
       return [];
     }) as typeof fs.readdirSync);
     jest.spyOn(fs, 'statSync').mockImplementation(
-      () => ({ isFile: () => true }) as fs.Stats
+      () => ({ isFile: () => true }) as fsType.Stats
     );
 
     const result = findClaudeCLIPath();
@@ -692,13 +610,5 @@ describe('expandHomePath - Windows environment variable formats', () => {
       if (original === undefined) delete process.env.MY_CI_VAR;
       else process.env.MY_CI_VAR = original;
     }
-  });
-});
-
-describe('getPathAccessType - edge cases', () => {
-  const vaultPath = path.resolve('/tmp/test-vault');
-
-  it('returns none when no root matches the candidate', () => {
-    expect(getPathAccessType('/outside/path', ['  '], ['  '], vaultPath)).toBe('none');
   });
 });
