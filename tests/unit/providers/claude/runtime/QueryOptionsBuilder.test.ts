@@ -77,6 +77,8 @@ function createMockPersistentQueryConfig(
     settingSources: 'project',
     claudeCliPath: '/mock/claude',
     enableChrome: false,
+    installationMethod: 'native-windows',
+    wslDistroOverride: '',
     ...overrides,
   };
 }

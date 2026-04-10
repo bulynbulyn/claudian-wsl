@@ -8,6 +8,7 @@ import { getVaultPath } from '../../../utils/path';
 import { extractAssistantText } from '../auxiliary/extractAssistantText';
 import { getClaudeProviderSettings } from '../settings';
 import { type EffortLevel, isAdaptiveThinkingModel, THINKING_BUDGETS } from '../types/models';
+import { buildClaudeLaunchSpec } from './ClaudeLaunchSpecBuilder';
 import { createCustomSpawnFunction } from './customSpawn';
 
 export interface ColdStartQueryConfig {
@@ -58,26 +59,50 @@ export async function runColdStartQuery(
   );
   const enhancedPath = getEnhancedPath(customEnv.PATH, resolvedClaudePath);
 
-  const missingNodeError = getMissingNodeError(resolvedClaudePath, enhancedPath);
-  if (missingNodeError) {
-    throw new Error(missingNodeError);
-  }
-
+  // Skip Node check for WSL mode (Node runs inside WSL)
   const settings = config.providerSettings
     ?? ProviderSettingsCoordinator.getProviderSettingsSnapshot(
       config.plugin.settings as unknown as Record<string, unknown>,
       'claude',
     );
   const claudeSettings = getClaudeProviderSettings(settings);
+  const isWslMode = claudeSettings.installationMethod === 'wsl' && process.platform === 'win32';
+
+  if (!isWslMode) {
+    const missingNodeError = getMissingNodeError(resolvedClaudePath, enhancedPath);
+    if (missingNodeError) {
+      throw new Error(missingNodeError);
+    }
+  }
 
   const selectedModel = config.model ?? (settings.model as string);
+
+  // Build WSL launch spec if needed
+  let launchSpec = null;
+  if (isWslMode) {
+    const filteredEnv: Record<string, string> = {};
+    for (const [key, value] of Object.entries(process.env)) {
+      if (value !== undefined) {
+        filteredEnv[key] = value;
+      }
+    }
+    launchSpec = buildClaudeLaunchSpec({
+      settings: settings as Record<string, unknown>,
+      resolvedCliCommand: resolvedClaudePath,
+      hostVaultPath: vaultPath,
+      env: {
+        ...filteredEnv,
+        ...customEnv,
+      },
+    });
+  }
 
   const options: Options = {
     cwd: vaultPath,
     systemPrompt: config.systemPrompt,
     model: selectedModel,
     abortController: config.abortController,
-    pathToClaudeCodeExecutable: resolvedClaudePath,
+    pathToClaudeCodeExecutable: isWslMode ? 'claude' : resolvedClaudePath,
     env: {
       ...process.env,
       ...customEnv,
@@ -88,7 +113,7 @@ export async function runColdStartQuery(
     settingSources: claudeSettings.loadUserSettings
       ? ['user', 'project']
       : ['project'],
-    spawnClaudeCodeProcess: createCustomSpawnFunction(enhancedPath),
+    spawnClaudeCodeProcess: createCustomSpawnFunction(enhancedPath, launchSpec ?? undefined),
   };
 
   if (config.tools !== undefined) {
@@ -110,7 +135,7 @@ export async function runColdStartQuery(
   if (!config.thinking?.disabled) {
     if (isAdaptiveThinkingModel(selectedModel)) {
       options.thinking = { type: 'adaptive' };
-      options.effort = settings.effortLevel as EffortLevel;
+      options.effort = settings.effort as EffortLevel;
     } else {
       const budgetConfig = THINKING_BUDGETS.find(
         b => b.value === settings.thinkingBudget

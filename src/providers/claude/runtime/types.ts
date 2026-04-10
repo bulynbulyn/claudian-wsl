@@ -95,6 +95,9 @@ export interface PersistentQueryConfig {
   settingSources: string;
   claudeCliPath: string;
   enableChrome: boolean;
+  // WSL settings
+  installationMethod: 'native-windows' | 'wsl';
+  wslDistroOverride: string;
 }
 
 export interface SessionState {
