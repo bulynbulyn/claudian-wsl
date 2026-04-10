@@ -21,6 +21,7 @@ import {
   isAdaptiveThinkingModel,
   THINKING_BUDGETS,
 } from '../types/models';
+import { buildClaudeLaunchSpec } from './ClaudeLaunchSpecBuilder';
 import { createCustomSpawnFunction } from './customSpawn';
 import {
   DISABLED_BUILTIN_SUBAGENTS,
@@ -79,6 +80,10 @@ export class QueryOptionsBuilder {
 
     // Note: Permission mode is handled dynamically via setPermissionMode() in ClaudianService.
     // Since allowDangerouslySkipPermissions is always true, both directions work without restart.
+    // However, in WSL mode, setPermissionMode may fail, so we require restart for permission mode changes.
+    if (currentConfig.installationMethod === 'wsl' && currentConfig.permissionMode !== newConfig.permissionMode) {
+      return true;
+    }
 
     if (currentConfig.enableChrome !== newConfig.enableChrome) return true;
 
@@ -89,6 +94,10 @@ export class QueryOptionsBuilder {
     if (QueryOptionsBuilder.pathsChanged(currentConfig.externalContextPaths, newConfig.externalContextPaths)) {
       return true;
     }
+
+    // WSL installation method change requires restart
+    if (currentConfig.installationMethod !== newConfig.installationMethod) return true;
+    if (currentConfig.wslDistroOverride !== newConfig.wslDistroOverride) return true;
 
     return false;
   }
@@ -130,6 +139,9 @@ export class QueryOptionsBuilder {
       settingSources: claudeSettings.loadUserSettings ? 'user,project' : 'project',
       claudeCliPath: ctx.cliPath,
       enableChrome: claudeSettings.enableChrome,
+      // WSL settings
+      installationMethod: claudeSettings.installationMethod,
+      wslDistroOverride: claudeSettings.wslDistroOverride,
     };
   }
 
@@ -267,12 +279,38 @@ export class QueryOptionsBuilder {
       vaultPath: ctx.vaultPath,
       userName: ctx.settings.userName,
     };
+
+    // Build WSL launch spec if needed
+    const isWslMode = claudeSettings.installationMethod === 'wsl' && process.platform === 'win32';
+    let launchSpec = null;
+
+    if (isWslMode && ctx.vaultPath) {
+      // Filter out undefined values from process.env
+      const filteredEnv: Record<string, string> = {};
+      for (const [key, value] of Object.entries(process.env)) {
+        if (value !== undefined) {
+          filteredEnv[key] = value;
+        }
+      }
+      launchSpec = buildClaudeLaunchSpec({
+        settings: ctx.settings as unknown as Record<string, unknown>,
+        resolvedCliCommand: ctx.cliPath || 'claude',
+        hostVaultPath: ctx.vaultPath,
+        env: {
+          ...filteredEnv,
+          ...ctx.customEnv,
+        },
+      });
+    }
+
     const options: Options = {
       cwd: ctx.vaultPath,
       systemPrompt: buildSystemPrompt(systemPromptSettings),
       model,
       abortController,
-      pathToClaudeCodeExecutable: ctx.cliPath,
+      // In WSL mode, the actual CLI path is handled by spawnClaudeCodeProcess
+      // Set a placeholder that won't be validated by SDK
+      pathToClaudeCodeExecutable: isWslMode ? 'claude' : ctx.cliPath,
       settingSources: claudeSettings.loadUserSettings ? ['user', 'project'] : ['project'],
       env: {
         ...process.env,
@@ -283,7 +321,7 @@ export class QueryOptionsBuilder {
     };
 
     QueryOptionsBuilder.applyExtraArgs(options, claudeSettings.enableChrome);
-    options.spawnClaudeCodeProcess = createCustomSpawnFunction(ctx.enhancedPath);
+    options.spawnClaudeCodeProcess = createCustomSpawnFunction(ctx.enhancedPath, launchSpec ?? undefined);
 
     return { options, claudeSettings };
   }

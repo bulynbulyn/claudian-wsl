@@ -23,6 +23,63 @@ export const claudeSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     new Setting(container).setName(t('settings.setup')).setHeading();
 
+    // WSL Installation Method (Windows only)
+    if (process.platform === 'win32') {
+      let installationMethod = claudeSettings.installationMethod;
+      let wslDistroInputEl: HTMLInputElement | null = null;
+      let wslDistroSettingEl: HTMLElement | null = null;
+
+      // Helper to toggle WSL-specific settings visibility
+      const refreshInstallationMethodUI = (): void => {
+        if (wslDistroInputEl) {
+          wslDistroInputEl.disabled = installationMethod !== 'wsl';
+        }
+        if (wslDistroSettingEl) {
+          wslDistroSettingEl.style.display = installationMethod === 'wsl' ? '' : 'none';
+        }
+      };
+
+      new Setting(container)
+        .setName('Installation method')
+        .setDesc('How Claudian should launch Claude on Windows. Native Windows uses a Windows executable path. WSL launches the Linux CLI inside a selected distro.')
+        .addDropdown((dropdown) => {
+          dropdown
+            .addOption('native-windows', 'Native Windows')
+            .addOption('wsl', 'WSL')
+            .setValue(installationMethod)
+            .onChange(async (value) => {
+              installationMethod = value === 'wsl' ? 'wsl' : 'native-windows';
+              updateClaudeProviderSettings(settingsBag, { installationMethod });
+              refreshInstallationMethodUI();
+              await context.plugin.saveSettings();
+            });
+        });
+
+      const wslDistroSetting = new Setting(container)
+        .setName('WSL distro override')
+        .setDesc('Optional advanced override. Leave empty to infer the distro from a \\\\wsl$ workspace path when possible, otherwise use the default WSL distro.');
+
+      wslDistroSettingEl = wslDistroSetting.settingEl;
+
+      wslDistroSetting.addText((text) => {
+        text
+          .setPlaceholder('Ubuntu')
+          .setValue(claudeSettings.wslDistroOverride)
+          .onChange(async (value) => {
+            updateClaudeProviderSettings(settingsBag, { wslDistroOverride: value });
+            await context.plugin.saveSettings();
+          });
+
+        text.inputEl.addClass('claudian-settings-cli-path-input');
+        text.inputEl.style.width = '100%';
+        text.inputEl.disabled = installationMethod !== 'wsl';
+        wslDistroInputEl = text.inputEl;
+      });
+
+      // Initial state
+      refreshInstallationMethodUI();
+    }
+
     const hostnameKey = getHostnameKey();
     const platformDesc = process.platform === 'win32'
       ? t('settings.cliPath.descWindows')
@@ -43,6 +100,16 @@ export const claudeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     const validatePath = (value: string): string | null => {
       const trimmed = value.trim();
       if (!trimmed) return null;
+
+      // In WSL mode, the path is a Linux path that Windows cannot validate directly
+      // Skip filesystem validation and just check format
+      if (process.platform === 'win32' && claudeSettings.installationMethod === 'wsl') {
+        // Basic Linux path validation: should start with / or be a command name
+        if (!trimmed.startsWith('/') && !trimmed.match(/^[a-zA-Z0-9_-]+$/)) {
+          return 'WSL mode expects a Linux absolute path (e.g., /usr/local/bin/claude) or a command name';
+        }
+        return null; // Accept the path without filesystem validation
+      }
 
       const expandedPath = expandHomePath(trimmed);
 

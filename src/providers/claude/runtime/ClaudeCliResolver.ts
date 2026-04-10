@@ -4,14 +4,15 @@ import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvir
 import type { HostnameCliPaths } from '../../../core/types/settings';
 import { getHostnameKey, parseEnvironmentVariables } from '../../../utils/env';
 import { expandHomePath } from '../../../utils/path';
-import { findClaudeCLIPath } from '../cli/findClaudeCLIPath';
 import { getClaudeProviderSettings } from '../settings';
+import { findClaudeCLIPath } from '../cli/findClaudeCLIPath';
 
 export class ClaudeCliResolver {
   private resolvedPath: string | null = null;
   private lastHostnamePath = '';
   private lastLegacyPath = '';
   private lastEnvText = '';
+  private lastInstallationMethod = '';
   private readonly cachedHostname = getHostnameKey();
 
   /**
@@ -25,12 +26,22 @@ export class ClaudeCliResolver {
     const hostnamePath = (claudeSettings.cliPathsByHost[hostnameKey] ?? '').trim();
     const normalizedLegacy = claudeSettings.cliPath.trim();
     const normalizedEnv = getRuntimeEnvironmentText(settings, 'claude');
+    const installationMethod = claudeSettings.installationMethod;
+
+    // WSL mode: skip filesystem validation, use configured path directly
+    if (process.platform === 'win32' && installationMethod === 'wsl') {
+      // In WSL mode, just return the configured path (or 'claude' as fallback)
+      // Windows cannot validate paths inside WSL filesystem
+      const wslPath = hostnamePath || normalizedLegacy || 'claude';
+      return wslPath;
+    }
 
     if (
       this.resolvedPath &&
       hostnamePath === this.lastHostnamePath &&
       normalizedLegacy === this.lastLegacyPath &&
-      normalizedEnv === this.lastEnvText
+      normalizedEnv === this.lastEnvText &&
+      installationMethod === this.lastInstallationMethod
     ) {
       return this.resolvedPath;
     }
@@ -38,6 +49,7 @@ export class ClaudeCliResolver {
     this.lastHostnamePath = hostnamePath;
     this.lastLegacyPath = normalizedLegacy;
     this.lastEnvText = normalizedEnv;
+    this.lastInstallationMethod = installationMethod;
 
     this.resolvedPath = resolveClaudeCliPath(hostnamePath, normalizedLegacy, normalizedEnv);
     return this.resolvedPath;
@@ -64,6 +76,7 @@ export class ClaudeCliResolver {
     this.lastHostnamePath = '';
     this.lastLegacyPath = '';
     this.lastEnvText = '';
+    this.lastInstallationMethod = '';
   }
 }
 

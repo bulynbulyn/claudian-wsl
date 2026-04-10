@@ -3,6 +3,8 @@ import { getProviderEnvironmentVariables } from '../../core/providers/providerEn
 import type { HostnameCliPaths } from '../../core/types/settings';
 
 export type ClaudeSafeMode = 'acceptEdits' | 'default';
+export type ClaudeInstallationMethod = 'native-windows' | 'wsl';
+export type HostnameInstallationMethods = Record<string, ClaudeInstallationMethod>;
 
 export interface ClaudeProviderSettings {
   safeMode: ClaudeSafeMode;
@@ -16,6 +18,11 @@ export interface ClaudeProviderSettings {
   lastModel: string;
   environmentVariables: string;
   environmentHash: string;
+  // WSL support
+  installationMethod: ClaudeInstallationMethod;
+  installationMethodsByHost: HostnameInstallationMethods;
+  wslDistroOverride: string;
+  wslDistroOverridesByHost: HostnameCliPaths;
 }
 
 export const DEFAULT_CLAUDE_PROVIDER_SETTINGS: Readonly<ClaudeProviderSettings> = Object.freeze({
@@ -30,6 +37,11 @@ export const DEFAULT_CLAUDE_PROVIDER_SETTINGS: Readonly<ClaudeProviderSettings> 
   lastModel: 'haiku',
   environmentVariables: '',
   environmentHash: '',
+  // WSL defaults
+  installationMethod: 'native-windows',
+  installationMethodsByHost: {},
+  wslDistroOverride: '',
+  wslDistroOverridesByHost: {},
 });
 
 function normalizeHostnameCliPaths(value: unknown): HostnameCliPaths {
@@ -46,10 +58,30 @@ function normalizeHostnameCliPaths(value: unknown): HostnameCliPaths {
   return result;
 }
 
+function normalizeInstallationMethod(value: unknown): ClaudeInstallationMethod {
+  return value === 'wsl' ? 'wsl' : 'native-windows';
+}
+
+function normalizeInstallationMethodsByHost(value: unknown): HostnameInstallationMethods {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  const result: HostnameInstallationMethods = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof key === 'string' && key.trim()) {
+      result[key] = normalizeInstallationMethod(entry);
+    }
+  }
+  return result;
+}
+
 export function getClaudeProviderSettings(
   settings: Record<string, unknown>,
 ): ClaudeProviderSettings {
   const config = getProviderConfig(settings, 'claude');
+  const installationMethodsByHost = normalizeInstallationMethodsByHost(config.installationMethodsByHost);
+  const wslDistroOverridesByHost = normalizeHostnameCliPaths(config.wslDistroOverridesByHost);
 
   return {
     safeMode: (config.safeMode as ClaudeSafeMode | undefined)
@@ -83,6 +115,13 @@ export function getClaudeProviderSettings(
     environmentHash: (config.environmentHash as string | undefined)
       ?? (settings.lastEnvHash as string | undefined)
       ?? DEFAULT_CLAUDE_PROVIDER_SETTINGS.environmentHash,
+    // WSL settings
+    installationMethod: normalizeInstallationMethod(config.installationMethod),
+    installationMethodsByHost,
+    wslDistroOverride: typeof config.wslDistroOverride === 'string'
+      ? config.wslDistroOverride.trim()
+      : DEFAULT_CLAUDE_PROVIDER_SETTINGS.wslDistroOverride,
+    wslDistroOverridesByHost,
   };
 }
 
