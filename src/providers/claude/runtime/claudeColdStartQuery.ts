@@ -135,7 +135,7 @@ export async function runColdStartQuery(
   if (!config.thinking?.disabled) {
     if (isAdaptiveThinkingModel(selectedModel)) {
       options.thinking = { type: 'adaptive' };
-      options.effort = settings.effort as EffortLevel;
+      options.effort = settings.effortLevel as EffortLevel;
     } else {
       const budgetConfig = THINKING_BUDGETS.find(
         b => b.value === settings.thinkingBudget
