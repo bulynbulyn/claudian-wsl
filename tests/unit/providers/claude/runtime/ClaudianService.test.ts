@@ -746,6 +746,44 @@ describe('ClaudianService', () => {
 
       expect(commands).toEqual([]);
     });
+
+    it('should ignore late supportedCommands results from a stale query', async () => {
+      let resolveStaleCommands: (commands: Array<{ name: string; description: string; argumentHint: string }>) => void;
+      const staleCommandsPromise = new Promise<Array<{ name: string; description: string; argumentHint: string }>>((resolve) => {
+        resolveStaleCommands = resolve;
+      });
+
+      const staleQuery = {
+        supportedCommands: jest.fn().mockReturnValue(staleCommandsPromise),
+      };
+      const activeQuery = {
+        supportedCommands: jest.fn().mockResolvedValue([
+          { name: 'review', description: 'Review code', argumentHint: '' },
+        ]),
+      };
+
+      (service as any).persistentQuery = staleQuery;
+      const staleFetch = (service as any).fetchAndCacheCommands(staleQuery);
+
+      (service as any).persistentQuery = activeQuery;
+      const activeCommands = await (service as any).fetchAndCacheCommands(activeQuery);
+
+      resolveStaleCommands!([
+        { name: 'commit', description: 'Create a commit', argumentHint: '' },
+      ]);
+      const staleCommands = await staleFetch;
+
+      expect(activeCommands).toEqual([{
+        id: 'sdk:review',
+        name: 'review',
+        description: 'Review code',
+        argumentHint: '',
+        content: '',
+        source: 'sdk',
+      }]);
+      expect(staleCommands).toEqual(activeCommands);
+      expect((service as any).cachedSdkCommands).toEqual(activeCommands);
+    });
   });
 
   describe('isPipeError', () => {

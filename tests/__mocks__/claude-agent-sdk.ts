@@ -114,12 +114,14 @@ const mockMessages = [
 let customMockMessages: any[] | null = null;
 let appendResultMessage = true;
 let lastOptions: Options | undefined;
+let mockSupportedCommands: Array<{ name: string; description: string; argumentHint?: string }> = [];
 let lastResponse: (AsyncGenerator<any> & {
   interrupt: jest.Mock;
   setModel: jest.Mock;
   setMaxThinkingTokens: jest.Mock;
   setPermissionMode: jest.Mock;
   setMcpServers: jest.Mock;
+  supportedCommands: jest.Mock;
 }) | null = null;
 
 // Crash simulation control
@@ -137,10 +139,17 @@ export function resetMockMessages() {
   customMockMessages = null;
   appendResultMessage = true;
   lastOptions = undefined;
+  mockSupportedCommands = [];
   lastResponse = null;
   shouldThrowOnIteration = false;
   throwAfterChunks = 0;
   queryCallCount = 0;
+}
+
+export function setMockSupportedCommands(
+  commands: Array<{ name: string; description: string; argumentHint?: string }>
+) {
+  mockSupportedCommands = commands;
 }
 
 /**
@@ -286,6 +295,7 @@ export function query({ prompt, options }: { prompt: any; options: Options }): A
     setMaxThinkingTokens: jest.Mock;
     setPermissionMode: jest.Mock;
     setMcpServers: jest.Mock;
+    supportedCommands: jest.Mock;
   };
   gen.interrupt = jest.fn().mockResolvedValue(undefined);
   // Dynamic update methods for persistent queries
@@ -293,6 +303,7 @@ export function query({ prompt, options }: { prompt: any; options: Options }): A
   gen.setMaxThinkingTokens = jest.fn().mockResolvedValue(undefined);
   gen.setPermissionMode = jest.fn().mockResolvedValue(undefined);
   gen.setMcpServers = jest.fn().mockResolvedValue({ added: [], removed: [], errors: {} });
+  gen.supportedCommands = jest.fn().mockResolvedValue(mockSupportedCommands);
   lastResponse = gen;
 
   return gen;

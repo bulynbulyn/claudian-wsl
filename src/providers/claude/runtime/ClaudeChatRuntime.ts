@@ -164,6 +164,9 @@ export class ClaudianService implements ChatRuntime {
   private crashRecoveryAttempted = false;
   private coldStartInProgress = false;  // Prevent consumer error restarts during cold-start
 
+  // SDK command cache — populated on system/init, cleared on persistent query close
+  private cachedSdkCommands: SlashCommand[] = [];
+
   // Subagent hook state provider (set from feature layer to avoid core→feature dependency)
   private _subagentStateProvider: (() => SubagentHookState) | null = null;
 
@@ -582,6 +585,7 @@ export class ClaudianService implements ChatRuntime {
     this.responseConsumerRunning = false;
     this.responseConsumerPromise = null;
     this.currentConfig = null;
+    this.cachedSdkCommands = [];
     this._autoTurnBuffer = [];
     this._autoTurnSawStreamText = false;
     if (!preserveHandlers) {
@@ -834,6 +838,10 @@ export class ClaudianService implements ChatRuntime {
         if (event.permissionMode && this.permissionModeSyncCallback) {
           try { this.permissionModeSyncCallback(event.permissionMode); } catch { /* non-critical */ }
         }
+        // Cache SDK commands on init (SDK already scans the vault).
+        // Pass the current query instance so late completions from a dead query
+        // cannot overwrite the active cache after a restart or shutdown.
+        void this.fetchAndCacheCommands(this.persistentQuery);
       } else if (isContextWindowEvent(event)) {
         const usageChunk = this.updateBufferedUsageContextWindow(event.contextWindow);
         if (!usageChunk) {
@@ -1580,27 +1588,43 @@ export class ClaudianService implements ChatRuntime {
   }
 
   /**
-   * Get supported commands (SDK skills) from the persistent query.
-   * Returns an empty array if the query is not ready.
+   * Get supported commands (SDK skills).
+   * Returns cached commands populated on system/init. Falls back to a fresh
+   * supportedCommands() call if the cache is empty (e.g., dropdown opened
+   * before the first init event).
    */
   async getSupportedCommands(): Promise<SlashCommand[]> {
+    if (this.cachedSdkCommands.length > 0) {
+      return this.cachedSdkCommands;
+    }
     if (!this.persistentQuery) {
       return [];
     }
+    return this.fetchAndCacheCommands(this.persistentQuery);
+  }
 
+  /**
+   * Fetches commands from the SDK and caches them. Called on system/init
+   * (fire-and-forget) and as a fallback from getSupportedCommands().
+   */
+  private async fetchAndCacheCommands(query: Query | null): Promise<SlashCommand[]> {
+    if (!query) return [];
     try {
-      const sdkCommands: SDKSlashCommand[] = await this.persistentQuery.supportedCommands();
-      return sdkCommands.map((cmd) => ({
+      const sdkCommands: SDKSlashCommand[] = await query.supportedCommands();
+      const mappedCommands = sdkCommands.map((cmd) => ({
         id: `sdk:${cmd.name}`,
         name: cmd.name,
         description: cmd.description,
         argumentHint: cmd.argumentHint,
-        content: '', // SDK skills don't need content - they're handled by the SDK
+        content: '',
         source: 'sdk' as const,
       }));
+      if (this.persistentQuery !== query) {
+        return this.cachedSdkCommands;
+      }
+      this.cachedSdkCommands = mappedCommands;
+      return this.cachedSdkCommands;
     } catch {
-      // Empty array on error is intentional: callers (SlashCommandDropdown) keep
-      // sdkSkillsFetched=false on empty results, allowing automatic retry.
       return [];
     }
   }
