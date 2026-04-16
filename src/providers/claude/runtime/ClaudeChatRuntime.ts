@@ -71,6 +71,7 @@ import { loadSubagentFinalResult, loadSubagentToolCalls } from '../history/Claud
 import { createStopSubagentHook, type SubagentHookState } from '../hooks/SubagentHooks';
 import { encodeClaudeTurn } from '../prompt/ClaudeTurnEncoder';
 import { isContextWindowEvent, isSessionInitEvent, isStreamChunk } from '../sdk/typeGuards';
+import type { TransformEvent } from '../sdk/types';
 import { getClaudeProviderSettings } from '../settings';
 import { createTransformStreamState, transformSDKMessage } from '../stream/transformClaudeMessage';
 import { type ClaudeProviderState, getClaudeState } from '../types/providerState';
@@ -173,6 +174,7 @@ export class ClaudianService implements ChatRuntime {
   // Auto-triggered turn handling (e.g., task-notification delivery by the SDK)
   private _autoTurnBuffer: StreamChunk[] = [];
   private _autoTurnSawStreamText = false;
+  private _autoTurnSawStreamThinking = false;
   private _autoTurnCallback: ((result: AutoTurnResult) => void) | null = null;
   private turnMetadata: ChatTurnMetadata = {};
   private bufferedUsageChunk: StreamChunk & { type: 'usage' } | null = null;
@@ -590,6 +592,7 @@ export class ClaudianService implements ChatRuntime {
     this.streamTransformState.clearAll();
     this._autoTurnBuffer = [];
     this._autoTurnSawStreamText = false;
+    this._autoTurnSawStreamThinking = false;
     if (!preserveHandlers) {
       this.responseHandlers = [];
       this.currentAllowedTools = null;
@@ -816,16 +819,26 @@ export class ClaudianService implements ChatRuntime {
 
     // Safe to use last handler - design guarantees single handler at a time
     const handler = this.responseHandlers[this.responseHandlers.length - 1];
-    if (this.isStreamTextEvent(message)) {
-      if (handler) {
-        handler.markStreamTextSeen();
-      } else {
-        this._autoTurnSawStreamText = true;
-      }
-    }
 
     // Transform SDK message to StreamChunks
     for (const event of transformSDKMessage(message, this.getTransformOptions())) {
+      this.noteVisibleStreamContent(message, event, {
+        onText: () => {
+          if (handler) {
+            handler.markStreamTextSeen();
+          } else {
+            this._autoTurnSawStreamText = true;
+          }
+        },
+        onThinking: () => {
+          if (handler) {
+            handler.markStreamThinkingSeen();
+          } else {
+            this._autoTurnSawStreamThinking = true;
+          }
+        },
+      });
+
       if (isSessionInitEvent(event)) {
         // Fork: suppress needsHistoryRebuild since SDK returns a different session ID by design
         const wasFork = this.pendingForkSession;
@@ -860,6 +873,11 @@ export class ClaudianService implements ChatRuntime {
         // (complete). Skip the assistant message text if stream text was already seen.
         if (message.type === 'assistant' && event.type === 'text') {
           if (handler?.sawStreamText || (!handler && this._autoTurnSawStreamText)) {
+            continue;
+          }
+        }
+        if (message.type === 'assistant' && event.type === 'thinking') {
+          if (handler?.sawStreamThinking || (!handler && this._autoTurnSawStreamThinking)) {
             continue;
           }
         }
@@ -902,9 +920,11 @@ export class ClaudianService implements ChatRuntime {
       // Notify handler
       if (handler) {
         handler.resetStreamText();
+        handler.resetStreamThinking();
         handler.onDone();
       } else {
         this._autoTurnSawStreamText = false;
+        this._autoTurnSawStreamThinking = false;
         if (this._autoTurnBuffer.length === 0) {
           return;
         }
@@ -1426,17 +1446,23 @@ export class ClaudianService implements ChatRuntime {
     );
   }
 
-  private isStreamTextEvent(message: SDKMessage): boolean {
-    if (message.type !== 'stream_event') return false;
-    const event = message.event;
-    if (!event) return false;
-    if (event.type === 'content_block_start') {
-      return event.content_block?.type === 'text';
+  private noteVisibleStreamContent(
+    message: SDKMessage,
+    event: TransformEvent,
+    callbacks: { onText: () => void; onThinking: () => void },
+  ): void {
+    // Drive dedup off transformed chunks rather than raw SDK message shapes.
+    // transformSDKMessage already filters out empty payloads and subagent-only
+    // stream events, so these callbacks only fire for content the user can see.
+    if (message.type !== 'stream_event') {
+      return;
     }
-    if (event.type === 'content_block_delta') {
-      return event.delta?.type === 'text_delta';
+
+    if (event.type === 'text') {
+      callbacks.onText();
+    } else if (event.type === 'thinking') {
+      callbacks.onThinking();
     }
-    return false;
   }
 
   private buildPromptWithImages(prompt: string, images?: ImageAttachment[]): string | AsyncGenerator<any> {
@@ -1485,6 +1511,7 @@ export class ClaudianService implements ChatRuntime {
     const options = QueryOptionsBuilder.buildColdStartQueryOptions(ctx);
 
     let sawStreamText = false;
+    let sawStreamThinking = false;
     const streamState = createTransformStreamState();
     try {
       const response = agentQuery({ prompt: queryPrompt, options });
@@ -1492,15 +1519,21 @@ export class ClaudianService implements ChatRuntime {
       let streamSessionId: string | null = this.sessionManager.getSessionId();
 
       for await (const message of response) {
-        if (this.isStreamTextEvent(message)) {
-          sawStreamText = true;
-        }
         if (this.abortController?.signal.aborted) {
           await response.interrupt();
           break;
         }
 
         for (const event of transformSDKMessage(message, this.getTransformOptions(selectedModel, streamState))) {
+          this.noteVisibleStreamContent(message, event, {
+            onText: () => {
+              sawStreamText = true;
+            },
+            onThinking: () => {
+              sawStreamThinking = true;
+            },
+          });
+
           if (isSessionInitEvent(event)) {
             this.sessionManager.captureSession(event.sessionId);
             streamSessionId = event.sessionId;
@@ -1511,6 +1544,9 @@ export class ClaudianService implements ChatRuntime {
             }
           } else if (isStreamChunk(event)) {
             if (message.type === 'assistant' && sawStreamText && event.type === 'text') {
+              continue;
+            }
+            if (message.type === 'assistant' && sawStreamThinking && event.type === 'thinking') {
               continue;
             }
             if (event.type === 'usage') {
@@ -1527,6 +1563,7 @@ export class ClaudianService implements ChatRuntime {
 
         if (message.type === 'result') {
           sawStreamText = false;
+          sawStreamThinking = false;
         }
       }
     } catch (error) {
