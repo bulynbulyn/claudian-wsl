@@ -1,4 +1,3 @@
-import { getRuntimeEnvironmentVariables } from '../../../core/providers/providerEnvironment';
 import type {
   ProviderChatUIConfig,
   ProviderIconSvg,
@@ -6,7 +5,8 @@ import type {
   ProviderReasoningOption,
   ProviderUIOption,
 } from '../../../core/providers/types';
-import { getCustomModelIds, getModelsFromEnvironment } from '../env/claudeModelEnv';
+import { getCustomModelIds } from '../env/claudeModelEnv';
+import { getClaudeModelOptions } from '../modelOptions';
 import { getClaudeProviderSettings, updateClaudeProviderSettings } from '../settings';
 import {
   type ClaudeModel,
@@ -14,10 +14,11 @@ import {
   DEFAULT_EFFORT_LEVEL,
   DEFAULT_THINKING_BUDGET,
   EFFORT_LEVELS,
-  filterVisibleModelOptions,
   getContextWindowSize,
   isAdaptiveThinkingModel,
+  normalizeEffortLevel,
   normalizeVisibleModelVariant,
+  supportsXHighEffort,
   THINKING_BUDGETS,
 } from '../types/models';
 
@@ -37,20 +38,7 @@ const CLAUDE_PERMISSION_MODE_TOGGLE: ProviderPermissionModeToggleConfig = {
 
 export const claudeChatUIConfig: ProviderChatUIConfig = {
   getModelOptions(settings) {
-    const customModels = getModelsFromEnvironment(
-      getRuntimeEnvironmentVariables(settings, 'claude'),
-    );
-    if (customModels.length > 0) {
-      return customModels;
-    }
-
-    const models = [...DEFAULT_CLAUDE_MODELS];
-    const claudeSettings = getClaudeProviderSettings(settings);
-    return filterVisibleModelOptions(
-      models,
-      claudeSettings.enableOpus1M,
-      claudeSettings.enableSonnet1M,
-    );
+    return getClaudeModelOptions(settings);
   },
 
   ownsModel(model: string, settings: Record<string, unknown>): boolean {
@@ -63,7 +51,10 @@ export const claudeChatUIConfig: ProviderChatUIConfig = {
 
   getReasoningOptions(model: string): ProviderReasoningOption[] {
     if (isAdaptiveThinkingModel(model)) {
-      return EFFORT_LEVELS.map(e => ({ value: e.value, label: e.label }));
+      const levels = supportsXHighEffort(model)
+        ? EFFORT_LEVELS
+        : EFFORT_LEVELS.filter(e => e.value !== 'xhigh');
+      return levels.map(e => ({ value: e.value, label: e.label }));
     }
     return THINKING_BUDGETS.map(b => ({ value: b.value, label: b.label, tokens: b.tokens }));
   },
@@ -84,15 +75,19 @@ export const claudeChatUIConfig: ProviderChatUIConfig = {
   },
 
   applyModelDefaults(model: string, settings: unknown): void {
+    const target = settings as Record<string, unknown>;
+
     if (DEFAULT_CLAUDE_MODELS.some(m => m.value === model)) {
-      const target = settings as Record<string, unknown>;
       target.thinkingBudget = DEFAULT_THINKING_BUDGET[model as ClaudeModel];
       if (isAdaptiveThinkingModel(model)) {
         target.effortLevel = DEFAULT_EFFORT_LEVEL[model as ClaudeModel] ?? 'high';
       }
       updateClaudeProviderSettings(target, { lastModel: model });
     } else {
-      (settings as Record<string, unknown>).lastCustomModel = model;
+      target.lastCustomModel = model;
+      if (isAdaptiveThinkingModel(model)) {
+        target.effortLevel = normalizeEffortLevel(model, target.effortLevel as string | undefined);
+      }
     }
   },
 

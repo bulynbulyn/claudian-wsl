@@ -40,7 +40,7 @@ export interface Options {
   resume?: string;
   maxThinkingTokens?: number;
   thinking?: { type: string; budgetTokens?: number };
-  effort?: 'low' | 'medium' | 'high' | 'max';
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
   canUseTool?: CanUseTool;
   systemPrompt?: string | { content: string; cacheControl?: { type: string } };
   mcpServers?: Record<string, unknown>;
@@ -53,6 +53,10 @@ export interface Options {
   };
   agents?: Record<string, AgentDefinition>;
   persistSession?: boolean;
+}
+
+export interface Settings {
+  effortLevel?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 }
 
 // Type exports that match the real SDK
@@ -114,12 +118,15 @@ const mockMessages = [
 let customMockMessages: any[] | null = null;
 let appendResultMessage = true;
 let lastOptions: Options | undefined;
+let mockSupportedCommands: Array<{ name: string; description: string; argumentHint?: string }> = [];
 let lastResponse: (AsyncGenerator<any> & {
   interrupt: jest.Mock;
   setModel: jest.Mock;
   setMaxThinkingTokens: jest.Mock;
   setPermissionMode: jest.Mock;
+  applyFlagSettings: jest.Mock;
   setMcpServers: jest.Mock;
+  supportedCommands: jest.Mock;
 }) | null = null;
 
 // Crash simulation control
@@ -137,10 +144,17 @@ export function resetMockMessages() {
   customMockMessages = null;
   appendResultMessage = true;
   lastOptions = undefined;
+  mockSupportedCommands = [];
   lastResponse = null;
   shouldThrowOnIteration = false;
   throwAfterChunks = 0;
   queryCallCount = 0;
+}
+
+export function setMockSupportedCommands(
+  commands: Array<{ name: string; description: string; argumentHint?: string }>
+) {
+  mockSupportedCommands = commands;
 }
 
 /**
@@ -285,14 +299,18 @@ export function query({ prompt, options }: { prompt: any; options: Options }): A
     setModel: jest.Mock;
     setMaxThinkingTokens: jest.Mock;
     setPermissionMode: jest.Mock;
+    applyFlagSettings: jest.Mock;
     setMcpServers: jest.Mock;
+    supportedCommands: jest.Mock;
   };
   gen.interrupt = jest.fn().mockResolvedValue(undefined);
   // Dynamic update methods for persistent queries
   gen.setModel = jest.fn().mockResolvedValue(undefined);
   gen.setMaxThinkingTokens = jest.fn().mockResolvedValue(undefined);
   gen.setPermissionMode = jest.fn().mockResolvedValue(undefined);
+  gen.applyFlagSettings = jest.fn().mockResolvedValue(undefined);
   gen.setMcpServers = jest.fn().mockResolvedValue({ added: [], removed: [], errors: {} });
+  gen.supportedCommands = jest.fn().mockResolvedValue(mockSupportedCommands);
   lastResponse = gen;
 
   return gen;

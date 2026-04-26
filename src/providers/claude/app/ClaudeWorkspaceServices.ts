@@ -17,6 +17,7 @@ import type ClaudianPlugin from '../../../main';
 import { getVaultPath } from '../../../utils/path';
 import { AgentManager } from '../agents/AgentManager';
 import { ClaudeCommandCatalog } from '../commands/ClaudeCommandCatalog';
+import { probeRuntimeCommands } from '../commands/probeRuntimeCommands';
 import { PluginManager } from '../plugins/PluginManager';
 import { ClaudeCliResolver } from '../runtime/ClaudeCliResolver';
 import { StorageService } from '../storage/StorageService';
@@ -57,6 +58,7 @@ export async function createClaudeWorkspaceServices(
   const commandCatalog = new ClaudeCommandCatalog(
     claudeStorage.commands,
     claudeStorage.skills,
+    () => probeRuntimeCommands(plugin),
   );
 
   return {

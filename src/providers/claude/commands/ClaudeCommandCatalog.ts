@@ -53,12 +53,22 @@ function entryToSlashCommand(entry: ProviderCommandEntry): SlashCommand {
   };
 }
 
+// SDK built-in skills that have no meaning inside Claudian
+const BUILTIN_HIDDEN_COMMANDS = new Set([
+  'context', 'cost', 'debug', 'extra-usage', 'heapdump', 'init',
+  'insights', 'loop', 'schedule', 'security-review', 'simplify', 'update-config',
+]);
+
+export type CommandProbe = () => Promise<SlashCommand[]>;
+
 export class ClaudeCommandCatalog implements ProviderCommandCatalog {
   private sdkCommands: SlashCommand[] = [];
+  private probePromise: Promise<void> | null = null;
 
   constructor(
     private commandStorage: SlashCommandStorage,
     private skillStorage: SkillStorage,
+    private probe?: CommandProbe,
   ) {}
 
   setRuntimeCommands(commands: SlashCommand[]): void {
@@ -67,16 +77,37 @@ export class ClaudeCommandCatalog implements ProviderCommandCatalog {
 
   async listDropdownEntries(context: { includeBuiltIns: boolean }): Promise<ProviderCommandEntry[]> {
     void context;
-    const commands = await this.commandStorage.loadAll();
-    const skills = await this.skillStorage.loadAll();
-    const vaultEntries = [...commands, ...skills].map(slashCommandToEntry);
-    const sdkEntries = this.sdkCommands.map(slashCommandToEntry);
+    // SDK commands already include vault commands/skills (the SDK scans
+    // .claude/commands/ and .claude/skills/ internally). No file scan needed.
+    // When the cache is empty (cold start, no active runtime), probe the SDK.
+    if (this.sdkCommands.length === 0 && this.probe) {
+      await this.ensureProbed();
+    }
+    const runtimeEntries = this.sdkCommands
+      .filter(cmd => !BUILTIN_HIDDEN_COMMANDS.has(cmd.name.toLowerCase()))
+      .map(slashCommandToEntry);
+    if (runtimeEntries.length > 0) {
+      return runtimeEntries;
+    }
+    return this.listVaultEntries();
+  }
 
-    // Deduplicate: vault entries take priority over SDK entries
-    const seen = new Set(vaultEntries.map(e => e.name.toLowerCase()));
-    const deduped = sdkEntries.filter(e => !seen.has(e.name.toLowerCase()));
-
-    return [...vaultEntries, ...deduped];
+  /** Probe the SDK for commands. Deduplicates concurrent calls. */
+  private async ensureProbed(): Promise<void> {
+    if (!this.probe) return;
+    if (!this.probePromise) {
+      this.probePromise = this.probe().then((commands) => {
+        // Only apply probe results if the runtime hasn't provided fresher data
+        if (this.sdkCommands.length === 0 && commands.length > 0) {
+          this.sdkCommands = commands;
+        }
+      }).catch(() => {
+        // Probe is best-effort
+      }).finally(() => {
+        this.probePromise = null;
+      });
+    }
+    await this.probePromise;
   }
 
   async listVaultEntries(): Promise<ProviderCommandEntry[]> {

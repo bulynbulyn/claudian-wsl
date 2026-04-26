@@ -1,74 +1,182 @@
-# Claudian WSL
+# Claudian
 
-> **基于 [Claudian](https://github.com/YishenTu/claudian) v2.0.2 by [Yishen Tu](https://github.com/YishenTu)**
+![GitHub stars](https://img.shields.io/github/stars/YishenTu/claudian?style=social)
+![GitHub release](https://img.shields.io/github/v/release/YishenTu/claudian)
+![License](https://img.shields.io/github/license/YishenTu/claudian)
 
-![GitHub release](https://img.shields.io/github/v/release/bulynbulyn/claudian-wsl)
-![License](https://img.shields.io/github/license/bulynbulyn/claudian-wsl)
+![Preview](Preview.png)
 
-> ⚠️ **说明**: 本项目由 **glm5 + Claude Code** 生成，仅测试了基本的 Claude Code-WSL 功能，其他功能未详细测试。如有问题请提 [Issues](https://github.com/bulynbulyn/claudian-wsl/issues)。
+An Obsidian plugin that embeds AI coding agents (Claude Code, Codex, and more to come) in your vault. Your vault becomes the agent's working directory — file read/write, search, bash, and multi-step workflows all work out of the box.
 
-An Obsidian plugin that embeds AI coding agents (Claude Code, Codex) in your vault with **WSL support for Windows users**.
+## Features & Usage
 
-## 新增功能：WSL 支持
+Open the chat sidebar from the ribbon icon or command palette. Select text and use the hotkey for inline edit. Everything works like Claude Code or Codex — talk to the agent, and it reads, writes, edits, and searches files in your vault.
 
-在 Windows 上通过 WSL 运行 Claude CLI：
+**Inline Edit** — Select text or start at the cursor position + hotkey to edit directly in notes with word-level diff preview.
 
-- **Installation method 选择**：Settings 中新增 Native Windows / WSL 选项
-- **WSL distro 自动检测**：自动从 `\\wsl$\` 工作区路径推断，或手动指定
-- **路径自动转换**：`D:\vault` → `/mnt/d/vault`
+**Slash Commands & Skills** — Type `/` or `$` for reusable prompt templates or Skills from user- and vault-level scopes.
 
-详细改动说明请查看 [CHANGELOG-wsl.md](CHANGELOG-wsl.md)。
+**`@mention`** - Type `@` to mention anything you want the agent to work with, vault files, subagents, MCP servers, or files in external directories.
 
-## 安装
+**Plan Mode** — Toggle via `Shift+Tab`. The agent explores and designs before implementing, then presents a plan for approval.
 
-### 从 GitHub Release 安装（推荐）
+**Instruction Mode (`#`)** — Refined custom instructions added from the chat input.
 
-1. 从 [最新 Release](https://github.com/bulynbulyn/claudian-wsl/releases/latest) 下载 `main.js`, `manifest.json`, `styles.css`
-2. 在 Obsidian vault 的 plugins 目录创建文件夹：
-   ```
-   /path/to/vault/.obsidian/plugins/claudian/
-   ```
-3. 将下载的文件复制到该文件夹
-4. Settings → Community plugins → Enable "Claudian"
+**MCP Servers** — Connect external tools via Model Context Protocol (stdio, SSE, HTTP). Claude manages vault MCP in-app; Codex uses its own CLI-managed MCP configuration.
 
-### 使用 BRAT
-
-1. 安装 BRAT 插件
-2. BRAT settings → "Add Beta plugin"
-3. 输入仓库 URL: `https://github.com/bulynbulyn/claudian-wsl`
-
-## WSL 配置
-
-1. Settings → Claude → Installation method 选择 **WSL**
-2. （可选）设置 WSL distro override
-3. CLI path 填 Linux 路径（如 `/usr/local/bin/claude`）或 `claude`
-4. 确保 WSL 中已安装 Claude CLI 和 Node.js
-
-## 原版功能
-
-- **Inline Edit** — Select text + hotkey for direct note editing with diff preview
-- **Slash Commands & Skills** — `/` for commands, `$` for skills
-- **`@mention`** — Mention files, subagents, MCP servers
-- **Plan Mode** — `Shift+Tab` to toggle
-- **MCP Servers** — Connect external tools via Model Context Protocol
-- **Multi-Tab & Conversations** — Multiple tabs, history, fork, resume
+**Multi-Tab & Conversations** — Multiple chat tabs, conversation history, fork, resume, and compact.
 
 ## Requirements
 
-- **Claude provider**: [Claude Code CLI](https://code.claude.com/docs/en/overview) installed
-- **WSL mode (Windows)**: Claude CLI + Node.js in WSL
+- **Claude provider**: [Claude Code CLI](https://code.claude.com/docs/en/overview) installed (native install recommended). Claude subscription/API or compatible provider ([Openrouter](https://openrouter.ai/docs/guides/guides/claude-code-integration), [Kimi](https://platform.moonshot.ai/docs/guide/agent-support), etc.).
+- **Codex provider** (optional): [Codex CLI](https://github.com/openai/codex) installed.
 - Obsidian v1.4.5+
 - Desktop only (macOS, Linux, Windows)
 
-## 原版文档
+## Installation
 
-完整功能说明请查看原版 [README](https://github.com/YishenTu/claudian#readme)。
+### From GitHub Release (recommended)
 
-## 致谢
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/YishenTu/claudian/releases/latest)
+2. Create a folder called `claudian` in your vault's plugins folder:
+   ```
+   /path/to/vault/.obsidian/plugins/claudian/
+   ```
+3. Copy the downloaded files into the `claudian` folder
+4. Enable the plugin in Obsidian:
+   - Settings → Community plugins → Enable "Claudian"
 
-- 原版作者：[Yishen Tu](https://github.com/YishenTu)
-- WSL 支持实现参考 Codex provider 架构
+### Using BRAT
+
+[BRAT](https://github.com/TfTHacker/obsidian42-brat) (Beta Reviewers Auto-update Tester) allows you to install and automatically update plugins directly from GitHub.
+
+1. Install the BRAT plugin from Obsidian Community Plugins
+2. Enable BRAT in Settings → Community plugins
+3. Open BRAT settings and click "Add Beta plugin"
+4. Enter the repository URL: `https://github.com/YishenTu/claudian`
+5. Click "Add Plugin" and BRAT will install Claudian automatically
+6. Enable Claudian in Settings → Community plugins
+
+> **Tip**: BRAT will automatically check for updates and notify you when a new version is available.
+
+### From source (development)
+
+1. Clone this repository into your vault's plugins folder:
+   ```bash
+   cd /path/to/vault/.obsidian/plugins
+   git clone https://github.com/YishenTu/claudian.git
+   cd claudian
+   ```
+
+2. Install dependencies and build:
+   ```bash
+   npm install
+   npm run build
+   ```
+
+3. Enable the plugin in Obsidian:
+   - Settings → Community plugins → Enable "Claudian"
+
+### Development
+
+```bash
+# Watch mode
+npm run dev
+
+# Production build
+npm run build
+```
+
+> **Tip**: Copy `.env.local.example` to `.env.local` or `npm install` and setup your vault path to auto-copy files during development.
+
+## Privacy & Data Use
+
+- **Sent to API**: Your input, attached files, images, and tool call outputs. Default: Anthropic (Claude) or OpenAI (Codex); configurable via environment variables.
+- **Local storage**: Claudian settings and session metadata in `vault/.claudian/`; Claude provider files in `vault/.claude/`; transcripts in `~/.claude/projects/` (Claude) and `~/.codex/sessions/` (Codex).
+- **No telemetry**: No tracking beyond your configured API provider.
+
+## Troubleshooting
+
+### Claude CLI not found
+
+If you encounter `spawn claude ENOENT` or `Claude CLI not found`, the plugin can't auto-detect your Claude installation. Common with Node version managers (nvm, fnm, volta).
+
+**Solution**: Find your CLI path and set it in Settings → Advanced → Claude CLI path.
+
+| Platform | Command | Example Path |
+|----------|---------|--------------|
+| macOS/Linux | `which claude` | `/Users/you/.volta/bin/claude` |
+| Windows (native) | `where.exe claude` | `C:\Users\you\AppData\Local\Claude\claude.exe` |
+| Windows (npm) | `npm root -g` | `{root}\@anthropic-ai\claude-code\cli.js` |
+
+> **Note**: On Windows, avoid `.cmd` wrappers. Use `claude.exe` or `cli.js`.
+
+**Alternative**: Add your Node.js bin directory to PATH in Settings → Environment → Custom variables.
+
+### npm CLI and Node.js not in same directory
+
+If using npm-installed CLI, check if `claude` and `node` are in the same directory:
+```bash
+dirname $(which claude)
+dirname $(which node)
+```
+
+If different, GUI apps like Obsidian may not find Node.js.
+
+**Solutions**:
+1. Install native binary (recommended)
+2. Add Node.js path to Settings → Environment: `PATH=/path/to/node/bin`
+
+### Codex provider
+
+Codex support is live but still needs more testing across platforms and installation methods. If you run into any bugs, please [submit a GitHub issue](https://github.com/YishenTu/claudian/issues).
+
+## Architecture
+
+```
+src/
+├── main.ts                      # Plugin entry point
+├── app/                         # Shared defaults and plugin-level storage
+├── core/                        # Provider-neutral runtime, registry, and type contracts
+│   ├── runtime/                 # ChatRuntime interface and approval types
+│   ├── providers/               # Provider registry and workspace services
+│   ├── security/                # Approval utilities
+│   └── ...                      # commands, mcp, prompt, storage, tools, types
+├── providers/
+│   ├── claude/                  # Claude SDK adaptor, prompt encoding, storage, MCP, plugins
+│   └── codex/                   # Codex app-server adaptor, JSON-RPC transport, JSONL history
+├── features/
+│   ├── chat/                    # Sidebar chat: tabs, controllers, renderers
+│   ├── inline-edit/             # Inline edit modal and provider-backed edit services
+│   └── settings/                # Settings shell with provider tabs
+├── shared/                      # Reusable UI components and modals
+├── i18n/                        # Internationalization (10 locales)
+├── utils/                       # Cross-cutting utilities
+└── style/                       # Modular CSS
+```
+
+## Roadmap
+
+- [x] 1M Opus and Sonnet models
+- [x] Codex provider integration
+- [ ] More to come!
 
 ## License
 
-[MIT License](LICENSE) - 继承原项目
+Licensed under the [MIT License](LICENSE).
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=YishenTu%2Fclaudian&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=YishenTu/claudian&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=YishenTu/claudian&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=YishenTu/claudian&type=date&legend=top-left" />
+ </picture>
+</a>
+
+## Acknowledgments
+
+- [Obsidian](https://obsidian.md) for the plugin API
+- [Anthropic](https://anthropic.com) for Claude and the [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/overview)
+- [OpenAI](https://openai.com) for [Codex](https://github.com/openai/codex)

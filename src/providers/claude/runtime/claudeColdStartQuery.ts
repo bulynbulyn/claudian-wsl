@@ -7,7 +7,10 @@ import { getEnhancedPath, getMissingNodeError, parseEnvironmentVariables } from 
 import { getVaultPath } from '../../../utils/path';
 import { extractAssistantText } from '../auxiliary/extractAssistantText';
 import { getClaudeProviderSettings } from '../settings';
-import { type EffortLevel, isAdaptiveThinkingModel, THINKING_BUDGETS } from '../types/models';
+import {
+  resolveAdaptiveEffortLevel,
+  resolveThinkingTokens,
+} from '../types/models';
 import { buildClaudeLaunchSpec } from './ClaudeLaunchSpecBuilder';
 import { createCustomSpawnFunction } from './customSpawn';
 
@@ -59,7 +62,11 @@ export async function runColdStartQuery(
   );
   const enhancedPath = getEnhancedPath(customEnv.PATH, resolvedClaudePath);
 
-  // Skip Node check for WSL mode (Node runs inside WSL)
+  const missingNodeError = getMissingNodeError(resolvedClaudePath, enhancedPath);
+  if (missingNodeError) {
+    throw new Error(missingNodeError);
+  }
+
   const settings = config.providerSettings
     ?? ProviderSettingsCoordinator.getProviderSettingsSnapshot(
       config.plugin.settings as unknown as Record<string, unknown>,
@@ -68,6 +75,7 @@ export async function runColdStartQuery(
   const claudeSettings = getClaudeProviderSettings(settings);
   const isWslMode = claudeSettings.installationMethod === 'wsl' && process.platform === 'win32';
 
+  // Skip Node check for WSL mode (Node runs inside WSL)
   if (!isWslMode) {
     const missingNodeError = getMissingNodeError(resolvedClaudePath, enhancedPath);
     if (missingNodeError) {
@@ -133,15 +141,14 @@ export async function runColdStartQuery(
   }
 
   if (!config.thinking?.disabled) {
-    if (isAdaptiveThinkingModel(selectedModel)) {
+    const effortLevel = resolveAdaptiveEffortLevel(selectedModel, settings.effortLevel);
+    if (effortLevel !== null) {
       options.thinking = { type: 'adaptive' };
-      options.effort = settings.effortLevel as EffortLevel;
+      options.effort = effortLevel;
     } else {
-      const budgetConfig = THINKING_BUDGETS.find(
-        b => b.value === settings.thinkingBudget
-      );
-      if (budgetConfig && budgetConfig.tokens > 0) {
-        options.maxThinkingTokens = budgetConfig.tokens;
+      const thinkingTokens = resolveThinkingTokens(selectedModel, settings.thinkingBudget);
+      if (thinkingTokens !== null) {
+        options.maxThinkingTokens = thinkingTokens;
       }
     }
   }
