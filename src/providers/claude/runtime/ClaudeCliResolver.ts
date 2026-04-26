@@ -4,8 +4,8 @@ import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvir
 import type { HostnameCliPaths } from '../../../core/types/settings';
 import { getHostnameKey, parseEnvironmentVariables } from '../../../utils/env';
 import { expandHomePath } from '../../../utils/path';
-import { getClaudeProviderSettings } from '../settings';
 import { findClaudeCLIPath } from '../cli/findClaudeCLIPath';
+import { getClaudeProviderSettings } from '../settings';
 
 export class ClaudeCliResolver {
   private resolvedPath: string | null = null;
@@ -30,8 +30,6 @@ export class ClaudeCliResolver {
 
     // WSL mode: skip filesystem validation, use configured path directly
     if (process.platform === 'win32' && installationMethod === 'wsl') {
-      // In WSL mode, just return the configured path (or 'claude' as fallback)
-      // Windows cannot validate paths inside WSL filesystem
       const wslPath = hostnamePath || normalizedLegacy || 'claude';
       return wslPath;
     }

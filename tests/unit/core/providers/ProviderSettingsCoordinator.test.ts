@@ -3,6 +3,7 @@ import '@/providers';
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
 import type { Conversation } from '@/core/types';
+import { DEFAULT_CLAUDE_PROVIDER_SETTINGS } from '@/providers/claude/settings';
 
 describe('ProviderSettingsCoordinator', () => {
   describe('normalizeProviderSelection', () => {
@@ -88,6 +89,42 @@ describe('ProviderSettingsCoordinator', () => {
     });
   });
 
+  describe('reconcileTitleGenerationModelSelection', () => {
+    it('keeps custom title models while they are still available', () => {
+      const settings: Record<string, unknown> = {
+        titleGenerationModel: 'claude-opus-4-6',
+        providerConfigs: {
+          claude: {
+            ...DEFAULT_CLAUDE_PROVIDER_SETTINGS,
+            customModels: 'claude-opus-4-6',
+          },
+        },
+      };
+
+      expect(
+        ProviderSettingsCoordinator.reconcileTitleGenerationModelSelection(settings),
+      ).toBe(false);
+      expect(settings.titleGenerationModel).toBe('claude-opus-4-6');
+    });
+
+    it('clears titleGenerationModel when no provider exposes the saved model', () => {
+      const settings: Record<string, unknown> = {
+        titleGenerationModel: 'claude-opus-4-6',
+        providerConfigs: {
+          claude: {
+            ...DEFAULT_CLAUDE_PROVIDER_SETTINGS,
+            customModels: '',
+          },
+        },
+      };
+
+      expect(
+        ProviderSettingsCoordinator.reconcileTitleGenerationModelSelection(settings),
+      ).toBe(true);
+      expect(settings.titleGenerationModel).toBe('');
+    });
+  });
+
   describe('projectActiveProviderState', () => {
     it('projects saved model/effort/budget for the settings provider', () => {
       const settings: Record<string, unknown> = {
@@ -166,6 +203,25 @@ describe('ProviderSettingsCoordinator', () => {
       ProviderSettingsCoordinator.projectActiveProviderState(settings);
 
       expect(settings.model).toBe('haiku');
+    });
+
+    it('normalizes saved effort values that the projected Claude model no longer supports', () => {
+      const settings: Record<string, unknown> = {
+        settingsProvider: 'claude',
+        model: 'claude-sonnet-4-5',
+        effortLevel: 'xhigh',
+        serviceTier: 'default',
+        thinkingBudget: 'off',
+        savedProviderModel: { claude: 'claude-sonnet-4-5' },
+        savedProviderEffort: { claude: 'xhigh' },
+        savedProviderServiceTier: { claude: 'default' },
+        savedProviderThinkingBudget: { claude: 'off' },
+      };
+
+      ProviderSettingsCoordinator.projectActiveProviderState(settings);
+
+      expect(settings.model).toBe('claude-sonnet-4-5');
+      expect(settings.effortLevel).toBe('high');
     });
   });
 

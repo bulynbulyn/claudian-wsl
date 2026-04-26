@@ -17,9 +17,8 @@ import {
   getClaudeProviderSettings,
 } from '../settings';
 import {
-  type EffortLevel,
-  isAdaptiveThinkingModel,
-  THINKING_BUDGETS,
+  resolveAdaptiveEffortLevel,
+  resolveThinkingTokens,
 } from '../types/models';
 import { buildClaudeLaunchSpec } from './ClaudeLaunchSpecBuilder';
 import { createCustomSpawnFunction } from './customSpawn';
@@ -78,17 +77,16 @@ export class QueryOptionsBuilder {
     if (currentConfig.settingSources !== newConfig.settingSources) return true;
     if (currentConfig.claudeCliPath !== newConfig.claudeCliPath) return true;
 
-    // Note: Permission mode is handled dynamically via setPermissionMode() in ClaudianService.
-    // Since allowDangerouslySkipPermissions is always true, both directions work without restart.
-    // However, in WSL mode, setPermissionMode may fail, so we require restart for permission mode changes.
-    if (currentConfig.installationMethod === 'wsl' && currentConfig.permissionMode !== newConfig.permissionMode) {
-      return true;
+    // Permission mode changes involving bypassPermissions require restart because
+    // the SDK requires --permission-mode bypassPermissions at CLI launch time.
+    // Other modes (default, acceptEdits, plan) can be updated dynamically.
+    if (currentConfig.sdkPermissionMode !== newConfig.sdkPermissionMode) {
+      if (currentConfig.sdkPermissionMode === 'bypassPermissions' || newConfig.sdkPermissionMode === 'bypassPermissions') {
+        return true;
+      }
     }
 
     if (currentConfig.enableChrome !== newConfig.enableChrome) return true;
-
-    // Effort level requires restart (no setEffort() on persistent query)
-    if (currentConfig.effortLevel !== newConfig.effortLevel) return true;
 
     // External context paths require restart (additionalDirectories can't be updated dynamically)
     if (QueryOptionsBuilder.pathsChanged(currentConfig.externalContextPaths, newConfig.externalContextPaths)) {
@@ -114,9 +112,6 @@ export class QueryOptionsBuilder {
       userName: ctx.settings.userName,
     };
 
-    const budgetSetting = ctx.settings.thinkingBudget;
-    const budgetConfig = THINKING_BUDGETS.find(b => b.value === budgetSetting);
-    const thinkingTokens = budgetConfig?.tokens ?? null;
     const sdkPermissionMode = QueryOptionsBuilder.resolveClaudeSdkPermissionMode(
       ctx.settings.permissionMode,
       claudeSettings.safeMode,
@@ -127,8 +122,8 @@ export class QueryOptionsBuilder {
 
     return {
       model: ctx.settings.model,
-      thinkingTokens: thinkingTokens && thinkingTokens > 0 ? thinkingTokens : null,
-      effortLevel: isAdaptiveThinkingModel(ctx.settings.model) ? ctx.settings.effortLevel as EffortLevel : null,
+      thinkingTokens: resolveThinkingTokens(ctx.settings.model, ctx.settings.thinkingBudget),
+      effortLevel: resolveAdaptiveEffortLevel(ctx.settings.model, ctx.settings.effortLevel),
       permissionMode: ctx.settings.permissionMode,
       sdkPermissionMode,
       systemPromptKey: computeSystemPromptKey(systemPromptSettings),
@@ -282,10 +277,9 @@ export class QueryOptionsBuilder {
 
     // Build WSL launch spec if needed
     const isWslMode = claudeSettings.installationMethod === 'wsl' && process.platform === 'win32';
-    let launchSpec = null;
+    let launchSpec: ReturnType<typeof buildClaudeLaunchSpec> | undefined;
 
     if (isWslMode && ctx.vaultPath) {
-      // Filter out undefined values from process.env
       const filteredEnv: Record<string, string> = {};
       for (const [key, value] of Object.entries(process.env)) {
         if (value !== undefined) {
@@ -309,7 +303,6 @@ export class QueryOptionsBuilder {
       model,
       abortController,
       // In WSL mode, the actual CLI path is handled by spawnClaudeCodeProcess
-      // Set a placeholder that won't be validated by SDK
       pathToClaudeCodeExecutable: isWslMode ? 'claude' : ctx.cliPath,
       settingSources: claudeSettings.loadUserSettings ? ['user', 'project'] : ['project'],
       env: {
@@ -321,7 +314,7 @@ export class QueryOptionsBuilder {
     };
 
     QueryOptionsBuilder.applyExtraArgs(options, claudeSettings.enableChrome);
-    options.spawnClaudeCodeProcess = createCustomSpawnFunction(ctx.enhancedPath, launchSpec ?? undefined);
+    options.spawnClaudeCodeProcess = createCustomSpawnFunction(ctx.enhancedPath, launchSpec);
 
     return { options, claudeSettings };
   }
@@ -331,14 +324,16 @@ export class QueryOptionsBuilder {
     settings: ClaudianSettings,
     model: string
   ): void {
-    if (isAdaptiveThinkingModel(model)) {
+    const effortLevel = resolveAdaptiveEffortLevel(model, settings.effortLevel);
+    if (effortLevel !== null) {
       options.thinking = { type: 'adaptive' };
-      options.effort = settings.effortLevel as EffortLevel;
-    } else {
-      const budgetConfig = THINKING_BUDGETS.find(b => b.value === settings.thinkingBudget);
-      if (budgetConfig && budgetConfig.tokens > 0) {
-        options.maxThinkingTokens = budgetConfig.tokens;
-      }
+      options.effort = effortLevel;
+      return;
+    }
+
+    const thinkingTokens = resolveThinkingTokens(model, settings.thinkingBudget);
+    if (thinkingTokens !== null) {
+      options.maxThinkingTokens = thinkingTokens;
     }
   }
 
