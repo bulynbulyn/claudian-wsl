@@ -1,6 +1,6 @@
 import type { Conversation } from '../types';
 import { ProviderRegistry } from './ProviderRegistry';
-import type { ProviderId } from './types';
+import type { ProviderChatUIConfig, ProviderId } from './types';
 
 export interface SettingsReconciliationResult {
   changed: boolean;
@@ -56,7 +56,40 @@ function mergeProviderSettings(
   }
 }
 
+function normalizeReasoningValue(
+  uiConfig: ProviderChatUIConfig,
+  model: string,
+  value: unknown,
+): string {
+  const allowedValues = new Set(uiConfig.getReasoningOptions(model).map(option => option.value));
+  if (typeof value === 'string' && allowedValues.has(value)) {
+    return value;
+  }
+  return uiConfig.getDefaultReasoningValue(model);
+}
+
 export class ProviderSettingsCoordinator {
+  static reconcileTitleGenerationModelSelection(settings: Record<string, unknown>): boolean {
+    const currentModel = typeof settings.titleGenerationModel === 'string'
+      ? settings.titleGenerationModel
+      : '';
+    if (!currentModel) {
+      return false;
+    }
+
+    const isValid = ProviderRegistry.getRegisteredProviderIds().some((providerId) =>
+      ProviderRegistry.getChatUIConfig(providerId)
+        .getModelOptions(settings)
+        .some((option) => option.value === currentModel)
+    );
+    if (isValid) {
+      return false;
+    }
+
+    settings.titleGenerationModel = '';
+    return true;
+  }
+
   static normalizeProviderSelection(settings: Record<string, unknown>): boolean {
     const next = getSettingsProviderId(settings);
 
@@ -171,6 +204,10 @@ export class ProviderSettingsCoordinator {
       settings.effortLevel = uiConfig.getDefaultReasoningValue(model);
     }
 
+    if (model && uiConfig.isAdaptiveReasoningModel(model)) {
+      settings.effortLevel = normalizeReasoningValue(uiConfig, model, settings.effortLevel);
+    }
+
     if (serviceTierToggle) {
       if (savedServiceTier?.[providerId] !== undefined) {
         settings.serviceTier = savedServiceTier[providerId];
@@ -195,6 +232,10 @@ export class ProviderSettingsCoordinator {
       settings.thinkingBudget = currentBudget;
     } else if (model && !uiConfig.isAdaptiveReasoningModel(model)) {
       settings.thinkingBudget = uiConfig.getDefaultReasoningValue(model);
+    }
+
+    if (model && !uiConfig.isAdaptiveReasoningModel(model)) {
+      settings.thinkingBudget = normalizeReasoningValue(uiConfig, model, settings.thinkingBudget);
     }
   }
 
@@ -245,6 +286,10 @@ export class ProviderSettingsCoordinator {
       allInvalidated.push(...invalidatedConversations);
     }
 
+    if (this.reconcileTitleGenerationModelSelection(settings)) {
+      anyChanged = true;
+    }
+
     return { changed: anyChanged, invalidatedConversations: allInvalidated };
   }
 
@@ -270,6 +315,10 @@ export class ProviderSettingsCoordinator {
           mergeProviderSettings(settings, targetSettings);
         }
       }
+    }
+
+    if (this.reconcileTitleGenerationModelSelection(settings)) {
+      anyChanged = true;
     }
     return anyChanged;
   }
