@@ -42,55 +42,7 @@ function createMockAdapter(files: Record<string, string> = {}): VaultFileAdapter
 
 describe('ClaudeCommandCatalog', () => {
   describe('listDropdownEntries', () => {
-    it('returns vault commands and skills as ProviderCommandEntry', async () => {
-      const adapter = createMockAdapter({
-        '.claude/commands/review.md': `---
-description: Review code
-allowed-tools:
-  - Read
-model: claude-sonnet-4-5
----
-Review this code`,
-        '.claude/skills/deploy/SKILL.md': `---
-description: Deploy app
-disable-model-invocation: true
-user-invocable: false
-context: fork
-agent: deployer
----
-Deploy the app`,
-      });
-
-      const commands = new SlashCommandStorage(adapter);
-      const skills = new SkillStorage(adapter);
-      const catalog = new ClaudeCommandCatalog(commands, skills);
-
-      const entries = await catalog.listDropdownEntries({ includeBuiltIns: false });
-
-      expect(entries).toHaveLength(2);
-
-      const reviewEntry = entries.find(e => e.name === 'review');
-      expect(reviewEntry).toBeDefined();
-      expect(reviewEntry!.providerId).toBe('claude');
-      expect(reviewEntry!.kind).toBe('command');
-      expect(reviewEntry!.scope).toBe('vault');
-      expect(reviewEntry!.displayPrefix).toBe('/');
-      expect(reviewEntry!.insertPrefix).toBe('/');
-      expect(reviewEntry!.allowedTools).toEqual(['Read']);
-      expect(reviewEntry!.model).toBe('claude-sonnet-4-5');
-
-      const deployEntry = entries.find(e => e.name === 'deploy');
-      expect(deployEntry).toBeDefined();
-      expect(deployEntry!.providerId).toBe('claude');
-      expect(deployEntry!.kind).toBe('skill');
-      expect(deployEntry!.scope).toBe('vault');
-      expect(deployEntry!.disableModelInvocation).toBe(true);
-      expect(deployEntry!.userInvocable).toBe(false);
-      expect(deployEntry!.context).toBe('fork');
-      expect(deployEntry!.agent).toBe('deployer');
-    });
-
-    it('merges runtime SDK commands when provided', async () => {
+    it('returns SDK runtime commands as ProviderCommandEntry', async () => {
       const adapter = createMockAdapter({});
       const commands = new SlashCommandStorage(adapter);
       const skills = new SkillStorage(adapter);
@@ -98,10 +50,13 @@ Deploy the app`,
 
       const sdkCommands: SlashCommand[] = [
         { id: 'sdk:commit', name: 'commit', description: 'Create git commit', content: '', source: 'sdk' },
+        { id: 'sdk:review', name: 'review', description: 'Review code', content: '', source: 'sdk' },
       ];
       catalog.setRuntimeCommands(sdkCommands);
 
       const entries = await catalog.listDropdownEntries({ includeBuiltIns: false });
+
+      expect(entries).toHaveLength(2);
 
       const commitEntry = entries.find(e => e.name === 'commit');
       expect(commitEntry).toBeDefined();
@@ -110,6 +65,147 @@ Deploy the app`,
       expect(commitEntry!.source).toBe('sdk');
       expect(commitEntry!.isEditable).toBe(false);
       expect(commitEntry!.isDeletable).toBe(false);
+      expect(commitEntry!.displayPrefix).toBe('/');
+      expect(commitEntry!.insertPrefix).toBe('/');
+    });
+
+    it('returns empty when no runtime commands and no probe', async () => {
+      const adapter = createMockAdapter({});
+      const commands = new SlashCommandStorage(adapter);
+      const skills = new SkillStorage(adapter);
+      const catalog = new ClaudeCommandCatalog(commands, skills);
+
+      const entries = await catalog.listDropdownEntries({ includeBuiltIns: false });
+
+      expect(entries).toHaveLength(0);
+    });
+
+    it('filters out built-in hidden SDK commands', async () => {
+      const adapter = createMockAdapter({});
+      const commands = new SlashCommandStorage(adapter);
+      const skills = new SkillStorage(adapter);
+      const catalog = new ClaudeCommandCatalog(commands, skills);
+
+      catalog.setRuntimeCommands([
+        { id: 'sdk:commit', name: 'commit', description: 'Commit', content: '', source: 'sdk' },
+        { id: 'sdk:init', name: 'init', description: 'Init', content: '', source: 'sdk' },
+        { id: 'sdk:debug', name: 'debug', description: 'Debug', content: '', source: 'sdk' },
+        { id: 'sdk:cost', name: 'cost', description: 'Cost', content: '', source: 'sdk' },
+        { id: 'sdk:review', name: 'review', description: 'Review', content: '', source: 'sdk' },
+      ]);
+
+      const entries = await catalog.listDropdownEntries({ includeBuiltIns: false });
+
+      const names = entries.map(e => e.name);
+      expect(names).toEqual(['commit', 'review']);
+      expect(names).not.toContain('init');
+      expect(names).not.toContain('debug');
+      expect(names).not.toContain('cost');
+    });
+
+    it('probes SDK on cold start when cache is empty', async () => {
+      const adapter = createMockAdapter({});
+      const commands = new SlashCommandStorage(adapter);
+      const skills = new SkillStorage(adapter);
+      const probe = jest.fn().mockResolvedValue([
+        { id: 'sdk:commit', name: 'commit', description: 'Create git commit', content: '', source: 'sdk' },
+      ]);
+      const catalog = new ClaudeCommandCatalog(commands, skills, probe);
+
+      const entries = await catalog.listDropdownEntries({ includeBuiltIns: false });
+
+      expect(probe).toHaveBeenCalledTimes(1);
+      expect(entries).toHaveLength(1);
+      expect(entries[0].name).toBe('commit');
+      expect(entries[0].scope).toBe('runtime');
+    });
+
+    it('falls back to vault commands and skills when SDK discovery is empty', async () => {
+      const adapter = createMockAdapter({
+        '.claude/commands/review.md': `---
+description: Review code
+---
+Review this code`,
+        '.claude/skills/deploy/SKILL.md': `---
+description: Deploy app
+---
+Deploy the app`,
+      });
+      const commands = new SlashCommandStorage(adapter);
+      const skills = new SkillStorage(adapter);
+      const probe = jest.fn().mockResolvedValue([]);
+      const catalog = new ClaudeCommandCatalog(commands, skills, probe);
+
+      const entries = await catalog.listDropdownEntries({ includeBuiltIns: false });
+
+      expect(probe).toHaveBeenCalledTimes(1);
+      expect(entries).toHaveLength(2);
+      expect(entries.map(entry => entry.name).sort()).toEqual(['deploy', 'review']);
+      expect(entries.every(entry => entry.scope === 'vault')).toBe(true);
+    });
+
+    it('does not probe when runtime commands are cached', async () => {
+      const adapter = createMockAdapter({});
+      const commands = new SlashCommandStorage(adapter);
+      const skills = new SkillStorage(adapter);
+      const probe = jest.fn().mockResolvedValue([]);
+      const catalog = new ClaudeCommandCatalog(commands, skills, probe);
+
+      catalog.setRuntimeCommands([
+        { id: 'sdk:commit', name: 'commit', description: 'Commit', content: '', source: 'sdk' },
+      ]);
+
+      await catalog.listDropdownEntries({ includeBuiltIns: false });
+
+      expect(probe).not.toHaveBeenCalled();
+    });
+
+    it('deduplicates concurrent probe calls', async () => {
+      const adapter = createMockAdapter({});
+      const commands = new SlashCommandStorage(adapter);
+      const skills = new SkillStorage(adapter);
+      const probe = jest.fn().mockResolvedValue([
+        { id: 'sdk:commit', name: 'commit', description: 'Commit', content: '', source: 'sdk' },
+      ]);
+      const catalog = new ClaudeCommandCatalog(commands, skills, probe);
+
+      const [a, b] = await Promise.all([
+        catalog.listDropdownEntries({ includeBuiltIns: false }),
+        catalog.listDropdownEntries({ includeBuiltIns: false }),
+      ]);
+
+      expect(probe).toHaveBeenCalledTimes(1);
+      expect(a).toHaveLength(1);
+      expect(b).toHaveLength(1);
+    });
+
+    it('does not overwrite runtime commands with stale probe results', async () => {
+      const adapter = createMockAdapter({});
+      const commands = new SlashCommandStorage(adapter);
+      const skills = new SkillStorage(adapter);
+
+      let resolveProbe: (v: SlashCommand[]) => void;
+      const probe = jest.fn().mockReturnValue(new Promise<SlashCommand[]>((r) => { resolveProbe = r; }));
+      const catalog = new ClaudeCommandCatalog(commands, skills, probe);
+
+      // Start probe (it will hang)
+      const entriesPromise = catalog.listDropdownEntries({ includeBuiltIns: false });
+
+      // Runtime provides fresh data while probe is in-flight
+      catalog.setRuntimeCommands([
+        { id: 'sdk:review', name: 'review', description: 'Review', content: '', source: 'sdk' },
+      ]);
+
+      // Probe returns stale data
+      resolveProbe!([
+        { id: 'sdk:commit', name: 'commit', description: 'Commit', content: '', source: 'sdk' },
+      ]);
+
+      const entries = await entriesPromise;
+
+      // Runtime data wins — probe result is discarded
+      expect(entries).toHaveLength(1);
+      expect(entries[0].name).toBe('review');
     });
   });
 

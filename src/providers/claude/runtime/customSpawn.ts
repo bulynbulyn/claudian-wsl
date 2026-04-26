@@ -17,6 +17,8 @@ export function createCustomSpawnFunction(
       return spawnWslProcess(launchSpec, options);
     }
 
+    const shouldPipeStderr = !!env?.DEBUG_CLAUDE_AGENT_SDK;
+
     // Resolve full path to avoid PATH lookup issues in GUI apps
     if (command === 'node') {
       const nodeFullPath = findNodeExecutable(enhancedPath);
@@ -28,7 +30,6 @@ export function createCustomSpawnFunction(
     // Do not pass `signal` directly to spawn() — Obsidian's Electron runtime
     // uses a different realm for AbortSignal, causing `instanceof EventTarget`
     // checks inside Node's internals to fail. Handle abort manually instead.
-    const shouldPipeStderr = !!env?.DEBUG_CLAUDE_AGENT_SDK;
     const child = spawn(command, args, {
       cwd,
       env: env as NodeJS.ProcessEnv,
@@ -42,6 +43,10 @@ export function createCustomSpawnFunction(
       } else {
         signal.addEventListener('abort', () => child.kill(), { once: true });
       }
+    }
+
+    if (shouldPipeStderr && child.stderr && typeof child.stderr.on === 'function') {
+      child.stderr.on('data', () => {});
     }
 
     if (!child.stdin || !child.stdout) {

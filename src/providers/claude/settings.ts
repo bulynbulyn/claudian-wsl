@@ -15,6 +15,7 @@ export interface ClaudeProviderSettings {
   enableBangBash: boolean;
   enableOpus1M: boolean;
   enableSonnet1M: boolean;
+  customModels: string;
   lastModel: string;
   environmentVariables: string;
   environmentHash: string;
@@ -34,6 +35,7 @@ export const DEFAULT_CLAUDE_PROVIDER_SETTINGS: Readonly<ClaudeProviderSettings> 
   enableBangBash: false,
   enableOpus1M: false,
   enableSonnet1M: false,
+  customModels: '',
   lastModel: 'haiku',
   environmentVariables: '',
   environmentHash: '',
@@ -51,7 +53,7 @@ function normalizeHostnameCliPaths(value: unknown): HostnameCliPaths {
 
   const result: HostnameCliPaths = {};
   for (const [key, entry] of Object.entries(value)) {
-    if (typeof entry === 'string' && entry.trim()) {
+    if (typeof key === 'string' && key.trim() && typeof entry === 'string' && entry.trim()) {
       result[key] = entry.trim();
     }
   }
@@ -106,6 +108,8 @@ export function getClaudeProviderSettings(
     enableSonnet1M: (config.enableSonnet1M as boolean | undefined)
       ?? (settings.enableSonnet1M as boolean | undefined)
       ?? DEFAULT_CLAUDE_PROVIDER_SETTINGS.enableSonnet1M,
+    customModels: (config.customModels as string | undefined)
+      ?? DEFAULT_CLAUDE_PROVIDER_SETTINGS.customModels,
     lastModel: (config.lastModel as string | undefined)
       ?? (settings.lastClaudeModel as string | undefined)
       ?? DEFAULT_CLAUDE_PROVIDER_SETTINGS.lastModel,
