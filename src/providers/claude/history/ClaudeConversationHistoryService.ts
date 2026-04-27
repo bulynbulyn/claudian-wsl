@@ -8,6 +8,7 @@ import type {
   SubagentInfo,
   ToolCallInfo,
 } from '../../../core/types';
+import { getClaudeProviderSettings } from '../settings';
 import { type ClaudeProviderState, getClaudeState } from '../types/providerState';
 import {
   deleteSDKSession,
@@ -168,6 +169,9 @@ async function enrichAsyncSubagentToolCalls(
   subagentData: Record<string, SubagentInfo>,
   vaultPath: string,
   sessionIds: string[],
+  isWslMode?: boolean,
+  wslHomePath?: string,
+  wslDistro?: string,
 ): Promise<void> {
   const uniqueSessionIds = [...new Set(sessionIds)];
   if (uniqueSessionIds.length === 0) return;
@@ -184,7 +188,7 @@ async function enrichAsyncSubagentToolCalls(
 
       let loader = loaderCache.get(cacheKey);
       if (!loader) {
-        loader = loadSubagentToolCalls(vaultPath, sessionId, subagent.agentId);
+        loader = loadSubagentToolCalls(vaultPath, sessionId, subagent.agentId, isWslMode, wslHomePath, wslDistro);
         loaderCache.set(cacheKey, loader);
       }
 
@@ -357,10 +361,31 @@ export class ClaudeConversationHistoryService implements ProviderConversationHis
   async hydrateConversationHistory(
     conversation: Conversation,
     vaultPath: string | null,
+    settings?: Record<string, unknown>,
   ): Promise<void> {
-    if (!vaultPath || this.hydratedConversationIds.has(conversation.id)) {
+    console.log('[Claudian] hydrateConversationHistory called:', {
+      conversationId: conversation.id,
+      title: conversation.title,
+      sessionId: conversation.sessionId,
+      vaultPath,
+      messagesCount: conversation.messages.length,
+    });
+
+    if (!vaultPath) {
+      console.warn('[Claudian] hydrateConversationHistory skipped: vaultPath is null');
       return;
     }
+    if (this.hydratedConversationIds.has(conversation.id)) {
+      console.log('[Claudian] hydration skipped: already hydrated');
+      return;
+    }
+
+    // Detect WSL mode from settings
+    const claudeSettings = getClaudeProviderSettings(settings ?? {});
+    const isWslMode = claudeSettings.installationMethod === 'wsl' && process.platform === 'win32';
+    const wslHomePath = claudeSettings.wslHomePath;
+    const wslDistro = claudeSettings.wslDistroOverride;
+    console.log('[Claudian] WSL mode detected:', isWslMode, 'installationMethod:', claudeSettings.installationMethod, 'wslHomePath:', wslHomePath, 'wslDistro:', wslDistro);
 
     const state = getClaudeState(conversation.providerState);
     const isPendingFork = this.isPendingForkConversation(conversation);
@@ -385,7 +410,7 @@ export class ClaudeConversationHistoryService implements ProviderConversationHis
       : (state.providerSessionId ?? conversation.sessionId);
 
     for (const sessionId of allSessionIds) {
-      if (!sdkSessionExists(vaultPath, sessionId)) {
+      if (!sdkSessionExists(vaultPath, sessionId, isWslMode, wslHomePath, wslDistro)) {
         missingSessionCount++;
         continue;
       }
@@ -394,7 +419,7 @@ export class ClaudeConversationHistoryService implements ProviderConversationHis
       const truncateAt = isCurrentSession
         ? (isPendingFork ? state.forkSource!.resumeAt : conversation.resumeAtMessageId)
         : undefined;
-      const result = await loadSDKSessionMessages(vaultPath, sessionId, truncateAt);
+      const result = await loadSDKSessionMessages(vaultPath, sessionId, truncateAt, isWslMode, wslHomePath, wslDistro);
 
       if (result.error) {
         errorCount++;
@@ -423,6 +448,9 @@ export class ClaudeConversationHistoryService implements ProviderConversationHis
         state.subagentData,
         vaultPath,
         allSessionIds,
+        isWslMode,
+        wslHomePath,
+        wslDistro,
       );
       applySubagentData(merged, state.subagentData);
     }

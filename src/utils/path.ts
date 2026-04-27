@@ -4,8 +4,32 @@ import * as os from 'os';
 import * as path from 'path';
 
 export function getVaultPath(app: App): string | null {
-  const basePath = (app.vault.adapter as { basePath?: unknown } | undefined)?.basePath;
-  return typeof basePath === 'string' ? basePath : null;
+  const adapter = app.vault.adapter;
+
+  console.log('[Claudian] getVaultPath called, adapter type:', adapter?.constructor?.name);
+
+  // FileSystemAdapter has getBasePath() method on Desktop
+  if (adapter && typeof (adapter as any).getBasePath === 'function') {
+    try {
+      const basePath = (adapter as any).getBasePath() as string;
+      console.log('[Claudian] getBasePath() result:', basePath);
+      if (typeof basePath === 'string') {
+        return basePath; // Preserve empty string if returned
+      }
+    } catch (e) {
+      console.warn('[Claudian] getBasePath() failed:', e);
+    }
+  }
+
+  // Legacy fallback: basePath property (older Obsidian versions)
+  const basePathProp = (adapter as { basePath?: unknown } | undefined)?.basePath;
+  if (typeof basePathProp === 'string') {
+    console.log('[Claudian] basePath prop result:', basePathProp);
+    return basePathProp; // Preserve empty string if set
+  }
+
+  console.warn('[Claudian] vault.adapter.getBasePath() not available, vault path detection failed');
+  return null;
 }
 
 function getEnvValue(key: string): string | undefined {

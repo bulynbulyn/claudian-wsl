@@ -300,6 +300,7 @@ export interface ProviderConversationHistoryService {
   hydrateConversationHistory(
     conversation: Conversation,
     vaultPath: string | null,
+    settings?: Record<string, unknown>,
   ): Promise<void>;
   deleteConversationSession(
     conversation: Conversation,
