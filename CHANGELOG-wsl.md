@@ -1,10 +1,45 @@
-# Claudian v2.0.4-wsl.1 vs v2.0.4
+# Claudian v2.0.4-wsl.2 vs v2.0.4
 
 基于原版 [YishenTu/claudian](https://github.com/YishenTu/claudian) v2.0.4 的 WSL 支持二开版本。
 
 ## Bug 修复
 
-### Safe/YOLO 模式切换报错
+### v2.0.4-wsl.2 历史记录加载失败
+
+**问题**：WSL 模式下点击历史对话显示空白内容，Obsidian 重启后历史全部消失。
+
+**原因**：
+1. `getVaultPath()` 使用 `basePath` 属性而非 `getBasePath()` 方法，Obsidian Desktop 返回 `undefined`
+2. `path.resolve('/mnt/d/...')` 在 Windows 上会错误添加驱动器前缀变成 `F:/mnt/d/...`，导致 SDK 项目目录编码错误
+3. Windows fs 无法直接读取 `/home/...` 这样的 WSL Unix 路径
+
+**修复**：
+- `getVaultPath()` 改用 `getBasePath()` 方法获取 vault 路径
+- 新增 `windowsToWslPath()` 将 Windows 路径转换为 WSL 路径（`D:\...` → `/mnt/d/...`）
+- 新增 `wslPathToWindowsUNC()` 将 WSL 路径转换为 Windows UNC 路径（`/home/...` → `\\wsl$\Ubuntu\home\...`）
+- `encodeVaultPathForSDK()` 新增 `skipResolve` 参数，WSL 模式下跳过 `path.resolve()`
+- 新增 `wslHomePath` 设置项，当 Windows 用户名与 WSL 用户名不同时可手动指定
+
+### v2.0.4-wsl.2 WSL 模式下 rewind 功能支持
+
+**问题**：WSL 模式下 rewind 功能无法正常工作。
+
+**修复**：
+- 通过 `WSLENV` 环境变量传递 `CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING` 启用文件 checkpointing
+- SDK 返回的 WSL 路径转换为 Windows 路径供 fs 操作
+- 从 settings 获取 WSL 配置（避免 currentConfig 在重启时为 null）
+
+### v2.0.4-wsl.2 CLI 参数处理和 bash 特殊字符转义
+
+**问题**：WSL 模式下 CLI 参数传递不正确，含 bash 特殊字符的参数导致执行失败。
+
+**修复**：
+- 修复 WSL 进程 spawn，合并 SDK 构建的 CLI 参数与 WSL wrapper 参数
+- 对包含 bash 特殊字符（括号等）的参数进行转义
+- MCP server 路径映射：Windows → WSL 路径转换
+- 简化 `ClaudeLaunchSpecBuilder` 仅构建 WSL wrapper 参数
+
+### v2.0.4-wsl.1 Safe/YOLO 模式切换报错
 
 **问题**：在 WSL 模式下，首次发消息后从 Safe 切换到 YOLO 时报错：
 ```
