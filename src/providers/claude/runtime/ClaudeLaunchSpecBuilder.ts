@@ -1,7 +1,10 @@
 /**
  * Claude launch spec builder for WSL support.
- * Builds the command and arguments to launch Claude CLI.
- * Modeled after Codex provider's launch spec builder.
+ * Builds the command and arguments to launch Claude CLI via WSL.
+ *
+ * IMPORTANT: This only builds WSL execution wrapper args (--distribution, --cd).
+ * All CLI arguments (--verbose, --permission-mode, etc.) are built by SDK
+ * and merged in customSpawn.ts. This prevents parameter duplication.
  */
 
 import {
@@ -18,20 +21,6 @@ export interface BuildClaudeLaunchSpecOptions {
   env: Record<string, string>;
   hostPlatform?: NodeJS.Platform;
   resolveDefaultWslDistro?: () => string | undefined;
-}
-
-const CLAUDE_STDIO_ARGS = Object.freeze([
-  '--print',
-  '--verbose',
-  '--input-format', 'stream-json',
-  '--output-format', 'stream-json',
-]);
-
-function resolvePermissionMode(settings: Record<string, unknown>): string | null {
-  const mode = settings.permissionMode as string | undefined;
-  if (mode === 'yolo') return 'bypassPermissions';
-  if (mode === 'plan') return 'plan';
-  return null; // Let SDK handle default modes
 }
 
 export function buildClaudeLaunchSpec(
@@ -73,17 +62,16 @@ export function buildClaudeLaunchSpec(
   }
 
   const resolvedCliCommand = options.resolvedCliCommand?.trim() || 'claude';
-  const permissionMode = resolvePermissionMode(options.settings);
 
-  // WSL mode: build wsl.exe command
+  // WSL mode: build wsl.exe wrapper args ONLY (no CLI args)
+  // CLI args (--verbose, --permission-mode, --permission-prompt-tool, etc.)
+  // are built by SDK and merged in customSpawn.ts
   if (target.method === 'wsl') {
     const args = [
       ...(target.distroName ? ['--distribution', target.distroName] : []),
       '--cd',
       targetCwd,
       resolvedCliCommand,
-      ...CLAUDE_STDIO_ARGS,
-      ...(permissionMode ? ['--permission-mode', permissionMode] : []),
     ];
 
     return {

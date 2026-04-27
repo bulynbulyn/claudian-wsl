@@ -14,6 +14,7 @@ import {
   resolveAdaptiveEffortLevel,
   resolveThinkingTokens,
 } from '../types/models';
+import { createClaudePathMapper, mapMcpServersForWsl } from './ClaudePathMapper';
 import type {
   ClosePersistentQueryOptions,
   PersistentQueryConfig,
@@ -153,9 +154,25 @@ export async function applyClaudeDynamicUpdates(
   const mcpServersKey = JSON.stringify(mcpServers);
 
   if (deps.getCurrentConfig() && mcpServersKey !== deps.getCurrentConfig()!.mcpServersKey) {
+    const currentConfig = deps.getCurrentConfig()!;
     const serverConfigs: Record<string, McpServerConfig> = {};
+
+    // Map MCP server paths for WSL execution if needed
+    const isWslMode = currentConfig.installationMethod === 'wsl' && process.platform === 'win32';
+    const pathMapper = isWslMode
+      ? createClaudePathMapper({
+        method: 'wsl',
+        platformFamily: 'unix',
+        platformOs: 'linux',
+        distroName: currentConfig.wslDistroOverride || undefined,
+      })
+      : null;
+
     for (const [name, config] of Object.entries(mcpServers)) {
-      serverConfigs[name] = config as McpServerConfig;
+      const mappedConfig = pathMapper
+        ? (mapMcpServersForWsl({ [name]: config }, pathMapper)[name] as McpServerConfig)
+        : (config as McpServerConfig);
+      serverConfigs[name] = mappedConfig;
     }
 
     try {
