@@ -6,6 +6,7 @@
 
 import * as path from 'path';
 
+import type { McpServerConfig } from '../../../core/types/mcp';
 import type { ClaudeExecutionTarget, ClaudePathMapper } from './claudeLaunchTypes';
 
 function normalizeWindowsPath(value: string | undefined | null): string {
@@ -152,4 +153,49 @@ export function createClaudePathMapper(target: ClaudeExecutionTarget): ClaudePat
   return target.method === 'wsl'
     ? createWslPathMapper(target)
     : createIdentityMapper(target);
+}
+
+/**
+ * Map MCP server configs for WSL execution.
+ * Transforms stdio server command paths from Windows to WSL paths.
+ */
+export function mapMcpServersForWsl(
+  servers: Record<string, McpServerConfig>,
+  pathMapper: ClaudePathMapper,
+): Record<string, McpServerConfig> {
+  const result: Record<string, McpServerConfig> = {};
+
+  for (const [name, config] of Object.entries(servers)) {
+    // Only stdio servers need path mapping
+    if (config.type === 'sse' || config.type === 'http' || !('command' in config)) {
+      result[name] = config;
+      continue;
+    }
+
+    // Map command path if it's a Windows path
+    const mappedCommand = pathMapper.toTargetPath(config.command);
+    if (!mappedCommand) {
+      // Can't map this path - skip or use original
+      result[name] = config;
+      continue;
+    }
+
+    // Map args if they contain paths (heuristic: absolute Windows paths)
+    const mappedArgs = config.args?.map((arg: string) => {
+      // Check if arg looks like an absolute Windows path
+      if (/^[A-Za-z]:[/\\]/.test(arg)) {
+        const mapped = pathMapper.toTargetPath(arg);
+        return mapped ?? arg;
+      }
+      return arg;
+    });
+
+    result[name] = {
+      ...config,
+      command: mappedCommand,
+      args: mappedArgs,
+    };
+  }
+
+  return result;
 }

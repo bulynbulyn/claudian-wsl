@@ -64,12 +64,38 @@ function spawnWslProcess(
   const { signal } = options;
   const spawnCwd = launchSpec.spawnCwd || process.cwd();
 
-  const child = spawn(launchSpec.command, launchSpec.args, {
+  // launchSpec.args contains WSL wrapper: [--distribution, distro, --cd, cwd, claude]
+  // options.args contains SDK-built CLI args: [--verbose, --permission-mode, --permission-prompt-tool, etc.]
+  // Simply concatenate them - no duplication possible since they're different categories
+  const wslArgs = launchSpec.args;  // WSL execution wrapper
+  const cliArgs = options.args;      // Claude CLI arguments (built by SDK)
+
+  // WSL executes commands via /bin/bash -c, which interprets special characters
+  // like parentheses, brackets, etc. We need to quote arguments containing these.
+  const quotedCliArgs = cliArgs.map(arg => {
+    // Check if arg contains bash special characters that need quoting
+    if (/[(){}<>$`!;&|*?[\]\\]/.test(arg) || arg.includes(' ')) {
+      // Escape any existing double quotes and wrap in double quotes
+      return `"${arg.replace(/"/g, '\\"')}"`;
+    }
+    return arg;
+  });
+
+  const fullArgs = [...wslArgs, ...quotedCliArgs];
+
+  const child = spawn(launchSpec.command, fullArgs, {
     cwd: spawnCwd,
     env: launchSpec.env as NodeJS.ProcessEnv,
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
   });
+
+  // Debug: log stderr output
+  if (child.stderr) {
+    child.stderr.on('data', (data: Buffer) => {
+      console.log('[WSL Debug] stderr:', data.toString());
+    });
+  }
 
   if (signal) {
     if (signal.aborted) {

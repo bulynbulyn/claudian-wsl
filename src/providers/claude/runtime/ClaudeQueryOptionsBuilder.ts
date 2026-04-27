@@ -21,6 +21,7 @@ import {
   resolveThinkingTokens,
 } from '../types/models';
 import { buildClaudeLaunchSpec } from './ClaudeLaunchSpecBuilder';
+import { mapMcpServersForWsl } from './ClaudePathMapper';
 import { createCustomSpawnFunction } from './customSpawn';
 import {
   DISABLED_BUILTIN_SUBAGENTS,
@@ -183,7 +184,7 @@ export class QueryOptionsBuilder {
 
   static buildColdStartQueryOptions(ctx: ColdStartQueryContext): Options {
     const selectedModel = ctx.modelOverride ?? ctx.settings.model;
-    const { options, claudeSettings } = QueryOptionsBuilder.buildBaseOptions(
+    const { options, claudeSettings, pathMapper } = QueryOptionsBuilder.buildBaseOptions(
       ctx,
       selectedModel,
       ctx.abortController,
@@ -195,7 +196,11 @@ export class QueryOptionsBuilder {
     const mcpServers = ctx.mcpManager.getActiveServers(combinedMentions);
 
     if (Object.keys(mcpServers).length > 0) {
-      options.mcpServers = mcpServers;
+      // Map MCP server paths for WSL execution
+      const mappedMcpServers = pathMapper
+        ? mapMcpServersForWsl(mcpServers, pathMapper)
+        : mcpServers;
+      options.mcpServers = mappedMcpServers;
     }
 
     const disallowedMcpTools = ctx.mcpManager.getDisallowedMcpTools(combinedMentions);
@@ -266,7 +271,11 @@ export class QueryOptionsBuilder {
     ctx: QueryOptionsContext,
     model: string,
     abortController?: AbortController,
-  ): { options: Options; claudeSettings: ReturnType<typeof getClaudeProviderSettings> } {
+  ): {
+    options: Options;
+    claudeSettings: ReturnType<typeof getClaudeProviderSettings>;
+    pathMapper: ReturnType<typeof createClaudePathMapper> | null;
+  } {
     const claudeSettings = getClaudeProviderSettings(ctx.settings as unknown as Record<string, unknown>);
     const systemPromptSettings: SystemPromptSettings = {
       mediaFolder: ctx.settings.mediaFolder,
@@ -278,6 +287,7 @@ export class QueryOptionsBuilder {
     // Build WSL launch spec if needed
     const isWslMode = claudeSettings.installationMethod === 'wsl' && process.platform === 'win32';
     let launchSpec: ReturnType<typeof buildClaudeLaunchSpec> | undefined;
+    let pathMapper: ReturnType<typeof createClaudePathMapper> | null = null;
 
     if (isWslMode && ctx.vaultPath) {
       const filteredEnv: Record<string, string> = {};
@@ -295,6 +305,7 @@ export class QueryOptionsBuilder {
           ...ctx.customEnv,
         },
       });
+      pathMapper = launchSpec.pathMapper;
     }
 
     const options: Options = {
@@ -316,7 +327,7 @@ export class QueryOptionsBuilder {
     QueryOptionsBuilder.applyExtraArgs(options, claudeSettings.enableChrome);
     options.spawnClaudeCodeProcess = createCustomSpawnFunction(ctx.enhancedPath, launchSpec);
 
-    return { options, claudeSettings };
+    return { options, claudeSettings, pathMapper };
   }
 
   private static applyThinking(
