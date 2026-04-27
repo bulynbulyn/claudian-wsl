@@ -60,9 +60,12 @@ export {
 export async function loadSDKSessionMessages(
   vaultPath: string,
   sessionId: string,
-  resumeAtMessageId?: string
+  resumeAtMessageId?: string,
+  isWslMode?: boolean,
+  wslHomePath?: string,
+  wslDistro?: string,
 ): Promise<SDKSessionLoadResult> {
-  const result = await readSDKSession(vaultPath, sessionId);
+  const result = await readSDKSession(vaultPath, sessionId, isWslMode, wslHomePath, wslDistro);
 
   if (result.error) {
     return { messages: [], skippedLines: result.skippedLines, error: result.error };
@@ -145,7 +148,7 @@ export async function loadSDKSessionMessages(
           if (subagent.agentId && isValidAgentId(subagent.agentId)) {
             sidecarLoads.push({
               subagent,
-              promise: loadSubagentToolCalls(vaultPath, sessionId, subagent.agentId),
+              promise: loadSubagentToolCalls(vaultPath, sessionId, subagent.agentId, isWslMode, wslHomePath, wslDistro),
             });
           }
         }

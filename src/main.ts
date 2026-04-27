@@ -533,7 +533,7 @@ export default class ClaudianPlugin extends Plugin {
   private async loadSdkMessagesForConversation(conversation: Conversation): Promise<void> {
     await ProviderRegistry
       .getConversationHistoryService(conversation.providerId)
-      .hydrateConversationHistory(conversation, getVaultPath(this.app));
+      .hydrateConversationHistory(conversation, getVaultPath(this.app), this.settings as unknown as Record<string, unknown>);
   }
 
   async createConversation(options?: {

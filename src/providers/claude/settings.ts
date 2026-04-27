@@ -24,6 +24,8 @@ export interface ClaudeProviderSettings {
   installationMethodsByHost: HostnameInstallationMethods;
   wslDistroOverride: string;
   wslDistroOverridesByHost: HostnameCliPaths;
+  /** WSL home directory path (e.g., /home/username). Used for finding SDK session files. */
+  wslHomePath: string;
 }
 
 export const DEFAULT_CLAUDE_PROVIDER_SETTINGS: Readonly<ClaudeProviderSettings> = Object.freeze({
@@ -44,6 +46,7 @@ export const DEFAULT_CLAUDE_PROVIDER_SETTINGS: Readonly<ClaudeProviderSettings> 
   installationMethodsByHost: {},
   wslDistroOverride: '',
   wslDistroOverridesByHost: {},
+  wslHomePath: '',
 });
 
 function normalizeHostnameCliPaths(value: unknown): HostnameCliPaths {
@@ -126,6 +129,9 @@ export function getClaudeProviderSettings(
       ? config.wslDistroOverride.trim()
       : DEFAULT_CLAUDE_PROVIDER_SETTINGS.wslDistroOverride,
     wslDistroOverridesByHost,
+    wslHomePath: typeof config.wslHomePath === 'string'
+      ? config.wslHomePath.trim()
+      : DEFAULT_CLAUDE_PROVIDER_SETTINGS.wslHomePath,
   };
 }
 

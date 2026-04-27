@@ -9,8 +9,12 @@ import type { SDKNativeMessage } from './sdkHistoryTypes';
 import {
   encodeVaultPathForSDK,
   getSDKProjectsPath,
+  getWslDistroName,
+  getWslHomePath,
   isPathSafeId,
   isValidSessionId,
+  windowsToWslPath,
+  wslPathToWindowsUNC,
 } from './sdkSessionPaths';
 
 export function isValidAgentId(agentId: string): boolean {
@@ -175,27 +179,48 @@ function getSubagentSidecarPath(
   vaultPath: string,
   sessionId: string,
   agentId: string,
+  isWslMode?: boolean,
+  wslHomePath?: string,
+  wslDistro?: string,
 ): string | null {
   if (!isValidSessionId(sessionId) || !isValidAgentId(agentId)) {
     return null;
   }
 
-  const encodedVault = encodeVaultPathForSDK(vaultPath);
-  return path.join(
-    getSDKProjectsPath(),
-    encodedVault,
-    sessionId,
-    'subagents',
-    `agent-${agentId}.jsonl`,
-  );
+  // Native mode - use standard Windows path
+  if (!isWslMode || process.platform !== 'win32') {
+    const encodedVault = encodeVaultPathForSDK(vaultPath);
+    return path.join(
+      getSDKProjectsPath(),
+      encodedVault,
+      sessionId,
+      'subagents',
+      `agent-${agentId}.jsonl`,
+    );
+  }
+
+  // WSL mode - build Unix path then convert to UNC
+  const wslVaultPath = windowsToWslPath(vaultPath);
+  const encodedVault = encodeVaultPathForSDK(wslVaultPath, true); // Skip resolve for Unix path
+  const wslHome = getWslHomePath(wslHomePath);
+  const distro = getWslDistroName(wslDistro);
+
+  // Build Unix-style path
+  const unixPath = `${wslHome}/.claude/projects/${encodedVault}/${sessionId}/subagents/agent-${agentId}.jsonl`;
+
+  // Convert to Windows UNC for fs access
+  return wslPathToWindowsUNC(unixPath, distro);
 }
 
 export async function loadSubagentToolCalls(
   vaultPath: string,
   sessionId: string,
   agentId: string,
+  isWslMode?: boolean,
+  wslHomePath?: string,
+  wslDistro?: string,
 ): Promise<ToolCallInfo[]> {
-  const subagentFilePath = getSubagentSidecarPath(vaultPath, sessionId, agentId);
+  const subagentFilePath = getSubagentSidecarPath(vaultPath, sessionId, agentId, isWslMode, wslHomePath, wslDistro);
   if (!subagentFilePath) {
     return [];
   }
@@ -242,8 +267,11 @@ export async function loadSubagentFinalResult(
   vaultPath: string,
   sessionId: string,
   agentId: string,
+  isWslMode?: boolean,
+  wslHomePath?: string,
+  wslDistro?: string,
 ): Promise<string | null> {
-  const subagentFilePath = getSubagentSidecarPath(vaultPath, sessionId, agentId);
+  const subagentFilePath = getSubagentSidecarPath(vaultPath, sessionId, agentId, isWslMode, wslHomePath, wslDistro);
   if (!subagentFilePath) {
     return null;
   }

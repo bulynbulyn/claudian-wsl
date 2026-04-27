@@ -46,6 +46,8 @@ export const claudeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     let installationMethod = claudeSettings.installationMethod;
     let wslDistroInputEl: HTMLInputElement | null = null;
     let wslDistroSettingEl: HTMLElement | null = null;
+    let wslHomePathInputEl: HTMLInputElement | null = null;
+    let wslHomePathSettingEl: HTMLElement | null = null;
 
     if (process.platform === 'win32') {
       const refreshInstallationMethodUI = (): void => {
@@ -54,6 +56,12 @@ export const claudeSettingsTabRenderer: ProviderSettingsTabRenderer = {
         }
         if (wslDistroSettingEl) {
           wslDistroSettingEl.style.display = installationMethod === 'wsl' ? '' : 'none';
+        }
+        if (wslHomePathInputEl) {
+          wslHomePathInputEl.disabled = installationMethod !== 'wsl';
+        }
+        if (wslHomePathSettingEl) {
+          wslHomePathSettingEl.style.display = installationMethod === 'wsl' ? '' : 'none';
         }
       };
 
@@ -92,6 +100,27 @@ export const claudeSettingsTabRenderer: ProviderSettingsTabRenderer = {
         text.inputEl.style.width = '100%';
         text.inputEl.disabled = installationMethod !== 'wsl';
         wslDistroInputEl = text.inputEl;
+      });
+
+      const wslHomePathSetting = new Setting(container)
+        .setName('WSL home path')
+        .setDesc('The home directory path in WSL where Claude stores session files. E.g., /home/username. Required for history loading when Windows username differs from WSL username.');
+
+      wslHomePathSettingEl = wslHomePathSetting.settingEl;
+
+      wslHomePathSetting.addText((text) => {
+        text
+          .setPlaceholder('/home/username')
+          .setValue(claudeSettings.wslHomePath)
+          .onChange(async (value) => {
+            updateClaudeProviderSettings(settingsBag, { wslHomePath: value });
+            await context.plugin.saveSettings();
+          });
+
+        text.inputEl.addClass('claudian-settings-cli-path-input');
+        text.inputEl.style.width = '100%';
+        text.inputEl.disabled = installationMethod !== 'wsl';
+        wslHomePathInputEl = text.inputEl;
       });
 
       refreshInstallationMethodUI();
