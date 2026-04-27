@@ -5,6 +5,18 @@
 ![GitHub release](https://img.shields.io/github/v/release/bulynbulyn/claudian-wsl)
 ![License](https://img.shields.io/github/license/bulynbulyn/claudian-wsl)
 
+## ⚠️ 适用范围
+
+**本分支仅供 Claude Code 安装在 WSL 的 Windows 用户使用。**
+
+如果你的 Claude Code：
+- 安装在 **Windows 本机**（Native Windows）
+- 或你使用 **macOS / Linux** 等其他操作系统
+
+请使用原版 [YishenTu/claudian](https://github.com/YishenTu/claudian)，功能更完整且更新及时。
+
+---
+
 > ⚠️ **说明**: 本项目由 **glm5 + Claude Code** 生成，仅测试了基本的 Claude Code-WSL 功能，其他功能未详细测试。如有问题请提 [Issues](https://github.com/bulynbulyn/claudian-wsl/issues)。
 
 An Obsidian plugin that embeds AI coding agents (Claude Code, Codex) in your vault with **WSL support for Windows users**.
