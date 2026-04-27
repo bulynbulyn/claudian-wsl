@@ -4,6 +4,8 @@ import * as os from 'os';
 import * as path from 'path';
 
 import type { ChatRewindResult } from '../../../core/runtime/types';
+import { createClaudePathMapper } from './ClaudePathMapper';
+import type { ClaudeExecutionTarget } from './claudeLaunchTypes';
 
 interface BackupEntryFile {
   originalPath: string;
@@ -37,16 +39,44 @@ export interface ExecuteClaudeRewindDeps {
   closePersistentQuery: (reason: string) => void;
   setPendingResumeAt: (assistantMessageId: string) => void;
   vaultPath: string | null;
+  // WSL configuration for path mapping
+  installationMethod?: 'native-windows' | 'wsl';
+  wslDistroOverride?: string;
 }
 
-function resolveRewindFilePath(filePath: string, vaultPath: string | null): string {
+function resolveRewindFilePath(filePath: string, vaultPath: string | null, deps: ExecuteClaudeRewindDeps): string {
+  // SDK returns paths relative to the vault or absolute paths in WSL format
+  // We need to convert WSL paths to Windows paths for fs operations
+
+  let resolvedPath: string;
+
   if (path.isAbsolute(filePath)) {
-    return filePath;
+    resolvedPath = filePath;
+  } else if (vaultPath) {
+    resolvedPath = path.join(vaultPath, filePath);
+  } else {
+    resolvedPath = filePath;
   }
-  if (vaultPath) {
-    return path.join(vaultPath, filePath);
+
+  // If running in WSL mode from Windows, convert WSL paths to Windows paths
+  // SDK operates inside WSL and returns paths like /mnt/d/... which Windows fs cannot access
+  if (deps.installationMethod === 'wsl' && process.platform === 'win32') {
+    const target: ClaudeExecutionTarget = {
+      method: 'wsl',
+      platformFamily: 'unix',
+      platformOs: 'linux',
+      distroName: deps.wslDistroOverride || undefined,
+    };
+    const pathMapper = createClaudePathMapper(target);
+    const hostPath = pathMapper.toHostPath(resolvedPath);
+    if (hostPath) {
+      console.log('[Claudian] Rewind: converted WSL path', resolvedPath, 'to Windows path', hostPath);
+      return hostPath;
+    }
+    console.warn('[Claudian] Rewind: could not convert WSL path', resolvedPath);
   }
-  return filePath;
+
+  return resolvedPath;
 }
 
 async function copyDir(from: string, to: string): Promise<void> {
@@ -76,6 +106,7 @@ async function copyDir(from: string, to: string): Promise<void> {
 export async function createClaudeRewindBackup(
   filesChanged: string[] | undefined,
   vaultPath: string | null,
+  deps: ExecuteClaudeRewindDeps,
 ): Promise<ClaudeRewindBackup | null> {
   if (!filesChanged || filesChanged.length === 0) {
     return null;
@@ -86,7 +117,7 @@ export async function createClaudeRewindBackup(
   const backupPathForIndex = (index: number) => path.join(backupRoot, String(index));
 
   for (let i = 0; i < filesChanged.length; i++) {
-    const originalPath = resolveRewindFilePath(filesChanged[i], vaultPath);
+    const originalPath = resolveRewindFilePath(filesChanged[i], vaultPath, deps);
 
     try {
       const stats = await fs.lstat(originalPath);
@@ -168,12 +199,24 @@ export async function executeClaudeRewind(
   userMessageId: string,
   deps: ExecuteClaudeRewindDeps,
 ): Promise<ChatRewindResult> {
+  console.log('[Claudian] Rewind: starting with config:', {
+    installationMethod: deps.installationMethod,
+    wslDistroOverride: deps.wslDistroOverride,
+    platform: process.platform,
+  });
+
   const preview = await deps.rewindFiles(userMessageId, true);
+  console.log('[Claudian] Rewind: preview result:', {
+    canRewind: preview.canRewind,
+    filesChanged: preview.filesChanged,
+    error: (preview as RewindFilesResult & { error?: string }).error,
+  });
+
   if (!preview.canRewind) {
     return preview;
   }
 
-  const backup = await createClaudeRewindBackup(preview.filesChanged, deps.vaultPath);
+  const backup = await createClaudeRewindBackup(preview.filesChanged, deps.vaultPath, deps);
 
   try {
     const result = await deps.rewindFiles(userMessageId);

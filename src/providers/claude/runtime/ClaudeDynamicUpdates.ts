@@ -124,10 +124,17 @@ export async function applyClaudeDynamicUpdates(
       // Switching to/from bypassPermissions requires a restart (CLI --permission-mode flag
       // must be set at launch). Skip setPermissionMode and let the restart below handle it.
       const needsPermissionRestart = sdkMode === 'bypassPermissions' || currentSdkMode === 'bypassPermissions';
+      console.log('[Claudian] Permission mode change detected:', {
+        from: currentSdkMode,
+        to: sdkMode,
+        needsRestart: needsPermissionRestart,
+      });
 
       if (!needsPermissionRestart) {
         try {
+          console.log('[Claudian] Dynamically updating permission mode via SDK...');
           await persistentQuery.setPermissionMode(sdkMode);
+          console.log('[Claudian] Permission mode updated successfully (hot reload).');
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           deps.notifyFailure(`Failed to update permission mode: ${message}`);
@@ -193,17 +200,28 @@ export async function applyClaudeDynamicUpdates(
   }
 
   const newConfig = deps.buildPersistentQueryConfig(vaultPath, cliPath, newExternalContextPaths);
-  if (!deps.needsRestart(newConfig)) {
+  const restartNeeded = deps.needsRestart(newConfig);
+  console.log('[Claudian] needsRestart check:', {
+    result: restartNeeded,
+    currentSdkMode: deps.getCurrentConfig()?.sdkPermissionMode,
+    newSdkMode: newConfig.sdkPermissionMode,
+  });
+  if (!restartNeeded) {
+    console.log('[Claudian] No restart needed, continuing with current runtime.');
     return;
   }
 
+  console.log('[Claudian] Restart required! Rebuilding runtime with new config...');
   const restarted = await deps.ensureReady({
     externalContextPaths: newExternalContextPaths,
     preserveHandlers: restartOptions?.preserveHandlers,
     force: true,
   });
 
+  console.log('[Claudian] Runtime restart completed:', { success: restarted });
+
   if (restarted && deps.getPersistentQuery()) {
+    console.log('[Claudian] Applying remaining dynamic updates after restart...');
     await applyClaudeDynamicUpdates(deps, queryOptions, restartOptions, false);
   }
 }

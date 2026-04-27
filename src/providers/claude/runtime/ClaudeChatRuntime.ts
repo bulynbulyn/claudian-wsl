@@ -1714,10 +1714,22 @@ export class ClaudianService implements ChatRuntime {
   async rewindFiles(userMessageId: string, dryRun?: boolean): Promise<RewindFilesResult> {
     if (!this.persistentQuery) throw new Error('No active query');
     if (this.shuttingDown) throw new Error('Service is shutting down');
-    return this.persistentQuery.rewindFiles(userMessageId, { dryRun });
+    console.log('[Claudian] rewindFiles: calling SDK with', { userMessageId, dryRun });
+    try {
+      const result = await this.persistentQuery.rewindFiles(userMessageId, { dryRun });
+      console.log('[Claudian] rewindFiles: SDK result:', result);
+      return result;
+    } catch (err) {
+      console.error('[Claudian] rewindFiles: SDK error:', err);
+      throw err;
+    }
   }
 
   async rewind(userMessageId: string, assistantMessageId: string): Promise<ChatRewindResult> {
+    // Get WSL config from settings (not currentConfig) since currentConfig may be null during restarts
+    const claudeSettings = getClaudeProviderSettings(
+      this.plugin.settings as unknown as Record<string, unknown>
+    );
     return executeClaudeRewind(userMessageId, {
       assistantMessageId,
       rewindFiles: this.rewindFiles.bind(this),
@@ -1726,6 +1738,9 @@ export class ClaudianService implements ChatRuntime {
         this.pendingResumeAt = resumeAt;
       },
       vaultPath: this.vaultPath,
+      // Pass WSL configuration from settings (always available)
+      installationMethod: claudeSettings.installationMethod,
+      wslDistroOverride: claudeSettings.wslDistroOverride,
     });
   }
 
