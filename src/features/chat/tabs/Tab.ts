@@ -826,12 +826,14 @@ function initializeInputToolbar(
       tab.ui.serviceTierToggle?.updateDisplay();
     },
     onPermissionModeChange: async (mode: string) => {
+      console.log('[Claudian] Permission mode changed to:', mode);
       (plugin.settings as unknown as Record<string, unknown>).permissionMode = mode;
       await plugin.saveSettings();
       dom.inputWrapper.toggleClass(
         'claudian-input-plan-mode',
         mode === 'plan' && getTabCapabilities(tab, plugin).supportsPlanMode,
       );
+      console.log('[Claudian] Permission mode saved. Runtime will restart on next send if YOLO involved.');
     },
   });
 

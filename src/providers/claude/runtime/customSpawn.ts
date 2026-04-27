@@ -83,9 +83,34 @@ function spawnWslProcess(
 
   const fullArgs = [...wslArgs, ...quotedCliArgs];
 
+  // WSL doesn't inherit Windows env vars by default. Use WSLENV to pass specific vars.
+  // Format: VAR1:VAR2:VAR3 (colon-separated, /p suffix for path translation)
+  const wslEnvVars = [
+    'CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING',
+    'CLAUDE_CODE_DISABLE_FILE_CHECKPOINTING',
+  ];
+  const existingWslenv = process.env.WSLENV || '';
+  const newWslenv = existingWslenv
+    ? `${existingWslenv}:${wslEnvVars.join(':')}`
+    : wslEnvVars.join(':');
+
+  const mergedEnv = {
+    ...process.env,
+    ...launchSpec.env,
+    // Pass these env vars to WSL via WSLENV
+    WSLENV: newWslenv,
+    // Set the actual values
+    CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING: 'true',
+  };
+
+  console.log('[Claudian] WSL spawn env:', {
+    WSLENV: mergedEnv.WSLENV,
+    CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING: mergedEnv.CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING,
+  });
+
   const child = spawn(launchSpec.command, fullArgs, {
     cwd: spawnCwd,
-    env: launchSpec.env as NodeJS.ProcessEnv,
+    env: mergedEnv as NodeJS.ProcessEnv,
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
   });

@@ -69,35 +69,68 @@ export class QueryOptionsBuilder {
     currentConfig: PersistentQueryConfig | null,
     newConfig: PersistentQueryConfig
   ): boolean {
-    if (!currentConfig) return true;
+    if (!currentConfig) {
+      console.log('[Claudian] needsRestart: no current config, must restart');
+      return true;
+    }
 
     // These require restart (cannot be updated dynamically)
-    if (currentConfig.systemPromptKey !== newConfig.systemPromptKey) return true;
-    if (currentConfig.disallowedToolsKey !== newConfig.disallowedToolsKey) return true;
-    if (currentConfig.pluginsKey !== newConfig.pluginsKey) return true;
-    if (currentConfig.settingSources !== newConfig.settingSources) return true;
-    if (currentConfig.claudeCliPath !== newConfig.claudeCliPath) return true;
+    if (currentConfig.systemPromptKey !== newConfig.systemPromptKey) {
+      console.log('[Claudian] needsRestart: systemPromptKey changed');
+      return true;
+    }
+    if (currentConfig.disallowedToolsKey !== newConfig.disallowedToolsKey) {
+      console.log('[Claudian] needsRestart: disallowedToolsKey changed');
+      return true;
+    }
+    if (currentConfig.pluginsKey !== newConfig.pluginsKey) {
+      console.log('[Claudian] needsRestart: pluginsKey changed');
+      return true;
+    }
+    if (currentConfig.settingSources !== newConfig.settingSources) {
+      console.log('[Claudian] needsRestart: settingSources changed');
+      return true;
+    }
+    if (currentConfig.claudeCliPath !== newConfig.claudeCliPath) {
+      console.log('[Claudian] needsRestart: claudeCliPath changed');
+      return true;
+    }
 
     // Permission mode changes involving bypassPermissions require restart because
     // the SDK requires --permission-mode bypassPermissions at CLI launch time.
     // Other modes (default, acceptEdits, plan) can be updated dynamically.
     if (currentConfig.sdkPermissionMode !== newConfig.sdkPermissionMode) {
       if (currentConfig.sdkPermissionMode === 'bypassPermissions' || newConfig.sdkPermissionMode === 'bypassPermissions') {
+        console.log('[Claudian] needsRestart: YOLO (bypassPermissions) mode change detected:', {
+          from: currentConfig.sdkPermissionMode,
+          to: newConfig.sdkPermissionMode,
+        });
         return true;
       }
     }
 
-    if (currentConfig.enableChrome !== newConfig.enableChrome) return true;
+    if (currentConfig.enableChrome !== newConfig.enableChrome) {
+      console.log('[Claudian] needsRestart: enableChrome changed');
+      return true;
+    }
 
     // External context paths require restart (additionalDirectories can't be updated dynamically)
     if (QueryOptionsBuilder.pathsChanged(currentConfig.externalContextPaths, newConfig.externalContextPaths)) {
+      console.log('[Claudian] needsRestart: externalContextPaths changed');
       return true;
     }
 
     // WSL installation method change requires restart
-    if (currentConfig.installationMethod !== newConfig.installationMethod) return true;
-    if (currentConfig.wslDistroOverride !== newConfig.wslDistroOverride) return true;
+    if (currentConfig.installationMethod !== newConfig.installationMethod) {
+      console.log('[Claudian] needsRestart: installationMethod changed');
+      return true;
+    }
+    if (currentConfig.wslDistroOverride !== newConfig.wslDistroOverride) {
+      console.log('[Claudian] needsRestart: wslDistroOverride changed');
+      return true;
+    }
 
+    console.log('[Claudian] needsRestart: no restart required - all changes can be applied dynamically');
     return false;
   }
 
@@ -303,6 +336,8 @@ export class QueryOptionsBuilder {
         env: {
           ...filteredEnv,
           ...ctx.customEnv,
+          // Enable file checkpointing for rewind support in SDK mode
+          CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING: 'true',
         },
       });
       pathMapper = launchSpec.pathMapper;
@@ -320,6 +355,8 @@ export class QueryOptionsBuilder {
         ...process.env,
         ...ctx.customEnv,
         PATH: ctx.enhancedPath,
+        // Enable file checkpointing for rewind support in SDK mode
+        CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING: 'true',
       },
       includePartialMessages: true,
     };
