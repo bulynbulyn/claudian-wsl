@@ -80,14 +80,14 @@ describe('CodexChatUIConfig', () => {
 
   describe('isAdaptiveReasoningModel', () => {
     it('should return true for all models', () => {
-      expect(codexChatUIConfig.isAdaptiveReasoningModel(DEFAULT_CODEX_PRIMARY_MODEL)).toBe(true);
-      expect(codexChatUIConfig.isAdaptiveReasoningModel('unknown-model')).toBe(true);
+      expect(codexChatUIConfig.isAdaptiveReasoningModel(DEFAULT_CODEX_PRIMARY_MODEL, {})).toBe(true);
+      expect(codexChatUIConfig.isAdaptiveReasoningModel('unknown-model', {})).toBe(true);
     });
   });
 
   describe('getReasoningOptions', () => {
     it('should return effort levels', () => {
-      const options = codexChatUIConfig.getReasoningOptions(DEFAULT_CODEX_PRIMARY_MODEL);
+      const options = codexChatUIConfig.getReasoningOptions(DEFAULT_CODEX_PRIMARY_MODEL, {});
       expect(options).toHaveLength(4);
       expect(options.map(o => o.value)).toEqual(['low', 'medium', 'high', 'xhigh']);
     });
@@ -95,7 +95,7 @@ describe('CodexChatUIConfig', () => {
 
   describe('getDefaultReasoningValue', () => {
     it('should return medium for all models', () => {
-      expect(codexChatUIConfig.getDefaultReasoningValue(DEFAULT_CODEX_PRIMARY_MODEL)).toBe('medium');
+      expect(codexChatUIConfig.getDefaultReasoningValue(DEFAULT_CODEX_PRIMARY_MODEL, {})).toBe('medium');
     });
   });
 

@@ -40,6 +40,18 @@
   border-color: var(--claudian-brand, #da7756);
 }
 
+.claudian-tab-badge-streaming[data-provider="claude"] {
+  border-color: var(--claudian-brand-claude, #D97757);
+}
+
+.claudian-tab-badge-streaming[data-provider="codex"] {
+  border-color: var(--claudian-brand-codex, #d0d0d0);
+}
+
+.claudian-tab-badge-streaming[data-provider="opencode"] {
+  border-color: var(--claudian-brand-opencode, #C8C8C8);
+}
+
 .claudian-tab-badge-attention {
   border-color: var(--text-error);
 }

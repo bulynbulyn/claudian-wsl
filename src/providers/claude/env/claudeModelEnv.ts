@@ -1,8 +1,4 @@
-import {
-  formatClaudeCustomModelLabel,
-  formatGenericCustomModelLabel,
-  getCustomModelLabelSource,
-} from '../modelLabels';
+import { formatCustomModelLabel } from '../modelLabels';
 
 const CUSTOM_MODEL_ENV_KEYS = [
   'ANTHROPIC_MODEL',
@@ -24,11 +20,7 @@ export function getModelsFromEnvironment(envVars: Record<string, string>): { val
     const type = getModelTypeFromEnvKey(envKey);
     const modelValue = envVars[envKey];
     if (modelValue) {
-      const labelSource = getCustomModelLabelSource(modelValue);
-      const label = formatClaudeCustomModelLabel(labelSource)
-        ?? (modelValue.includes('/')
-          ? labelSource
-          : formatGenericCustomModelLabel(labelSource));
+      const label = formatCustomModelLabel(modelValue);
 
       if (!modelMap.has(modelValue)) {
         modelMap.set(modelValue, { types: [type], label });

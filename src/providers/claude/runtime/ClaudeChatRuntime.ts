@@ -37,7 +37,6 @@ import type {
   AutoTurnResult,
   ChatRewindResult,
   ChatRuntimeConversationState,
-  ChatRuntimeEnsureReadyOptions,
   ChatRuntimeQueryOptions,
   ChatTurnMetadata,
   ChatTurnRequest,
@@ -91,6 +90,7 @@ import {
   buildClaudeSDKUserMessage,
 } from './ClaudeUserMessageFactory';
 import {
+  type ClaudeEnsureReadyOptions,
   type ClosePersistentQueryOptions,
   createResponseHandler,
   isTurnCompleteMessage,
@@ -409,7 +409,7 @@ export class ClaudianService implements ChatRuntime {
    *
    * @returns true if the query was (re)started, false otherwise
    */
-  async ensureReady(options?: ChatRuntimeEnsureReadyOptions): Promise<boolean> {
+  async ensureReady(options?: ClaudeEnsureReadyOptions): Promise<boolean> {
     const vaultPath = getVaultPath(this.plugin.app);
 
     // Track external context paths for dynamic updates (empty list clears)

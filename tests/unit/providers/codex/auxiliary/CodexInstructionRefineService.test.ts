@@ -67,4 +67,15 @@ describe('CodexInstructionRefineService', () => {
     expect(result.success).toBe(false);
     expect(result.error).toBe('Connection failed');
   });
+
+  it('passes a model override through to the aux runner', async () => {
+    mockQuery.mockResolvedValue('<instruction>Use TypeScript</instruction>');
+
+    service.setModelOverride('gpt-5.4');
+    await service.refineInstruction('use ts', '');
+
+    expect(mockQuery).toHaveBeenCalledWith(expect.objectContaining({
+      model: 'gpt-5.4',
+    }), 'Please refine this instruction: "use ts"');
+  });
 });

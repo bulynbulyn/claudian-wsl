@@ -912,6 +912,10 @@ export class CodexChatRuntime implements ChatRuntime {
     );
   }
 
+  getAuxiliaryModel(): string | null {
+    return this.resolveModel() ?? null;
+  }
+
   private resolveModel(queryOptions?: ChatRuntimeQueryOptions): string | undefined {
     const providerSettings = this.getProviderSettings();
     return queryOptions?.model ?? providerSettings.model as string | undefined;

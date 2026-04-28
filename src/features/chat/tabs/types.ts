@@ -21,6 +21,7 @@ import type {
   ExternalContextSelector,
   McpServerSelector,
   ModelSelector,
+  ModeSelector,
   PermissionToggle,
   ServiceTierToggle,
   ThinkingBudgetSelector,
@@ -125,6 +126,7 @@ export interface TabUIComponents {
   fileContextManager: FileContextManager | null;
   imageContextManager: ImageContextManager | null;
   modelSelector: ModelSelector | null;
+  modeSelector: ModeSelector | null;
   thinkingBudgetSelector: ThinkingBudgetSelector | null;
   externalContextSelector: ExternalContextSelector | null;
   mcpServerSelector: McpServerSelector | null;
@@ -233,6 +235,7 @@ export type TabProviderContext = Pick<TabData, 'conversationId' | 'service' | 'p
 export interface PersistedTabState {
   tabId: TabId;
   conversationId: string | null;
+  draftModel?: string | null;
 }
 
 /**
@@ -280,6 +283,7 @@ export interface TabBarItem {
   /** 1-based index for display. */
   index: number;
   title: string;
+  providerId: ProviderId;
   isActive: boolean;
   isStreaming: boolean;
   needsAttention: boolean;

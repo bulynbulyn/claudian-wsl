@@ -70,6 +70,8 @@ export interface ProviderRegistration {
 }
 
 export interface ProviderSettingsReconciler {
+  handleEnvironmentChange?(settings: Record<string, unknown>): boolean;
+
   reconcileModelWithEnvironment(
     settings: Record<string, unknown>,
     conversations: Conversation[],
@@ -84,7 +86,7 @@ export interface ProviderSettingsReconciler {
 
 /** Tab manager state persisted across restarts. */
 export interface AppTabManagerState {
-  openTabs: Array<{ tabId: string; conversationId: string | null }>;
+  openTabs: Array<{ tabId: string; conversationId: string | null; draftModel?: string | null }>;
   activeTabId: string | null;
 }
 
@@ -175,11 +177,20 @@ export interface ProviderUIOption {
   providerIcon?: ProviderIconSvg;
 }
 
-/** SVG icon descriptor for provider branding in selectors. */
-export interface ProviderIconSvg {
+export interface ProviderPathIconSvg {
+  kind?: 'path';
   viewBox: string;
   path: string;
 }
+
+export interface ProviderMarkupIconSvg {
+  kind: 'markup';
+  viewBox: string;
+  markup: string;
+}
+
+/** SVG icon descriptor for provider branding in selectors and headers. */
+export type ProviderIconSvg = ProviderPathIconSvg | ProviderMarkupIconSvg;
 
 /** Extended option with token count for budget-based reasoning controls. */
 export interface ProviderReasoningOption extends ProviderUIOption {
@@ -205,6 +216,13 @@ export interface ProviderServiceTierToggleConfig {
   description?: string;
 }
 
+export interface ProviderModeSelectorConfig {
+  activeValue?: string;
+  label: string;
+  options: ProviderUIOption[];
+  value: string;
+}
+
 /** Static UI configuration owned by the provider (model list, reasoning, context window). */
 export interface ProviderChatUIConfig {
   /** Model options for the selector dropdown. Provider extracts what it needs from the settings bag. */
@@ -214,13 +232,13 @@ export interface ProviderChatUIConfig {
   ownsModel(model: string, settings: Record<string, unknown>): boolean;
 
   /** Whether the model uses adaptive reasoning (effort levels vs token budgets). */
-  isAdaptiveReasoningModel(model: string): boolean;
+  isAdaptiveReasoningModel(model: string, settings: Record<string, unknown>): boolean;
 
   /** Reasoning options for the current model (effort levels if adaptive, budgets otherwise). */
-  getReasoningOptions(model: string): ProviderReasoningOption[];
+  getReasoningOptions(model: string, settings: Record<string, unknown>): ProviderReasoningOption[];
 
   /** Default reasoning value for the model. */
-  getDefaultReasoningValue(model: string): string;
+  getDefaultReasoningValue(model: string, settings: Record<string, unknown>): string;
 
   /** Context window size in tokens. */
   getContextWindowSize(model: string, customLimits?: Record<string, number>): number;
@@ -231,6 +249,9 @@ export interface ProviderChatUIConfig {
   /** Apply model change side effects to settings (defaults, tracking). */
   applyModelDefaults(model: string, settings: unknown): void;
 
+  /** Optional hook when the toolbar changes a reasoning selection. */
+  applyReasoningSelection?(model: string, value: string, settings: unknown): void;
+
   /** Normalize model variant based on visibility flags. Provider extracts what it needs from the settings bag. */
   normalizeModelVariant(model: string, settings: Record<string, unknown>): string;
 
@@ -240,8 +261,20 @@ export interface ProviderChatUIConfig {
   /** Optional permission-mode toggle descriptor. Return null when the provider exposes no permission toggle UI. */
   getPermissionModeToggle?(): ProviderPermissionModeToggleConfig | null;
 
+  /** Optional provider-owned mapping back into the shared permission-mode contract. */
+  resolvePermissionMode?(settings: Record<string, unknown>): string | null;
+
+  /** Optional hook when the toolbar changes permission mode. */
+  applyPermissionMode?(value: string, settings: unknown): void;
+
   /** Optional service-tier toggle descriptor. Return null when the provider exposes no fast/standard UI. */
   getServiceTierToggle?(settings: Record<string, unknown>): ProviderServiceTierToggleConfig | null;
+
+  /** Optional provider-owned mode selector descriptor. */
+  getModeSelector?(settings: Record<string, unknown>): ProviderModeSelectorConfig | null;
+
+  /** Optional hook when the toolbar changes a provider-owned mode selection. */
+  applyModeSelection?(value: string, settings: unknown): void;
 
   /** Whether the provider enables the shared bang-bash input mode. */
   isBangBashEnabled?(settings: Record<string, unknown>): boolean;
@@ -259,10 +292,50 @@ export interface ProviderCliResolver {
   reset(): void;
 }
 
+export interface ProviderRuntimeCommandLoaderContext {
+  // Shared command discovery may need a short-lived provider session; the tab
+  // manager decides when that is allowed for the active tab.
+  allowSessionCreation?: boolean;
+  conversation: Conversation | null;
+  externalContextPaths: string[];
+  plugin: ClaudianPlugin;
+  runtime: ChatRuntime | null;
+}
+
+export interface ProviderRuntimeCommandLoader {
+  isAvailable(settings: Record<string, unknown>): boolean;
+  loadCommands(context: ProviderRuntimeCommandLoaderContext): Promise<SlashCommand[]>;
+}
+
+// `commands` warms provider-owned command discovery without fully priming the
+// bound tab runtime. `runtime` primes the real tab runtime itself.
+export type ProviderTabWarmupMode = 'none' | 'commands' | 'runtime';
+
+export type ProviderTabWarmupLifecycleState = 'blank' | 'bound_cold' | 'bound_active' | 'closing';
+
+export interface ProviderTabWarmupContext {
+  conversation: Conversation | null;
+  externalContextPaths: string[];
+  plugin: ClaudianPlugin;
+  runtime: ChatRuntime | null;
+  tab: {
+    conversationId: string | null;
+    draftModel: string | null;
+    lifecycleState: ProviderTabWarmupLifecycleState;
+    providerId: ProviderId;
+  };
+}
+
+export interface ProviderTabWarmupPolicy {
+  resolveMode(context: ProviderTabWarmupContext): ProviderTabWarmupMode;
+}
+
 export interface ProviderWorkspaceServices {
   commandCatalog?: ProviderCommandCatalog | null;
   agentMentionProvider?: AgentMentionProvider | null;
   cliResolver?: ProviderCliResolver | null;
+  runtimeCommandLoader?: ProviderRuntimeCommandLoader | null;
+  tabWarmupPolicy?: ProviderTabWarmupPolicy | null;
   mcpServerManager?: McpServerManager | null;
   settingsTabRenderer?: ProviderSettingsTabRenderer | null;
   refreshAgentMentions?(): Promise<void>;
@@ -392,6 +465,7 @@ export interface TitleGenerationService {
 export type RefineProgressCallback = (update: InstructionRefineResult) => void;
 
 export interface InstructionRefineService {
+  setModelOverride?(model?: string): void;
   resetConversation(): void;
   refineInstruction(
     rawInstruction: string,
@@ -438,6 +512,7 @@ export interface InlineEditResult {
 }
 
 export interface InlineEditService {
+  setModelOverride?(model?: string): void;
   resetConversation(): void;
   editText(request: InlineEditRequest): Promise<InlineEditResult>;
   continueConversation(message: string, contextFiles?: string[]): Promise<InlineEditResult>;

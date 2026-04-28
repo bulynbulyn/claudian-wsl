@@ -165,6 +165,7 @@ describe('ProviderSettingsCoordinator', () => {
         providerConfigs: {
           codex: { enabled: true },
         },
+        permissionMode: 'yolo',
         model: 'haiku',
         effortLevel: 'high',
         serviceTier: 'default',
@@ -173,6 +174,7 @@ describe('ProviderSettingsCoordinator', () => {
         savedProviderEffort: { codex: 'medium', claude: 'high' },
         savedProviderServiceTier: { codex: 'fast', claude: 'default' },
         savedProviderThinkingBudget: { codex: '1024', claude: 'off' },
+        savedProviderPermissionMode: { codex: 'normal', claude: 'yolo' },
       };
 
       ProviderSettingsCoordinator.projectActiveProviderState(settings);
@@ -181,6 +183,7 @@ describe('ProviderSettingsCoordinator', () => {
       expect(settings.effortLevel).toBe('medium');
       expect(settings.serviceTier).toBe('fast');
       expect(settings.thinkingBudget).toBe('1024');
+      expect(settings.permissionMode).toBe('normal');
     });
 
     it('migrates a saved legacy Codex model before projecting provider state', () => {
@@ -287,6 +290,7 @@ describe('ProviderSettingsCoordinator', () => {
         providerConfigs: {
           codex: { enabled: true },
         },
+        permissionMode: 'normal',
         model: DEFAULT_CODEX_PRIMARY_MODEL,
         effortLevel: 'low',
         serviceTier: 'fast',
@@ -295,6 +299,7 @@ describe('ProviderSettingsCoordinator', () => {
         savedProviderEffort: { claude: 'high' },
         savedProviderServiceTier: { claude: 'default' },
         savedProviderThinkingBudget: { claude: 'off' },
+        savedProviderPermissionMode: { claude: 'yolo' },
       };
 
       ProviderSettingsCoordinator.persistProjectedProviderState(settings);
@@ -310,6 +315,10 @@ describe('ProviderSettingsCoordinator', () => {
       expect(settings.savedProviderServiceTier).toEqual({
         claude: 'default',
         codex: 'fast',
+      });
+      expect(settings.savedProviderPermissionMode).toEqual({
+        claude: 'yolo',
+        codex: 'normal',
       });
     });
   });
@@ -364,6 +373,58 @@ describe('ProviderSettingsCoordinator', () => {
 
       expect(settings.model).toBe('gpt-5.4-mini');
       expect(settings.serviceTier).toBe('fast');
+    });
+
+    it('derives OpenCode permission mode from the managed selected mode when no provider snapshot exists yet', () => {
+      const settings: Record<string, unknown> = {
+        settingsProvider: 'claude',
+        permissionMode: 'yolo',
+        providerConfigs: {
+          opencode: {
+            enabled: true,
+            selectedMode: 'claudian-safe',
+          },
+        },
+        model: 'haiku',
+        effortLevel: 'high',
+        serviceTier: 'default',
+        thinkingBudget: 'off',
+        savedProviderModel: {},
+        savedProviderEffort: {},
+        savedProviderServiceTier: {},
+        savedProviderThinkingBudget: {},
+        savedProviderPermissionMode: {},
+      };
+
+      ProviderSettingsCoordinator.projectProviderState(settings, 'opencode');
+
+      expect(settings.permissionMode).toBe('normal');
+    });
+
+    it('prefers the active OpenCode selected mode over a stale top-level permission projection', () => {
+      const settings: Record<string, unknown> = {
+        settingsProvider: 'opencode',
+        permissionMode: 'normal',
+        providerConfigs: {
+          opencode: {
+            enabled: true,
+            selectedMode: 'build',
+          },
+        },
+        model: 'haiku',
+        effortLevel: 'high',
+        serviceTier: 'default',
+        thinkingBudget: 'off',
+        savedProviderModel: {},
+        savedProviderEffort: {},
+        savedProviderServiceTier: {},
+        savedProviderThinkingBudget: {},
+        savedProviderPermissionMode: {},
+      };
+
+      ProviderSettingsCoordinator.projectProviderState(settings, 'opencode');
+
+      expect(settings.permissionMode).toBe('yolo');
     });
   });
 

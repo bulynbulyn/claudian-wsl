@@ -56,4 +56,29 @@ describe('ProviderWorkspaceRegistry', () => {
 
     expect(ProviderWorkspaceRegistry.getCommandCatalog('claude')).toBe(mockCatalog);
   });
+
+  it('returns the runtime command loader for a provider', () => {
+    const runtimeCommandLoader = {
+      isAvailable: jest.fn().mockReturnValue(true),
+      loadCommands: jest.fn().mockResolvedValue([]),
+    };
+
+    ProviderWorkspaceRegistry.setServices('opencode', {
+      runtimeCommandLoader: runtimeCommandLoader as any,
+    });
+
+    expect(ProviderWorkspaceRegistry.getRuntimeCommandLoader('opencode')).toBe(runtimeCommandLoader);
+  });
+
+  it('returns the tab warmup policy for a provider', () => {
+    const tabWarmupPolicy = {
+      resolveMode: jest.fn().mockReturnValue('commands'),
+    };
+
+    ProviderWorkspaceRegistry.setServices('opencode', {
+      tabWarmupPolicy: tabWarmupPolicy as any,
+    });
+
+    expect(ProviderWorkspaceRegistry.getTabWarmupPolicy('opencode')).toBe(tabWarmupPolicy);
+  });
 });

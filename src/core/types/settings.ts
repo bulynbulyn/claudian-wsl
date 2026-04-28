@@ -123,6 +123,7 @@ export interface ClaudianSettings {
   savedProviderEffort: Partial<Record<string, string>>;
   savedProviderServiceTier: Partial<Record<string, string>>;
   savedProviderThinkingBudget: Partial<Record<string, string>>;
+  savedProviderPermissionMode: Partial<Record<string, string>>;
 
   // State (provider-specific, round-tripped opaquely)
   lastCustomModel?: string;

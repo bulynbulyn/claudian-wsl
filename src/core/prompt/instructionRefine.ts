@@ -51,3 +51,22 @@ Output: <instruction>## Coding Standards\n\n- **Language**: Use TypeScript.\n- *
 Input: "use that thing from before"
 Output: I'm not sure what you're referring to. Could you please clarify?`;
 }
+
+export function parseInstructionRefineResponse(responseText: string): {
+  success: boolean;
+  clarification?: string;
+  refinedInstruction?: string;
+  error?: string;
+} {
+  const instructionMatch = responseText.match(/<instruction>([\s\S]*?)<\/instruction>/);
+  if (instructionMatch) {
+    return { success: true, refinedInstruction: instructionMatch[1].trim() };
+  }
+
+  const trimmed = responseText.trim();
+  if (trimmed) {
+    return { success: true, clarification: trimmed };
+  }
+
+  return { success: false, error: 'Empty response' };
+}
