@@ -41,6 +41,7 @@ export interface ChatRuntime {
   consumeSessionInvalidation(): boolean;
   isReady(): boolean;
   getSupportedCommands(): Promise<SlashCommand[]>;
+  getAuxiliaryModel?(): string | null;
   cleanup(): void;
   rewind(userMessageId: string, assistantMessageId: string): Promise<ChatRewindResult>;
   setApprovalCallback(callback: ApprovalCallback | null): void;

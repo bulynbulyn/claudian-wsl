@@ -4,8 +4,8 @@ import * as os from 'os';
 import * as path from 'path';
 
 import type { ChatRewindResult } from '../../../core/runtime/types';
-import { createClaudePathMapper } from './ClaudePathMapper';
 import type { ClaudeExecutionTarget } from './claudeLaunchTypes';
+import { createClaudePathMapper } from './ClaudePathMapper';
 
 interface BackupEntryFile {
   originalPath: string;

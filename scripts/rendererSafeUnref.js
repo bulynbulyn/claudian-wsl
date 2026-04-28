@@ -1,7 +1,7 @@
 const UNSAFE_TIMER_UNREF_PATTERNS = [
   {
     name: 'claude-sdk-process-transport-close',
-    pattern: /if \(\$ && !\$\.killed && \$\.exitCode === null\) setTimeout\(\(X\) => \{\s*if \(X\.killed \|\| X\.exitCode !== null\) return;\s*X\.kill\("SIGTERM"\), setTimeout\(\(J\) => \{\s*if \(J\.exitCode === null\) J\.kill\("SIGKILL"\);\s*\}, 5e3, X\)\.unref\(\);\s*\}, M2, \$\)\.unref\(\), \$\.once\("exit", \(\) => mJ\.delete\(\$\)\);/g,
+    pattern: /if \(\$ && !\$\.killed && \$\.exitCode === null\) setTimeout\(\(X\) => \{\s*if \(X\.killed \|\| X\.exitCode !== null\) return;\s*X\.kill\("SIGTERM"\), setTimeout\(\(J\) => \{\s*if \(J\.exitCode === null\) J\.kill\("SIGKILL"\);\s*\}, 5e3, X\)\.unref\(\);\s*\}, ([A-Za-z_$][A-Za-z0-9_$]*), \$\)\.unref\(\), \$\.once\("exit", (\(\) => (?:\{[^{}]*\}|[^;{}]+))\);/g,
     replacement:
       'if ($ && !$.killed && $.exitCode === null) {' +
       '\n      const processKillTimer = setTimeout((X) => {' +
@@ -11,17 +11,17 @@ const UNSAFE_TIMER_UNREF_PATTERNS = [
       '\n          if (J.exitCode === null) J.kill("SIGKILL");' +
       '\n        }, 5e3, X);' +
       '\n        forceKillTimer.unref?.();' +
-      '\n      }, M2, $);' +
+      '\n      }, $1, $);' +
       '\n      processKillTimer.unref?.();' +
-      '\n      $.once("exit", () => mJ.delete($));' +
+      '\n      $.once("exit", $2);' +
       '\n    }',
   },
   {
     name: 'mcp-sdk-stdio-close-wait',
-    pattern: /new Promise\(\(resolve5\) => setTimeout\(resolve5, 2e3\)\.unref\(\)\)/g,
+    pattern: /new Promise\(\((resolve\d+)\) => setTimeout\(\1, 2e3\)\.unref\(\)\)/g,
     replacement:
-      'new Promise((resolve5) => {' +
-      '\n        const closeTimeout = setTimeout(resolve5, 2e3);' +
+      'new Promise(($1) => {' +
+      '\n        const closeTimeout = setTimeout($1, 2e3);' +
       '\n        closeTimeout.unref?.();' +
       '\n      })',
   },

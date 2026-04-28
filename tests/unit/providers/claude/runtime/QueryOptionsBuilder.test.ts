@@ -77,8 +77,7 @@ function createMockPersistentQueryConfig(
     settingSources: 'project',
     claudeCliPath: '/mock/claude',
     enableChrome: false,
-    installationMethod: 'native-windows',
-    wslDistroOverride: '',
+    enableAutoMode: false,
     ...overrides,
   };
 }
@@ -163,6 +162,12 @@ describe('QueryOptionsBuilder', () => {
       expect(QueryOptionsBuilder.needsRestart(currentConfig, newConfig)).toBe(true);
     });
 
+    it('returns true when enableAutoMode changes', () => {
+      const currentConfig = createMockPersistentQueryConfig();
+      const newConfig = { ...currentConfig, enableAutoMode: true };
+      expect(QueryOptionsBuilder.needsRestart(currentConfig, newConfig)).toBe(true);
+    });
+
     it('returns true when externalContextPaths changes', () => {
       const currentConfig = createMockPersistentQueryConfig();
       const newConfig = { ...currentConfig, externalContextPaths: ['/external/path'] };
@@ -185,24 +190,6 @@ describe('QueryOptionsBuilder', () => {
       const currentConfig = createMockPersistentQueryConfig({ externalContextPaths: ['/path/a', '/path/b'] });
       // Same paths, different order - should NOT require restart since sorted comparison
       const newConfig = { ...currentConfig, externalContextPaths: ['/path/b', '/path/a'] };
-      expect(QueryOptionsBuilder.needsRestart(currentConfig, newConfig)).toBe(false);
-    });
-
-    it('returns true when switching to bypassPermissions (yolo mode)', () => {
-      const currentConfig = createMockPersistentQueryConfig({ sdkPermissionMode: 'acceptEdits' });
-      const newConfig = { ...currentConfig, sdkPermissionMode: 'bypassPermissions' as const };
-      expect(QueryOptionsBuilder.needsRestart(currentConfig, newConfig)).toBe(true);
-    });
-
-    it('returns true when switching from bypassPermissions to normal mode', () => {
-      const currentConfig = createMockPersistentQueryConfig({ sdkPermissionMode: 'bypassPermissions' as const });
-      const newConfig = { ...currentConfig, sdkPermissionMode: 'acceptEdits' as const };
-      expect(QueryOptionsBuilder.needsRestart(currentConfig, newConfig)).toBe(true);
-    });
-
-    it('returns false when switching between non-bypass permission modes', () => {
-      const currentConfig = createMockPersistentQueryConfig({ sdkPermissionMode: 'acceptEdits' });
-      const newConfig = { ...currentConfig, sdkPermissionMode: 'default' as const };
       expect(QueryOptionsBuilder.needsRestart(currentConfig, newConfig)).toBe(false);
     });
   });
@@ -228,6 +215,28 @@ describe('QueryOptionsBuilder', () => {
 
       expect(config.permissionMode).toBe('normal');
       expect(config.sdkPermissionMode).toBe('default');
+    });
+
+    it('tracks auto sdkPermissionMode for Claude safe mode', () => {
+      const ctx = createMockContext({
+        settings: createMockSettings({ permissionMode: 'normal', claudeSafeMode: 'auto' }),
+      });
+      const config = QueryOptionsBuilder.buildPersistentQueryConfig(ctx);
+
+      expect(config.permissionMode).toBe('normal');
+      expect(config.sdkPermissionMode).toBe('auto');
+      expect(config.enableAutoMode).toBe(true);
+    });
+
+    it('enables auto mode startup capability whenever Claude safe mode is auto', () => {
+      const ctx = createMockContext({
+        settings: createMockSettings({ permissionMode: 'yolo', claudeSafeMode: 'auto' }),
+      });
+      const config = QueryOptionsBuilder.buildPersistentQueryConfig(ctx);
+
+      expect(config.permissionMode).toBe('yolo');
+      expect(config.sdkPermissionMode).toBe('bypassPermissions');
+      expect(config.enableAutoMode).toBe(true);
     });
 
     it('includes thinking tokens when budget is set', () => {
@@ -354,6 +363,35 @@ describe('QueryOptionsBuilder', () => {
       expect(options.allowDangerouslySkipPermissions).toBe(true);
     });
 
+    it('resolves claudeSafeMode "auto" when permissionMode is normal', () => {
+      const ctx = {
+        ...createMockContext({
+          settings: createMockSettings({ permissionMode: 'normal', claudeSafeMode: 'auto' }),
+        }),
+        abortController: new AbortController(),
+        hooks: {},
+      };
+      const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
+
+      expect(options.permissionMode).toBe('auto');
+      expect(options.allowDangerouslySkipPermissions).toBe(true);
+      expect(options.extraArgs).toEqual({ 'enable-auto-mode': null });
+    });
+
+    it('passes auto mode opt-in whenever Claude safe mode is auto', () => {
+      const ctx = {
+        ...createMockContext({
+          settings: createMockSettings({ permissionMode: 'yolo', claudeSafeMode: 'auto' }),
+        }),
+        abortController: new AbortController(),
+        hooks: {},
+      };
+      const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
+
+      expect(options.permissionMode).toBe('bypassPermissions');
+      expect(options.extraArgs).toEqual({ 'enable-auto-mode': null });
+    });
+
     it('ignores claudeSafeMode when permissionMode is yolo', () => {
       const ctx = {
         ...createMockContext({
@@ -451,6 +489,19 @@ describe('QueryOptionsBuilder', () => {
 
       expect(options.extraArgs).toBeDefined();
       expect(options.extraArgs).toEqual({ chrome: null });
+    });
+
+    it('sets extraArgs with chrome and auto mode flags when both are enabled', () => {
+      const ctx = {
+        ...createMockContext({
+          settings: createMockSettings({ enableChrome: true, claudeSafeMode: 'auto' }),
+        }),
+        abortController: new AbortController(),
+        hooks: {},
+      };
+      const options = QueryOptionsBuilder.buildPersistentQueryOptions(ctx);
+
+      expect(options.extraArgs).toEqual({ 'enable-auto-mode': null, chrome: null });
     });
 
     it('does not set extraArgs when enableChrome is disabled', () => {
@@ -648,6 +699,20 @@ describe('QueryOptionsBuilder', () => {
 
       expect(options.extraArgs).toBeDefined();
       expect(options.extraArgs).toEqual({ chrome: null });
+    });
+
+    it('sets extraArgs with auto mode flag when Claude safe mode is auto', () => {
+      const ctx = {
+        ...createMockContext({
+          settings: createMockSettings({ claudeSafeMode: 'auto' }),
+        }),
+        abortController: new AbortController(),
+        hooks: {},
+        hasEditorContext: false,
+      };
+      const options = QueryOptionsBuilder.buildColdStartQueryOptions(ctx);
+
+      expect(options.extraArgs).toEqual({ 'enable-auto-mode': null });
     });
 
     it('does not set extraArgs when enableChrome is disabled', () => {

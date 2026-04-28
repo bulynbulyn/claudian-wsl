@@ -4,7 +4,7 @@ import type { SDKToolUseResult, StreamChunk, UsageInfo } from '../../../core/typ
 import { isBlockedMessage } from '../sdk/messages';
 import { extractToolResultContent } from '../sdk/toolResultContent';
 import type { TransformEvent } from '../sdk/types';
-import { getContextWindowSize } from '../types/models';
+import { getContextWindowSize, isDefaultClaudeModel } from '../types/models';
 import { createTransformStreamState, type TransformStreamState } from './toolInputStreamState';
 
 type ToolUseFields = { id: string; name: string; input: Record<string, unknown> };
@@ -40,12 +40,30 @@ export interface TransformOptions {
   customContextLimits?: Record<string, number>;
   /** Tracks active streamed tool blocks so input_json_delta can be normalized. */
   streamState?: TransformStreamState;
+  /** Tracks prompt-token usage across Anthropic-compatible stream events. */
+  usageState?: TransformUsageState;
 }
 
-interface MessageUsage {
+export interface MessageUsage {
   input_tokens?: number;
+  output_tokens?: number;
   cache_creation_input_tokens?: number;
   cache_read_input_tokens?: number;
+}
+
+interface PromptUsageSnapshot {
+  inputTokens: number;
+  cacheCreationInputTokens: number;
+  cacheReadInputTokens: number;
+  contextTokens: number;
+}
+
+export interface TransformUsageState {
+  clear(): void;
+  mergePromptUsage(usage: MessageUsage): PromptUsageSnapshot;
+  getPromptUsage(): PromptUsageSnapshot;
+  hasEmitted(promptUsage: PromptUsageSnapshot): boolean;
+  markEmitted(promptUsage: PromptUsageSnapshot): void;
 }
 
 interface ContextWindowEntry {
@@ -53,36 +71,85 @@ interface ContextWindowEntry {
   contextWindow: number;
 }
 
+interface ClaudeModelSignature {
+  normalizedModel: string;
+  family: 'haiku' | 'sonnet' | 'opus';
+  is1M: boolean;
+  major?: string;
+  minor?: string;
+  date?: string;
+}
+
 function isResultError(message: { type: 'result'; subtype: string }): message is SDKResultError {
   return !!message.subtype && message.subtype !== 'success';
 }
 
-function getBuiltInModelSignature(model: string): { family: 'haiku' | 'sonnet' | 'opus'; is1M: boolean } | null {
+function normalizeClaudeModelId(model: string): string {
   const normalized = model.trim().toLowerCase();
+  const claudeIndex = normalized.indexOf('claude-');
+  return claudeIndex >= 0 ? normalized.slice(claudeIndex) : normalized;
+}
+
+function parseClaudeModelSignature(model: string): ClaudeModelSignature | null {
+  const normalized = normalizeClaudeModelId(model);
   if (normalized === 'haiku') {
-    return { family: 'haiku', is1M: false };
+    return { normalizedModel: normalized, family: 'haiku', is1M: false };
   }
   if (normalized === 'sonnet' || normalized === 'sonnet[1m]') {
-    return { family: 'sonnet', is1M: normalized.endsWith('[1m]') };
+    return { normalizedModel: normalized, family: 'sonnet', is1M: normalized.endsWith('[1m]') };
   }
   if (normalized === 'opus' || normalized === 'opus[1m]') {
-    return { family: 'opus', is1M: normalized.endsWith('[1m]') };
+    return { normalizedModel: normalized, family: 'opus', is1M: normalized.endsWith('[1m]') };
   }
+
+  const versionedMatch = normalized.match(
+    /^claude-(haiku|sonnet|opus)-(\d+)(?:-(\d+))?(?:-(\d{8}))?(?:-v\d+:\d+)?(\[1m\])?$/,
+  );
+  if (versionedMatch) {
+    const [, familyMatch, major, minor, date, oneMillionSuffix] = versionedMatch;
+    const family = familyMatch as ClaudeModelSignature['family'];
+    return {
+      normalizedModel: normalized,
+      family,
+      is1M: oneMillionSuffix === '[1m]',
+      major,
+      minor,
+      date,
+    };
+  }
+
   return null;
 }
 
-function getModelUsageSignature(model: string): { family: 'haiku' | 'sonnet' | 'opus'; is1M: boolean } | null {
-  const normalized = model.trim().toLowerCase();
-  if (normalized.includes('haiku')) {
-    return { family: 'haiku', is1M: false };
+function findUniqueEntry(
+  entries: ContextWindowEntry[],
+  predicate: (entry: ContextWindowEntry) => boolean,
+): ContextWindowEntry | null {
+  const matches = entries.filter(predicate);
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function matchClaudeModelSignature(
+  entrySignature: ClaudeModelSignature | null,
+  intendedSignature: ClaudeModelSignature,
+  options?: { ignoreIs1M?: boolean },
+): boolean {
+  if (!entrySignature || entrySignature.family !== intendedSignature.family) {
+    return false;
   }
-  if (normalized.includes('sonnet')) {
-    return { family: 'sonnet', is1M: normalized.endsWith('[1m]') };
+  if (!options?.ignoreIs1M && entrySignature.is1M !== intendedSignature.is1M) {
+    return false;
   }
-  if (normalized.includes('opus')) {
-    return { family: 'opus', is1M: normalized.endsWith('[1m]') };
+  if (intendedSignature.major && entrySignature.major !== intendedSignature.major) {
+    return false;
   }
-  return null;
+  if (intendedSignature.minor && entrySignature.minor !== intendedSignature.minor) {
+    return false;
+  }
+  if (intendedSignature.date && entrySignature.date !== intendedSignature.date) {
+    return false;
+  }
+  return true;
 }
 
 function selectContextWindowEntry(
@@ -108,22 +175,162 @@ function selectContextWindowEntry(
     return null;
   }
 
-  const exactMatches = entries.filter((entry) => entry.model === intendedModel);
-  if (exactMatches.length === 1) {
-    return exactMatches[0];
+  const literalExactMatch = entries.find((entry) => entry.model === intendedModel);
+  if (literalExactMatch) {
+    return literalExactMatch;
   }
 
-  const intendedSignature = getBuiltInModelSignature(intendedModel);
+  const normalizedIntendedModel = normalizeClaudeModelId(intendedModel);
+  const exactMatch = findUniqueEntry(entries, (entry) => normalizeClaudeModelId(entry.model) === normalizedIntendedModel);
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  if (!isDefaultClaudeModel(intendedModel)) {
+    return null;
+  }
+
+  const intendedSignature = parseClaudeModelSignature(intendedModel);
   if (!intendedSignature) {
     return null;
   }
 
-  const signatureMatches = entries.filter((entry) => {
-    const entrySignature = getModelUsageSignature(entry.model);
-    return entrySignature?.family === intendedSignature.family && entrySignature.is1M === intendedSignature.is1M;
-  });
+  const strictSignatureMatch = findUniqueEntry(entries, (entry) =>
+    matchClaudeModelSignature(parseClaudeModelSignature(entry.model), intendedSignature),
+  );
+  if (strictSignatureMatch) {
+    return strictSignatureMatch;
+  }
 
-  return signatureMatches.length === 1 ? signatureMatches[0] : null;
+  const hasVersionedTarget = Boolean(intendedSignature.major || intendedSignature.date);
+  if (!hasVersionedTarget) {
+    return null;
+  }
+
+  return findUniqueEntry(entries, (entry) =>
+    matchClaudeModelSignature(parseClaudeModelSignature(entry.model), intendedSignature, { ignoreIs1M: true }),
+  );
+}
+
+const EMPTY_PROMPT_USAGE: PromptUsageSnapshot = {
+  inputTokens: 0,
+  cacheCreationInputTokens: 0,
+  cacheReadInputTokens: 0,
+  contextTokens: 0,
+};
+
+function normalizeTokenCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function hasPromptUsageField(usage: unknown): usage is MessageUsage {
+  if (!usage || typeof usage !== 'object' || Array.isArray(usage)) {
+    return false;
+  }
+
+  const record = usage as Record<string, unknown>;
+  return typeof record.input_tokens === 'number'
+    || typeof record.cache_creation_input_tokens === 'number'
+    || typeof record.cache_read_input_tokens === 'number';
+}
+
+function toPromptUsageSnapshot(usage: MessageUsage): PromptUsageSnapshot {
+  const inputTokens = normalizeTokenCount(usage.input_tokens);
+  const cacheCreationInputTokens = normalizeTokenCount(usage.cache_creation_input_tokens);
+  const cacheReadInputTokens = normalizeTokenCount(usage.cache_read_input_tokens);
+  return {
+    inputTokens,
+    cacheCreationInputTokens,
+    cacheReadInputTokens,
+    contextTokens: inputTokens + cacheCreationInputTokens + cacheReadInputTokens,
+  };
+}
+
+function mergePromptUsage(
+  current: PromptUsageSnapshot,
+  usage: MessageUsage,
+): PromptUsageSnapshot {
+  const next = toPromptUsageSnapshot(usage);
+  const inputTokens = Math.max(current.inputTokens, next.inputTokens);
+  const cacheCreationInputTokens = Math.max(current.cacheCreationInputTokens, next.cacheCreationInputTokens);
+  const cacheReadInputTokens = Math.max(current.cacheReadInputTokens, next.cacheReadInputTokens);
+  return {
+    inputTokens,
+    cacheCreationInputTokens,
+    cacheReadInputTokens,
+    contextTokens: inputTokens + cacheCreationInputTokens + cacheReadInputTokens,
+  };
+}
+
+function samePromptUsage(a: PromptUsageSnapshot, b: PromptUsageSnapshot): boolean {
+  return a.inputTokens === b.inputTokens
+    && a.cacheCreationInputTokens === b.cacheCreationInputTokens
+    && a.cacheReadInputTokens === b.cacheReadInputTokens
+    && a.contextTokens === b.contextTokens;
+}
+
+function buildUsageInfo(promptUsage: PromptUsageSnapshot, options?: TransformOptions): UsageInfo {
+  const model = options?.intendedModel ?? 'sonnet';
+  const contextWindow = getContextWindowSize(model, options?.customContextLimits);
+  const percentage = Math.min(100, Math.max(0, Math.round((promptUsage.contextTokens / contextWindow) * 100)));
+
+  return {
+    model,
+    inputTokens: promptUsage.inputTokens,
+    cacheCreationInputTokens: promptUsage.cacheCreationInputTokens,
+    cacheReadInputTokens: promptUsage.cacheReadInputTokens,
+    contextWindow,
+    contextTokens: promptUsage.contextTokens,
+    percentage,
+  };
+}
+
+export function createTransformUsageState(): TransformUsageState {
+  let promptUsage: PromptUsageSnapshot = { ...EMPTY_PROMPT_USAGE };
+  let lastEmittedPromptUsage: PromptUsageSnapshot | null = null;
+
+  return {
+    clear(): void {
+      promptUsage = { ...EMPTY_PROMPT_USAGE };
+      lastEmittedPromptUsage = null;
+    },
+
+    mergePromptUsage(usage: MessageUsage): PromptUsageSnapshot {
+      promptUsage = mergePromptUsage(promptUsage, usage);
+      return promptUsage;
+    },
+
+    getPromptUsage(): PromptUsageSnapshot {
+      return { ...promptUsage };
+    },
+
+    hasEmitted(nextPromptUsage: PromptUsageSnapshot): boolean {
+      return lastEmittedPromptUsage !== null && samePromptUsage(lastEmittedPromptUsage, nextPromptUsage);
+    },
+
+    markEmitted(nextPromptUsage: PromptUsageSnapshot): void {
+      lastEmittedPromptUsage = { ...nextPromptUsage };
+    },
+  };
+}
+
+function maybeEmitUsageFromPromptUsage(
+  promptUsage: PromptUsageSnapshot,
+  options?: TransformOptions,
+  behavior: { emitZeroUsage?: boolean } = {},
+): StreamChunk | null {
+  if (promptUsage.contextTokens <= 0) {
+    return behavior.emitZeroUsage
+      ? { type: 'usage', usage: buildUsageInfo(promptUsage, options) }
+      : null;
+  }
+
+  if (options?.usageState?.hasEmitted(promptUsage)) {
+    return null;
+  }
+
+  options?.usageState?.markEmitted(promptUsage);
+  return { type: 'usage', usage: buildUsageInfo(promptUsage, options) };
 }
 
 /**
@@ -182,25 +389,15 @@ export function* transformSDKMessage(
       // This gives accurate per-turn context usage without subagent token pollution
       const usage = (message.message as { usage?: MessageUsage } | undefined)?.usage;
       if (parentToolUseId === null && usage) {
-        const inputTokens = usage.input_tokens ?? 0;
-        const cacheCreationInputTokens = usage.cache_creation_input_tokens ?? 0;
-        const cacheReadInputTokens = usage.cache_read_input_tokens ?? 0;
-        const contextTokens = inputTokens + cacheCreationInputTokens + cacheReadInputTokens;
-
-        const model = options?.intendedModel ?? 'sonnet';
-        const contextWindow = getContextWindowSize(model, options?.customContextLimits);
-        const percentage = Math.min(100, Math.max(0, Math.round((contextTokens / contextWindow) * 100)));
-
-        const usageInfo: UsageInfo = {
-          model,
-          inputTokens,
-          cacheCreationInputTokens,
-          cacheReadInputTokens,
-          contextWindow,
-          contextTokens,
-          percentage,
-        };
-        yield { type: 'usage', usage: usageInfo };
+        if (options?.usageState) {
+          const promptUsage = options.usageState.mergePromptUsage(usage);
+          const usageChunk = maybeEmitUsageFromPromptUsage(promptUsage, options, { emitZeroUsage: true });
+          if (usageChunk) {
+            yield usageChunk;
+          }
+        } else {
+          yield { type: 'usage', usage: buildUsageInfo(toPromptUsageSnapshot(usage), options) };
+        }
       }
       break;
     }
@@ -247,7 +444,38 @@ export function* transformSDKMessage(
     case 'stream_event': {
       const parentToolUseId = message.parent_tool_use_id ?? null;
       const event = message.event;
-      if (event?.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
+      if (parentToolUseId === null && event?.type === 'message_start') {
+        options?.usageState?.clear();
+        const usage = (event.message as { usage?: MessageUsage } | undefined)?.usage;
+        if (usage && hasPromptUsageField(usage)) {
+          if (options?.usageState) {
+            options.usageState.mergePromptUsage(usage);
+          } else {
+            const usageChunk = maybeEmitUsageFromPromptUsage(toPromptUsageSnapshot(usage), options);
+            if (usageChunk) {
+              yield usageChunk;
+            }
+          }
+        }
+      } else if (parentToolUseId === null && event?.type === 'message_delta' && hasPromptUsageField(event.usage)) {
+        if (options?.usageState) {
+          const previousPromptUsage = options.usageState.getPromptUsage();
+          const promptUsage = options.usageState.mergePromptUsage(event.usage);
+          const shouldEmitDeltaUsage = previousPromptUsage.contextTokens <= 0
+            || options.usageState.hasEmitted(previousPromptUsage);
+          if (shouldEmitDeltaUsage) {
+            const usageChunk = maybeEmitUsageFromPromptUsage(promptUsage, options);
+            if (usageChunk) {
+              yield usageChunk;
+            }
+          }
+        } else {
+          const usageChunk = maybeEmitUsageFromPromptUsage(toPromptUsageSnapshot(event.usage), options);
+          if (usageChunk) {
+            yield usageChunk;
+          }
+        }
+      } else if (event?.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
         const toolUseFields: ToolUseFields = {
           id: event.content_block.id || `tool-${Date.now()}`,
           name: event.content_block.name || 'unknown',
@@ -288,6 +516,13 @@ export function* transformSDKMessage(
 
     case 'result':
       options?.streamState?.clearAll();
+      if (options?.usageState) {
+        const usageChunk = maybeEmitUsageFromPromptUsage(options.usageState.getPromptUsage(), options);
+        if (usageChunk) {
+          yield usageChunk;
+        }
+        options.usageState.clear();
+      }
       if (isResultError(message)) {
         const content = message.errors.filter((e) => e.trim().length > 0).join('\n');
         yield {

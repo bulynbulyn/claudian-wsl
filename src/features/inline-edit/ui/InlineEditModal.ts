@@ -298,6 +298,12 @@ class InlineEditController {
       ?? activeTab?.providerId
       ?? DEFAULT_CHAT_PROVIDER_ID;
     this.inlineEditService = ProviderRegistry.createInlineEditService(plugin, providerId);
+    const auxiliaryModel = activeTab?.service?.providerId === providerId
+      ? activeTab.service.getAuxiliaryModel?.()
+      : activeTab?.providerId === providerId
+      ? activeTab?.draftModel
+      : null;
+    this.inlineEditService.setModelOverride?.(auxiliaryModel ?? undefined);
     this.resolvedProviderId = providerId;
     this.mentionDataProvider = new VaultMentionDataProvider(this.app, {
       onFileLoadError: () => {

@@ -106,6 +106,7 @@ describe('types.ts', () => {
         savedProviderEffort: {},
         savedProviderServiceTier: {},
         savedProviderThinkingBudget: {},
+        savedProviderPermissionMode: {},
       };
 
       expect(settings.permissionMode).toBe('yolo');
@@ -156,6 +157,7 @@ describe('types.ts', () => {
         savedProviderEffort: {},
         savedProviderServiceTier: {},
         savedProviderThinkingBudget: {},
+        savedProviderPermissionMode: {},
       };
 
       expect(settings.model).toBe('anthropic/custom-model-v1');
@@ -207,6 +209,7 @@ describe('types.ts', () => {
         savedProviderEffort: {},
         savedProviderServiceTier: {},
         savedProviderThinkingBudget: {},
+        savedProviderPermissionMode: {},
       };
 
       expect(settings.lastClaudeModel).toBe('opus');
@@ -598,6 +601,12 @@ describe('types.ts', () => {
         expect(getContextWindowSize('sonnet[1m]')).toBe(CONTEXT_WINDOW_1M);
       });
 
+      it('should treat [1M] and [1m] suffixes equivalently', () => {
+        expect(getContextWindowSize('opus[1M]')).toBe(CONTEXT_WINDOW_1M);
+        expect(getContextWindowSize('claude-opus-4-6[1M]')).toBe(CONTEXT_WINDOW_1M);
+        expect(getContextWindowSize('claude-sonnet-4-6[1M]')).toBe(CONTEXT_WINDOW_1M);
+      });
+
       it('should return 1M for full model IDs with [1m] suffix', () => {
         expect(getContextWindowSize('claude-opus-4-6[1m]')).toBe(CONTEXT_WINDOW_1M);
         expect(getContextWindowSize('claude-sonnet-4-6[1m]')).toBe(CONTEXT_WINDOW_1M);
@@ -606,6 +615,11 @@ describe('types.ts', () => {
       it('should prefer custom limits over [1m] suffix', () => {
         const customLimits = { 'opus[1m]': 500000 };
         expect(getContextWindowSize('opus[1m]', customLimits)).toBe(500000);
+      });
+
+      it('should match custom limits case-insensitively for [1M] suffixes', () => {
+        const customLimits = { 'claude-opus-4-6[1m]': 500000 };
+        expect(getContextWindowSize('claude-opus-4-6[1M]', customLimits)).toBe(500000);
       });
 
       it('should return standard for models without [1m] suffix', () => {
@@ -644,6 +658,11 @@ describe('types.ts', () => {
         expect(normalizeVisibleModelVariant('opus[1m]', false, true)).toBe('opus');
       });
 
+      it('should normalize built-in variants regardless of 1M suffix casing', () => {
+        expect(normalizeVisibleModelVariant('sonnet[1M]', false, false)).toBe('sonnet');
+        expect(normalizeVisibleModelVariant('opus[1M]', true, false)).toBe('opus[1m]');
+      });
+
       it('should leave unrelated model ids unchanged', () => {
         expect(normalizeVisibleModelVariant('', true, true)).toBe('');
         expect(normalizeVisibleModelVariant('haiku', true, true)).toBe('haiku');
@@ -659,6 +678,7 @@ describe('types.ts', () => {
       expect(isAdaptiveThinkingModel('sonnet[1m]')).toBe(true);
       expect(isAdaptiveThinkingModel('opus')).toBe(true);
       expect(isAdaptiveThinkingModel('opus[1m]')).toBe(true);
+      expect(isAdaptiveThinkingModel('opus[1M]')).toBe(true);
     });
 
     it('should return true for full Claude model IDs', () => {
@@ -688,6 +708,40 @@ describe('types.ts', () => {
     it('should return true for full versioned 1M model IDs', () => {
       expect(isAdaptiveThinkingModel('claude-opus-4-6[1m]')).toBe(true);
       expect(isAdaptiveThinkingModel('claude-sonnet-4-6[1m]')).toBe(true);
+      expect(isAdaptiveThinkingModel('claude-opus-4-6[1M]')).toBe(true);
+    });
+  });
+
+  describe('supportsXHighEffort', () => {
+    it('returns true for opus aliases and 4.7+ opus ids', () => {
+      expect(supportsXHighEffort('opus')).toBe(true);
+      expect(supportsXHighEffort('opus[1m]')).toBe(true);
+      expect(supportsXHighEffort('opus[1M]')).toBe(true);
+      expect(supportsXHighEffort('claude-opus-4-7')).toBe(true);
+      expect(supportsXHighEffort('claude-opus-5')).toBe(true);
+    });
+
+    it('returns false for non-opus models and older opus ids', () => {
+      expect(supportsXHighEffort('sonnet')).toBe(false);
+      expect(supportsXHighEffort('claude-sonnet-4-5')).toBe(false);
+      expect(supportsXHighEffort('claude-opus-4-6')).toBe(false);
+    });
+  });
+
+  describe('normalizeEffortLevel', () => {
+    it('preserves supported effort levels', () => {
+      expect(normalizeEffortLevel('claude-opus-4-7', 'xhigh')).toBe('xhigh');
+      expect(normalizeEffortLevel('claude-sonnet-4-5', 'max')).toBe('max');
+    });
+
+    it('clamps unsupported xhigh values to the model default', () => {
+      expect(normalizeEffortLevel('claude-sonnet-4-5', 'xhigh')).toBe('high');
+      expect(normalizeEffortLevel('haiku', 'xhigh')).toBe('high');
+    });
+
+    it('falls back to high for unknown or missing effort values', () => {
+      expect(normalizeEffortLevel('claude-sonnet-4-5', 'invalid')).toBe('high');
+      expect(normalizeEffortLevel('claude-sonnet-4-5', undefined)).toBe('high');
     });
   });
 

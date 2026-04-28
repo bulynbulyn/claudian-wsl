@@ -18,6 +18,7 @@ function createTabBarItem(overrides: Partial<TabBarItem> = {}): TabBarItem {
     id: 'tab-1',
     index: 1,
     title: 'Test Tab',
+    providerId: 'claude',
     isActive: false,
     isStreaming: false,
     needsAttention: false,
@@ -99,6 +100,16 @@ describe('TabBar', () => {
       expect(containerEl._children[0].getAttribute('aria-label')).toBe('My Conversation');
       // title attribute is intentionally omitted to prevent double tooltip
       expect(containerEl._children[0].getAttribute('title')).toBeNull();
+    });
+
+    it('should set a provider attribute for per-tab streaming colors', () => {
+      const containerEl = createMockEl();
+      const callbacks = createMockCallbacks();
+      const tabBar = new TabBar(containerEl, callbacks);
+
+      tabBar.update([createTabBarItem({ providerId: 'opencode' })]);
+
+      expect(containerEl._children[0].getAttribute('data-provider')).toBe('opencode');
     });
   });
 

@@ -2,7 +2,8 @@ import { getProviderConfig, setProviderConfig } from '../../core/providers/provi
 import { getProviderEnvironmentVariables } from '../../core/providers/providerEnvironment';
 import type { HostnameCliPaths } from '../../core/types/settings';
 
-export type ClaudeSafeMode = 'acceptEdits' | 'default';
+export const CLAUDE_SAFE_MODES = ['acceptEdits', 'auto', 'default'] as const;
+export type ClaudeSafeMode = typeof CLAUDE_SAFE_MODES[number];
 export type ClaudeInstallationMethod = 'native-windows' | 'wsl';
 export type HostnameInstallationMethods = Record<string, ClaudeInstallationMethod>;
 
@@ -81,6 +82,12 @@ function normalizeInstallationMethodsByHost(value: unknown): HostnameInstallatio
   return result;
 }
 
+function normalizeClaudeSafeMode(value: unknown): ClaudeSafeMode | undefined {
+  return (CLAUDE_SAFE_MODES as readonly unknown[]).includes(value)
+    ? value as ClaudeSafeMode
+    : undefined;
+}
+
 export function getClaudeProviderSettings(
   settings: Record<string, unknown>,
 ): ClaudeProviderSettings {
@@ -89,8 +96,8 @@ export function getClaudeProviderSettings(
   const wslDistroOverridesByHost = normalizeHostnameCliPaths(config.wslDistroOverridesByHost);
 
   return {
-    safeMode: (config.safeMode as ClaudeSafeMode | undefined)
-      ?? (settings.claudeSafeMode as ClaudeSafeMode | undefined)
+    safeMode: normalizeClaudeSafeMode(config.safeMode)
+      ?? normalizeClaudeSafeMode(settings.claudeSafeMode)
       ?? DEFAULT_CLAUDE_PROVIDER_SETTINGS.safeMode,
     cliPath: (config.cliPath as string | undefined)
       ?? (settings.claudeCliPath as string | undefined)
@@ -139,9 +146,13 @@ export function updateClaudeProviderSettings(
   settings: Record<string, unknown>,
   updates: Partial<ClaudeProviderSettings>,
 ): ClaudeProviderSettings {
+  const current = getClaudeProviderSettings(settings);
   const next = {
-    ...getClaudeProviderSettings(settings),
+    ...current,
     ...updates,
+    safeMode: 'safeMode' in updates
+      ? normalizeClaudeSafeMode(updates.safeMode) ?? current.safeMode
+      : current.safeMode,
   };
   setProviderConfig(settings, 'claude', next);
   return next;

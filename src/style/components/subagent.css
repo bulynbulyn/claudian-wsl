@@ -47,12 +47,6 @@
   color: var(--text-normal);
 }
 
-.claudian-subagent-count {
-  font-size: 11px;
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
 .claudian-subagent-status {
   display: flex;
   align-items: center;

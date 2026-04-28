@@ -4,6 +4,7 @@ import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderSettingsCoordinator } from '@/core/providers/ProviderSettingsCoordinator';
 import type { Conversation } from '@/core/types';
 import { DEFAULT_CLAUDE_PROVIDER_SETTINGS } from '@/providers/claude/settings';
+import { DEFAULT_CODEX_PRIMARY_MODEL } from '@/providers/codex/types/models';
 
 describe('ProviderSettingsCoordinator', () => {
   describe('normalizeProviderSelection', () => {
@@ -87,6 +88,21 @@ describe('ProviderSettingsCoordinator', () => {
       const result = ProviderSettingsCoordinator.normalizeAllModelVariants(settings);
       expect(typeof result).toBe('boolean');
     });
+
+    it('migrates the active Codex primary model when an older built-in value is persisted', () => {
+      const settings: Record<string, unknown> = {
+        settingsProvider: 'codex',
+        model: 'gpt-5.4',
+        providerConfigs: {
+          codex: { enabled: true },
+        },
+        savedProviderModel: { codex: 'gpt-5.4' },
+      };
+
+      expect(ProviderSettingsCoordinator.normalizeAllModelVariants(settings)).toBe(true);
+      expect(settings.model).toBe(DEFAULT_CODEX_PRIMARY_MODEL);
+      expect(settings.savedProviderModel).toEqual({ codex: DEFAULT_CODEX_PRIMARY_MODEL });
+    });
   });
 
   describe('reconcileTitleGenerationModelSelection', () => {
@@ -123,6 +139,23 @@ describe('ProviderSettingsCoordinator', () => {
       ).toBe(true);
       expect(settings.titleGenerationModel).toBe('');
     });
+
+    it('keeps Codex custom title models while they are still available', () => {
+      const settings: Record<string, unknown> = {
+        titleGenerationModel: 'my-custom-model',
+        providerConfigs: {
+          codex: {
+            enabled: true,
+            customModels: 'my-custom-model',
+          },
+        },
+      };
+
+      expect(
+        ProviderSettingsCoordinator.reconcileTitleGenerationModelSelection(settings),
+      ).toBe(false);
+      expect(settings.titleGenerationModel).toBe('my-custom-model');
+    });
   });
 
   describe('projectActiveProviderState', () => {
@@ -132,22 +165,47 @@ describe('ProviderSettingsCoordinator', () => {
         providerConfigs: {
           codex: { enabled: true },
         },
+        permissionMode: 'yolo',
         model: 'haiku',
         effortLevel: 'high',
         serviceTier: 'default',
         thinkingBudget: 'off',
-        savedProviderModel: { codex: 'gpt-5.4', claude: 'haiku' },
+        savedProviderModel: { codex: DEFAULT_CODEX_PRIMARY_MODEL, claude: 'haiku' },
         savedProviderEffort: { codex: 'medium', claude: 'high' },
         savedProviderServiceTier: { codex: 'fast', claude: 'default' },
         savedProviderThinkingBudget: { codex: '1024', claude: 'off' },
+        savedProviderPermissionMode: { codex: 'normal', claude: 'yolo' },
       };
 
       ProviderSettingsCoordinator.projectActiveProviderState(settings);
 
-      expect(settings.model).toBe('gpt-5.4');
+      expect(settings.model).toBe(DEFAULT_CODEX_PRIMARY_MODEL);
       expect(settings.effortLevel).toBe('medium');
       expect(settings.serviceTier).toBe('fast');
       expect(settings.thinkingBudget).toBe('1024');
+      expect(settings.permissionMode).toBe('normal');
+    });
+
+    it('migrates a saved legacy Codex model before projecting provider state', () => {
+      const settings: Record<string, unknown> = {
+        settingsProvider: 'claude',
+        model: 'haiku',
+        effortLevel: 'high',
+        serviceTier: 'default',
+        thinkingBudget: 'off',
+        providerConfigs: {
+          codex: { enabled: true },
+        },
+        savedProviderModel: { claude: 'haiku', codex: 'gpt-5.4' },
+        savedProviderEffort: { claude: 'high', codex: 'medium' },
+        savedProviderServiceTier: { claude: 'default', codex: 'fast' },
+        savedProviderThinkingBudget: { claude: 'off', codex: 'off' },
+      };
+
+      const snapshot = ProviderSettingsCoordinator.getProviderSettingsSnapshot(settings, 'codex');
+
+      expect(snapshot.model).toBe(DEFAULT_CODEX_PRIMARY_MODEL);
+      expect(snapshot.serviceTier).toBe('fast');
     });
 
     it('defaults to claude when settingsProvider is not set', () => {
@@ -232,7 +290,8 @@ describe('ProviderSettingsCoordinator', () => {
         providerConfigs: {
           codex: { enabled: true },
         },
-        model: 'gpt-5.4',
+        permissionMode: 'normal',
+        model: DEFAULT_CODEX_PRIMARY_MODEL,
         effortLevel: 'low',
         serviceTier: 'fast',
         thinkingBudget: 'off',
@@ -240,13 +299,14 @@ describe('ProviderSettingsCoordinator', () => {
         savedProviderEffort: { claude: 'high' },
         savedProviderServiceTier: { claude: 'default' },
         savedProviderThinkingBudget: { claude: 'off' },
+        savedProviderPermissionMode: { claude: 'yolo' },
       };
 
       ProviderSettingsCoordinator.persistProjectedProviderState(settings);
 
       expect(settings.savedProviderModel).toEqual({
         claude: 'haiku',
-        codex: 'gpt-5.4',
+        codex: DEFAULT_CODEX_PRIMARY_MODEL,
       });
       expect(settings.savedProviderEffort).toEqual({
         claude: 'high',
@@ -255,6 +315,10 @@ describe('ProviderSettingsCoordinator', () => {
       expect(settings.savedProviderServiceTier).toEqual({
         claude: 'default',
         codex: 'fast',
+      });
+      expect(settings.savedProviderPermissionMode).toEqual({
+        claude: 'yolo',
+        codex: 'normal',
       });
     });
   });
@@ -310,6 +374,58 @@ describe('ProviderSettingsCoordinator', () => {
       expect(settings.model).toBe('gpt-5.4-mini');
       expect(settings.serviceTier).toBe('fast');
     });
+
+    it('derives OpenCode permission mode from the managed selected mode when no provider snapshot exists yet', () => {
+      const settings: Record<string, unknown> = {
+        settingsProvider: 'claude',
+        permissionMode: 'yolo',
+        providerConfigs: {
+          opencode: {
+            enabled: true,
+            selectedMode: 'claudian-safe',
+          },
+        },
+        model: 'haiku',
+        effortLevel: 'high',
+        serviceTier: 'default',
+        thinkingBudget: 'off',
+        savedProviderModel: {},
+        savedProviderEffort: {},
+        savedProviderServiceTier: {},
+        savedProviderThinkingBudget: {},
+        savedProviderPermissionMode: {},
+      };
+
+      ProviderSettingsCoordinator.projectProviderState(settings, 'opencode');
+
+      expect(settings.permissionMode).toBe('normal');
+    });
+
+    it('prefers the active OpenCode selected mode over a stale top-level permission projection', () => {
+      const settings: Record<string, unknown> = {
+        settingsProvider: 'opencode',
+        permissionMode: 'normal',
+        providerConfigs: {
+          opencode: {
+            enabled: true,
+            selectedMode: 'build',
+          },
+        },
+        model: 'haiku',
+        effortLevel: 'high',
+        serviceTier: 'default',
+        thinkingBudget: 'off',
+        savedProviderModel: {},
+        savedProviderEffort: {},
+        savedProviderServiceTier: {},
+        savedProviderThinkingBudget: {},
+        savedProviderPermissionMode: {},
+      };
+
+      ProviderSettingsCoordinator.projectProviderState(settings, 'opencode');
+
+      expect(settings.permissionMode).toBe('yolo');
+    });
   });
 
   describe('provider-scoped reconciliation', () => {
@@ -325,14 +441,14 @@ describe('ProviderSettingsCoordinator', () => {
         providerConfigs: {
           codex: {
             enabled: true,
-            environmentVariables: 'OPENAI_MODEL=gpt-5.4',
+            environmentVariables: `OPENAI_MODEL=${DEFAULT_CODEX_PRIMARY_MODEL}`,
           },
         },
         model: 'haiku',
         effortLevel: 'high',
         serviceTier: 'default',
         thinkingBudget: 'off',
-        savedProviderModel: { claude: 'haiku', codex: 'gpt-5.4' },
+        savedProviderModel: { claude: 'haiku', codex: DEFAULT_CODEX_PRIMARY_MODEL },
         savedProviderEffort: { claude: 'high', codex: 'medium' },
         savedProviderServiceTier: { claude: 'default', codex: 'fast' },
         savedProviderThinkingBudget: { claude: 'off', codex: 'off' },
@@ -346,7 +462,7 @@ describe('ProviderSettingsCoordinator', () => {
       expect(settings.model).toBe('haiku');
       expect(settings.savedProviderModel).toEqual({
         claude: 'haiku',
-        codex: 'gpt-5.4',
+        codex: DEFAULT_CODEX_PRIMARY_MODEL,
       });
       expect(settings.savedProviderServiceTier).toEqual({
         claude: 'default',

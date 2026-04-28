@@ -88,6 +88,7 @@ export interface InputControllerDeps {
   getInputContainerEl: () => HTMLElement;
   generateId: () => string;
   resetInputHeight: () => void;
+  getAuxiliaryModel?: () => string | null;
   getAgentService?: () => ChatRuntime | null;
   getSubagentManager: () => SubagentManager;
   /** Tab-level provider fallback for blank tabs (derived from draft model). */
@@ -126,6 +127,18 @@ export class InputController {
 
   private getAgentService(): ChatRuntime | null {
     return this.deps.getAgentService?.() ?? null;
+  }
+
+  private getAuxiliaryModel(): string | null {
+    return this.deps.getAuxiliaryModel?.()
+      ?? this.getAgentService()?.getAuxiliaryModel?.()
+      ?? null;
+  }
+
+  private syncInstructionRefineModelOverride(
+    instructionRefineService: InstructionRefineService,
+  ): void {
+    instructionRefineService.setModelOverride?.(this.getAuxiliaryModel() ?? undefined);
   }
 
   private getActiveProviderId(): ProviderId {
@@ -1125,6 +1138,7 @@ export class InputController {
             instructionModeManager?.clear();
           },
           onClarificationSubmit: async (response) => {
+            this.syncInstructionRefineModelOverride(instructionRefineService);
             const result = await instructionRefineService.continueConversation(response);
 
             if (wasCancelled) {
@@ -1150,6 +1164,7 @@ export class InputController {
       );
       modal.open();
 
+      this.syncInstructionRefineModelOverride(instructionRefineService);
       instructionRefineService.resetConversation();
       const result = await instructionRefineService.refineInstruction(
         rawInstruction,

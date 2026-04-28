@@ -13,6 +13,7 @@ import {
 import type { ChatMessage } from '@/core/types';
 import { StreamController, type StreamControllerDeps } from '@/features/chat/controllers/StreamController';
 import { ChatState } from '@/features/chat/state/ChatState';
+import { DEFAULT_CODEX_PRIMARY_MODEL } from '@/providers/codex/types/models';
 
 jest.mock('@/core/tools/todo', () => ({
   parseTodoInput: jest.fn(),
@@ -310,12 +311,12 @@ describe('StreamController - Text Content', () => {
       const msg = createTestMessage();
       const usage = createMockUsage({ model: undefined });
       const providerSettingsSpy = jest.spyOn(ProviderSettingsCoordinator, 'getProviderSettingsSnapshot');
-      providerSettingsSpy.mockReturnValue({ model: 'gpt-5.4' } as any);
+      providerSettingsSpy.mockReturnValue({ model: DEFAULT_CODEX_PRIMARY_MODEL } as any);
       (deps.getAgentService!() as any).providerId = 'codex';
 
       await controller.handleStreamChunk({ type: 'usage', usage, sessionId: 'session-1' }, msg);
 
-      expect(deps.state.usage).toEqual({ ...usage, model: 'gpt-5.4' });
+      expect(deps.state.usage).toEqual({ ...usage, model: DEFAULT_CODEX_PRIMARY_MODEL });
 
       providerSettingsSpy.mockRestore();
     });
@@ -863,7 +864,7 @@ describe('StreamController - Text Content', () => {
     it('uses authoritative usage chunks directly', async () => {
       const msg = createTestMessage();
       const usage = createMockUsage({
-        model: 'gpt-5.4',
+        model: DEFAULT_CODEX_PRIMARY_MODEL,
         contextWindow: 258400,
         contextWindowIsAuthoritative: true,
         contextTokens: 129200,
@@ -1826,6 +1827,33 @@ describe('StreamController - Text Content', () => {
         undefined,
         structured
       );
+    });
+
+    it('normalizes structured tool_result content before storing it on tool calls', async () => {
+      const { updateToolCallResult } = jest.requireMock('@/features/chat/rendering/ToolCallRenderer');
+      const msg = createTestMessage();
+      msg.toolCalls = [
+        {
+          id: 'mcp-1',
+          name: 'mcp__stitch__create_project',
+          input: {},
+          status: 'running',
+          isExpanded: false,
+        } as any,
+      ];
+
+      await controller.handleStreamChunk(
+        {
+          type: 'tool_result',
+          id: 'mcp-1',
+          content: [{ type: 'text', text: 'Created project successfully' }],
+        } as any,
+        msg,
+      );
+
+      expect(msg.toolCalls[0].status).toBe('completed');
+      expect(msg.toolCalls[0].result).toBe('Created project successfully');
+      expect(updateToolCallResult).toHaveBeenCalled();
     });
   });
 

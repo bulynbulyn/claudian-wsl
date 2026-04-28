@@ -1597,21 +1597,12 @@ describe('ClaudianService', () => {
       expect((service as any).currentConfig.effortLevel).toBeNull();
     });
 
-    it('should restart when switching to yolo mode', async () => {
+    it('should update permission mode when changed', async () => {
       (mockPlugin as any).settings.permissionMode = 'yolo';
 
-      const ensureReadySpy = jest.spyOn(service, 'ensureReady');
-
-      // ensureReady sets up currentConfig with default mode from plugin settings
-      // When switching to yolo, we should NOT call setPermissionMode (requires restart)
       await (service as any).applyDynamicUpdates({});
 
-      expect(mockPersistentQuery.setPermissionMode).not.toHaveBeenCalled();
-      // Restart should have been triggered
-      expect(ensureReadySpy).toHaveBeenCalledWith(expect.objectContaining({ force: true }));
-      // After restart, config should be updated to yolo mode
-      expect((service as any).currentConfig.permissionMode).toBe('yolo');
-      expect((service as any).currentConfig.sdkPermissionMode).toBe('bypassPermissions');
+      expect(mockPersistentQuery.setPermissionMode).toHaveBeenCalledWith('bypassPermissions');
     });
 
     it('should update permission mode when claudeSafeMode changes within normal mode', async () => {
@@ -1652,27 +1643,48 @@ describe('ClaudianService', () => {
       expect((service as any).currentConfig.sdkPermissionMode).toBe('acceptEdits');
     });
 
-    it('should restart when switching from yolo to normal', async () => {
+    it('should restart before applying auto mode when auto opt-in was not enabled', async () => {
       (mockPlugin as any).settings.permissionMode = 'normal';
-      // Set current config to yolo state
-      (service as any).currentConfig = {
-        ...(service as any).buildPersistentQueryConfig('/mock/vault/path', '/usr/local/bin/claude', []),
-        permissionMode: 'yolo',
-        sdkPermissionMode: 'bypassPermissions',
-      };
+      (mockPlugin as any).settings.claudeSafeMode = 'acceptEdits';
+      (service as any).currentConfig = (service as any).buildPersistentQueryConfig(
+        '/mock/vault/path',
+        '/usr/local/bin/claude',
+        [],
+      );
 
       mockPersistentQuery.setPermissionMode.mockClear();
-      const ensureReadySpy = jest.spyOn(service, 'ensureReady');
+      (service as any).startPersistentQuery.mockClear();
+      (mockPlugin as any).settings.claudeSafeMode = 'auto';
 
       await (service as any).applyDynamicUpdates({});
 
-      // Should NOT call setPermissionMode (requires restart)
       expect(mockPersistentQuery.setPermissionMode).not.toHaveBeenCalled();
-      // Restart should have been triggered
-      expect(ensureReadySpy).toHaveBeenCalledWith(expect.objectContaining({ force: true }));
-      // After restart, config should be updated to normal mode
+      expect((service as any).startPersistentQuery).toHaveBeenCalledTimes(1);
       expect((service as any).currentConfig.permissionMode).toBe('normal');
-      expect((service as any).currentConfig.sdkPermissionMode).not.toBe('bypassPermissions');
+      expect((service as any).currentConfig.sdkPermissionMode).toBe('auto');
+      expect((service as any).currentConfig.enableAutoMode).toBe(true);
+    });
+
+    it('should update permission mode to auto dynamically when auto opt-in is already enabled', async () => {
+      (mockPlugin as any).settings.permissionMode = 'yolo';
+      (mockPlugin as any).settings.claudeSafeMode = 'auto';
+      (service as any).currentConfig = (service as any).buildPersistentQueryConfig(
+        '/mock/vault/path',
+        '/usr/local/bin/claude',
+        [],
+      );
+
+      mockPersistentQuery.setPermissionMode.mockClear();
+      (service as any).startPersistentQuery.mockClear();
+      (mockPlugin as any).settings.permissionMode = 'normal';
+
+      await (service as any).applyDynamicUpdates({});
+
+      expect(mockPersistentQuery.setPermissionMode).toHaveBeenCalledWith('auto');
+      expect((service as any).startPersistentQuery).not.toHaveBeenCalled();
+      expect((service as any).currentConfig.permissionMode).toBe('normal');
+      expect((service as any).currentConfig.sdkPermissionMode).toBe('auto');
+      expect((service as any).currentConfig.enableAutoMode).toBe(true);
     });
 
     it('should update MCP servers when changed', async () => {

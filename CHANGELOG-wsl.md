@@ -1,6 +1,55 @@
-# Claudian v2.0.4-wsl.2 vs v2.0.4
+# Claudian v2.0.8-wsl.1
 
-基于原版 [YishenTu/claudian](https://github.com/YishenTu/claudian) v2.0.4 的 WSL 支持二开版本。
+基于原版 [YishenTu/claudian](https://github.com/YishenTu/claudian) v2.0.8 的 WSL 支持二开版本。
+
+## v2.0.8-wsl.1 合并上游 v2.0.8
+
+### 新增上游功能
+
+| 功能 | 描述 |
+|------|------|
+| **OpenCode provider** | 新增 Opencode 作为可选 AI provider |
+| **Auto safe mode** | Claude 新增 `auto` 安全模式，支持动态权限审批 |
+| **延迟 prompt usage** | 支持 Anthropic 流式事件中的 prompt token 使用统计 |
+| **ACP 协议** | Agent Client Protocol 共享传输层 |
+| **Bash 命令显示** | 工具调用展开时显示完整 bash 命令 |
+| **Codex 自定义模型** | Codex provider 支持自定义模型配置 |
+| **Codex GPT-5.5** | Codex 默认模型更新为 GPT-5.5 |
+
+### 上游 Bug 修复
+
+- Claude 上下文使用与所选模型对齐
+- Codex/MCP 路径中 tool_result 内容规范化
+- Claude SDK bundle 和 effort 类型兼容性修复
+- Codex Spark 模型推理摘要禁用
+
+### WSL 功能保留
+
+所有 WSL 特有功能已保留并与新版本兼容：
+
+- ✅ WSL 发行版检测和执行目标解析
+- ✅ Windows ↔ WSL 路径转换
+- ✅ WSL 进程 spawn 和参数构建
+- ✅ WSL 历史记录加载（路径转换 + skipResolve）
+- ✅ WSL rewind 支持（WSLENV + 路径映射）
+- ✅ WSL 设置 UI（Installation method、distro override、home path）
+- ✅ MCP server 路径映射
+- ✅ YOLO/bypassPermissions 重启检测
+
+### 冲突解决
+
+| 文件 | 解决策略 |
+|------|---------|
+| `settings.ts` | 合并 CLAUDE_SAFE_MODES + WSL 配置字段 |
+| `runtime/types.ts` | 合并 enableAutoMode + WSL 配置字段 |
+| `ClaudeQueryOptionsBuilder.ts` | 合并 enableAutoMode 检查 + WSL 重启检测 |
+| `ClaudeDynamicUpdates.ts` | 合并 auto mode 重启 + WSL MCP 路径映射 |
+| `ClaudeChatRuntime.ts` | 合并 usageTransformState + WSL rewind |
+| `claudeColdStartQuery.ts` | 合并 auto mode extraArgs + WSL launch spec |
+| `ClaudeSettingsTab.ts` | 合并 CLAUDE_SAFE_MODES dropdown + WSL UI |
+| `transformClaudeMessage.ts` | 合并 usageState + WSL 导入 |
+
+---
 
 ## Bug 修复
 

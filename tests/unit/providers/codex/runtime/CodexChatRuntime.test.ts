@@ -6,6 +6,7 @@ import * as path from 'path';
 
 import type { PreparedChatTurn } from '@/core/runtime/types';
 import type { StreamChunk } from '@/core/types/chat';
+import { CODEX_SPARK_MODEL, DEFAULT_CODEX_PRIMARY_MODEL } from '@/providers/codex/types/models';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -118,7 +119,7 @@ async function emitServerRequest(
 function createMockPlugin(overrides: Record<string, unknown> = {}): any {
   return {
     settings: {
-      model: 'gpt-5.4',
+      model: DEFAULT_CODEX_PRIMARY_MODEL,
       effortLevel: 'medium',
       systemPrompt: '',
       mediaFolder: '',
@@ -245,7 +246,7 @@ function threadStartResponse(threadId = 'thread-001') {
       gitInfo: null,
       name: null,
     },
-    model: 'gpt-5.4',
+    model: DEFAULT_CODEX_PRIMARY_MODEL,
     modelProvider: 'openai_http',
     serviceTier: null,
     cwd: '/test/vault',
@@ -467,7 +468,7 @@ describe('CodexChatRuntime', () => {
       expect(mockTransportRequest).toHaveBeenCalledWith(
         'thread/start',
         expect.objectContaining({
-          model: 'gpt-5.4',
+          model: DEFAULT_CODEX_PRIMARY_MODEL,
           cwd: '/test/vault',
           persistExtendedHistory: true,
           experimentalRawEvents: false,
@@ -513,6 +514,46 @@ describe('CodexChatRuntime', () => {
       expect(chunks).toContainEqual({ type: 'text', content: 'Hello!' });
       expect(chunks).toContainEqual({ type: 'done' });
       expect(findCall('thread/start')).toBeDefined();
+    });
+
+    it('sends reasoning summary off for GPT-5.3 Codex Spark turns', async () => {
+      runtime.cleanup();
+      runtime = new CodexChatRuntime(createMockPlugin({
+        model: CODEX_SPARK_MODEL,
+        providerConfigs: {
+          codex: {
+            customModels: CODEX_SPARK_MODEL,
+            reasoningSummary: 'detailed',
+          },
+        },
+      }));
+
+      await collectChunks(runtime.query(createTurn('hi')));
+
+      const turnStartCall = findCall('turn/start');
+      expect(turnStartCall[1]).toMatchObject({
+        model: CODEX_SPARK_MODEL,
+        summary: 'none',
+      });
+    });
+
+    it('sends the configured reasoning summary for other Codex models', async () => {
+      runtime.cleanup();
+      runtime = new CodexChatRuntime(createMockPlugin({
+        providerConfigs: {
+          codex: {
+            reasoningSummary: 'concise',
+          },
+        },
+      }));
+
+      await collectChunks(runtime.query(createTurn('hi')));
+
+      const turnStartCall = findCall('turn/start');
+      expect(turnStartCall[1]).toMatchObject({
+        model: DEFAULT_CODEX_PRIMARY_MODEL,
+        summary: 'concise',
+      });
     });
 
     it('derives WSL transcript and memories roots from thread paths when initialize omits codexHome', async () => {
@@ -1331,7 +1372,7 @@ describe('CodexChatRuntime', () => {
     });
 
     it('sends serviceTier on thread/resume when fast mode is enabled', async () => {
-      const plugin = createMockPlugin({ model: 'gpt-5.4', serviceTier: 'fast' });
+      const plugin = createMockPlugin({ model: DEFAULT_CODEX_PRIMARY_MODEL, serviceTier: 'fast' });
       const rt = new CodexChatRuntime(plugin);
 
       rt.syncConversationState({
@@ -1745,7 +1786,7 @@ describe('CodexChatRuntime', () => {
       expect(turnStartCall[1].collaborationMode).toEqual({
         mode: 'plan',
         settings: {
-          model: 'gpt-5.4',
+          model: DEFAULT_CODEX_PRIMARY_MODEL,
           reasoning_effort: 'medium',
           developer_instructions: null,
         },
