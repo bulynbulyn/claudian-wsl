@@ -108,10 +108,10 @@ describe('Sync Subagent Renderer', () => {
       expect(state.labelEl.textContent).toBe('My task description');
     });
 
-    it('should show tool count badge', () => {
+    it('should not show a tool count badge in the header', () => {
       const state = createSubagentBlock(parentEl as any, 'task-1', { description: 'Test task' });
 
-      expect(state.countEl.textContent).toBe('0 tool uses');
+      expect(getTextByClass(state.wrapperEl as any, 'claudian-subagent-count')).toEqual([]);
     });
   });
 
@@ -586,7 +586,7 @@ describe('addSubagentToolCall', () => {
     parentEl = createMockEl('div');
   });
 
-  it('adds tool call to state and updates count', () => {
+  it('adds tool call to state without rendering a header count', () => {
     const state = createSubagentBlock(parentEl as any, 'task-1', { description: 'Test task' });
 
     const toolCall: ToolCallInfo = {
@@ -600,7 +600,7 @@ describe('addSubagentToolCall', () => {
     addSubagentToolCall(state, toolCall);
 
     expect(state.info.toolCalls).toHaveLength(1);
-    expect(state.countEl.textContent).toBe('1 tool uses');
+    expect(getTextByClass(state.wrapperEl as any, 'claudian-subagent-count')).toEqual([]);
   });
 
   it('clears previous content and renders new tool item', () => {
@@ -625,7 +625,7 @@ describe('addSubagentToolCall', () => {
     addSubagentToolCall(state, toolCall2);
 
     expect(state.info.toolCalls).toHaveLength(2);
-    expect(state.countEl.textContent).toBe('2 tool uses');
+    expect(getTextByClass(state.wrapperEl as any, 'claudian-subagent-count')).toEqual([]);
   });
 
   it('merges repeated tool IDs instead of duplicating tool rows', () => {
@@ -654,7 +654,7 @@ describe('addSubagentToolCall', () => {
         input: { file_path: 'notes.md' },
       })
     );
-    expect(state.countEl.textContent).toBe('1 tool uses');
+    expect(getTextByClass(state.wrapperEl as any, 'claudian-subagent-count')).toEqual([]);
     expect(getTextByClass(state.toolsContainerEl as any, 'claudian-subagent-tool-name')).toEqual(['Write']);
     expect(getTextByClass(state.toolsContainerEl as any, 'claudian-subagent-tool-summary')).toEqual(['notes.md']);
   });
@@ -767,7 +767,7 @@ describe('finalizeSubagentBlock', () => {
     expect(errorText).toBe('Error occurred');
   });
 
-  it('updates tool count badge after finalization', () => {
+  it('does not restore a tool count badge after finalization', () => {
     const state = createSubagentBlock(parentEl as any, 'task-1', { description: 'Test task' });
 
     addSubagentToolCall(state, {
@@ -787,7 +787,7 @@ describe('finalizeSubagentBlock', () => {
 
     finalizeSubagentBlock(state, 'Done', false);
 
-    expect(state.countEl.textContent).toBe('2 tool uses');
+    expect(getTextByClass(state.wrapperEl as any, 'claudian-subagent-count')).toEqual([]);
   });
 });
 
@@ -881,7 +881,7 @@ describe('renderStoredSubagent status variants', () => {
     expect(resultTexts[0]).toContain('File contents here');
   });
 
-  it('shows correct tool count in badge', () => {
+  it('does not render a tool count badge for stored subagents', () => {
     const subagent: SubagentInfo = {
       id: 'task-1',
       description: 'Task with tools',
@@ -896,8 +896,7 @@ describe('renderStoredSubagent status variants', () => {
 
     const wrapperEl = renderStoredSubagent(parentEl as any, subagent);
 
-    const countTexts = getTextByClass(wrapperEl as any, 'claudian-subagent-count');
-    expect(countTexts[0]).toBe('3 tool uses');
+    expect(getTextByClass(wrapperEl as any, 'claudian-subagent-count')).toEqual([]);
   });
 
   it('truncates long descriptions', () => {

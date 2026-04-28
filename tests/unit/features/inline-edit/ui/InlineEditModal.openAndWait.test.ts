@@ -3,6 +3,7 @@ import '@/providers';
 import { createMockEl } from '@test/helpers/mockElement';
 import { Notice } from 'obsidian';
 
+import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { type InlineEditContext, InlineEditModal } from '@/features/inline-edit/ui/InlineEditModal';
 import { VaultFolderCache } from '@/shared/mention/VaultMentionCache';
 import * as editorUtils from '@/utils/editor';
@@ -265,6 +266,117 @@ describe('InlineEditModal - openAndWait', () => {
 
       widgetRef?.reject();
       await expect(resultPromise).resolves.toEqual({ decision: 'reject' });
+    } finally {
+      (global as any).document = originalDocument;
+    }
+  });
+
+  it('passes the active chat runtime model into inline edit services when available', async () => {
+    const originalDocument = (global as any).document;
+    (global as any).document = {
+      body: createMockEl('body'),
+      createElement: (tagName: string) => createMockEl(tagName),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+    };
+
+    try {
+      const app = {
+        vault: {
+          getFiles: jest.fn().mockReturnValue([]),
+          getAllLoadedFiles: jest.fn().mockReturnValue([]),
+        },
+        workspace: {
+          getActiveViewOfType: jest.fn(),
+        },
+      } as any;
+      const inlineEditService = {
+        cancel: jest.fn(),
+        continueConversation: jest.fn(),
+        editText: jest.fn(),
+        resetConversation: jest.fn(),
+        setModelOverride: jest.fn(),
+      };
+      const providerSpy = jest
+        .spyOn(ProviderRegistry, 'createInlineEditService')
+        .mockReturnValue(inlineEditService as any);
+      const plugin = {
+        settings: {
+          hiddenProviderCommands: {
+            claude: [],
+            opencode: [],
+          },
+        },
+        getConversationSync: jest.fn().mockReturnValue(null),
+        getView: jest.fn().mockReturnValue({
+          getActiveTab: jest.fn().mockReturnValue({
+            conversationId: null,
+            draftModel: 'opencode:openai/gpt-5.4',
+            providerId: 'opencode',
+            service: {
+              getAuxiliaryModel: jest.fn().mockReturnValue('opencode:openai/gpt-5.4'),
+              providerId: 'opencode',
+            },
+          }),
+        }),
+      } as any;
+      const editor = {} as any;
+      const view = { editor } as any;
+
+      let widgetRef: any = null;
+      const dispatch = jest.fn((transaction: any) => {
+        const effects = Array.isArray(transaction?.effects)
+          ? transaction.effects
+          : transaction?.effects
+            ? [transaction.effects]
+            : [];
+        for (const effect of effects) {
+          const widget = effect?.value?.widget;
+          if (widget && typeof widget.createInputDOM === 'function') {
+            widgetRef = widget;
+            widget.createInputDOM();
+          }
+        }
+      });
+      const editorView = {
+        state: {
+          doc: {
+            line: jest.fn(() => ({ from: 0 })),
+            lineAt: jest.fn(() => ({ from: 0 })),
+          },
+        },
+        dispatch,
+        dom: {
+          addEventListener: jest.fn(),
+          removeEventListener: jest.fn(),
+        },
+      } as any;
+
+      const getEditorViewSpy = jest
+        .spyOn(editorUtils, 'getEditorView')
+        .mockReturnValue(editorView);
+
+      const editContext: InlineEditContext = {
+        mode: 'cursor',
+        cursorContext: {
+          beforeCursor: '',
+          afterCursor: '',
+          isInbetween: true,
+          line: 0,
+          column: 0,
+        },
+      };
+
+      const modal = new InlineEditModal(app, plugin, editor, view, editContext, 'note.md');
+      const resultPromise = modal.openAndWait();
+
+      expect(providerSpy).toHaveBeenCalledWith(plugin, 'opencode');
+      expect(inlineEditService.setModelOverride).toHaveBeenCalledWith('opencode:openai/gpt-5.4');
+
+      widgetRef.reject();
+      await expect(resultPromise).resolves.toEqual({ decision: 'reject' });
+      getEditorViewSpy.mockRestore();
+      providerSpy.mockRestore();
     } finally {
       (global as any).document = originalDocument;
     }

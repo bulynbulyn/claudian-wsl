@@ -345,18 +345,24 @@ describe('ClaudianPlugin', () => {
       await plugin.onload();
 
       // Mock getView to return a view with tabManager
+      const mockSyncConversationState = jest.fn();
       const mockEnsureReady = jest.fn().mockResolvedValue(true);
       const mockTabManager = {
         getAllTabs: jest.fn().mockReturnValue([{
           providerId: 'claude',
+          conversationId: null,
           state: { isStreaming: false },
           serviceInitialized: true,
-          service: { ensureReady: mockEnsureReady },
+          service: {
+            ensureReady: mockEnsureReady,
+            syncConversationState: mockSyncConversationState,
+          },
           ui: { externalContextSelector: { getExternalContexts: jest.fn().mockReturnValue([]) } },
         }]),
       };
       const mockView = {
         getTabManager: jest.fn().mockReturnValue(mockTabManager),
+        invalidateProviderCommandCaches: jest.fn(),
         refreshModelSelector: jest.fn(),
       };
       jest.spyOn(plugin, 'getView').mockReturnValue(mockView as any);
@@ -364,7 +370,60 @@ describe('ClaudianPlugin', () => {
       // Change env but not in a way that affects model
       await plugin.applyEnvironmentVariables('shared', 'SOME_VAR=value');
 
+      expect(mockSyncConversationState).toHaveBeenCalledWith(null, []);
       expect(mockEnsureReady).toHaveBeenCalledWith({ force: true });
+    });
+
+    it('syncs live external contexts before restarting invalidated Claude runtimes', async () => {
+      await plugin.onload();
+
+      const conversation = await plugin.createConversation({
+        providerId: 'claude',
+        sessionId: 'session-123',
+      });
+      await plugin.updateConversation(conversation.id, {
+        externalContextPaths: ['/saved/context'],
+        messages: [{
+          content: 'hi',
+          id: 'msg-1',
+          role: 'user',
+          timestamp: Date.now(),
+          userMessageId: 'msg-1',
+        }],
+      });
+
+      const mockSyncConversationState = jest.fn();
+      const mockResetSession = jest.fn();
+      const mockEnsureReady = jest.fn().mockResolvedValue(true);
+      const mockTabManager = {
+        getAllTabs: jest.fn().mockReturnValue([{
+          conversationId: conversation.id,
+          providerId: 'claude',
+          state: { isStreaming: false },
+          serviceInitialized: true,
+          service: {
+            ensureReady: mockEnsureReady,
+            resetSession: mockResetSession,
+            syncConversationState: mockSyncConversationState,
+          },
+          ui: { externalContextSelector: { getExternalContexts: jest.fn().mockReturnValue(['/live/context']) } },
+        }]),
+      };
+      const mockView = {
+        getTabManager: jest.fn().mockReturnValue(mockTabManager),
+        invalidateProviderCommandCaches: jest.fn(),
+        refreshModelSelector: jest.fn(),
+      };
+      jest.spyOn(plugin, 'getView').mockReturnValue(mockView as any);
+
+      await plugin.applyEnvironmentVariables('provider:claude', 'ANTHROPIC_MODEL=claude-sonnet-4-5');
+
+      expect(mockSyncConversationState).toHaveBeenCalledWith(
+        expect.objectContaining({ id: conversation.id }),
+        ['/live/context'],
+      );
+      expect(mockResetSession).toHaveBeenCalledTimes(1);
+      expect(mockEnsureReady).toHaveBeenCalledWith();
     });
   });
 

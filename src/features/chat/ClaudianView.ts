@@ -7,6 +7,7 @@ import { ProviderSettingsCoordinator } from '../../core/providers/ProviderSettin
 import { DEFAULT_CHAT_PROVIDER_ID, type ProviderId } from '../../core/providers/types';
 import { VIEW_TYPE_CLAUDIAN } from '../../core/types';
 import type ClaudianPlugin from '../../main';
+import { createProviderIconSvg } from '../../shared/icons';
 import type { HistoryConversationOpenState } from './controllers/ConversationController';
 import { getTabProviderId, onProviderAvailabilityChanged, updatePlanModeUI } from './tabs/Tab';
 import { TabBar } from './tabs/TabBar';
@@ -106,14 +107,22 @@ export class ClaudianView extends ItemView {
 
       tab.ui.modelSelector?.updateDisplay();
       tab.ui.modelSelector?.renderOptions();
+      tab.ui.modeSelector?.updateDisplay();
+      tab.ui.modeSelector?.renderOptions();
       tab.ui.thinkingBudgetSelector?.updateDisplay();
       tab.ui.permissionToggle?.updateDisplay();
       tab.ui.serviceTierToggle?.updateDisplay();
       tab.dom.inputWrapper.toggleClass(
         'claudian-input-plan-mode',
-        this.plugin.settings.permissionMode === 'plan' && capabilities.supportsPlanMode,
+        providerSettings.permissionMode === 'plan' && capabilities.supportsPlanMode,
       );
     }
+
+    this.tabManager?.primeProviderRuntime();
+  }
+
+  invalidateProviderCommandCaches(providerIds?: ProviderId[]): void {
+    this.tabManager?.invalidateProviderCommandCaches(providerIds);
   }
 
   /** Updates provider-scoped hidden commands on all tabs after settings changes. */
@@ -179,10 +188,12 @@ export class ClaudianView extends ItemView {
         onTabTitleChanged: () => this.updateTabBar(),
         onTabAttentionChanged: () => this.updateTabBar(),
         onTabConversationChanged: () => {
+          this.updateTabBar();
           this.persistTabState();
           this.syncProviderBrandColor();
         },
         onTabProviderChanged: () => {
+          this.updateTabBar();
           this.syncProviderBrandColor();
         },
       }
@@ -192,6 +203,7 @@ export class ClaudianView extends ItemView {
     await this.restoreOrCreateTabs();
     this.syncProviderBrandColor();
     this.updateLayoutForPosition();
+    this.tabManager?.primeProviderRuntime();
   }
 
   async onClose() {
@@ -433,17 +445,11 @@ export class ClaudianView extends ItemView {
     const existing = this.logoEl.querySelector('svg');
     if (existing?.getAttribute('data-provider') === providerId) return;
     this.logoEl.empty();
-    const NS = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('viewBox', icon.viewBox);
-    svg.setAttribute('width', '18');
-    svg.setAttribute('height', '18');
-    svg.setAttribute('fill', 'none');
-    svg.setAttribute('data-provider', providerId);
-    const path = document.createElementNS(NS, 'path');
-    path.setAttribute('d', icon.path);
-    path.setAttribute('fill', 'currentColor');
-    svg.appendChild(path);
+    const svg = createProviderIconSvg(icon, {
+      dataProvider: providerId,
+      height: 18,
+      width: 18,
+    });
     this.logoEl.appendChild(svg);
   }
 
@@ -537,7 +543,10 @@ export class ClaudianView extends ItemView {
         if (!activeTab) return;
         const providerId = getTabProviderId(activeTab, this.plugin);
         if (!ProviderRegistry.getCapabilities(providerId).supportsPlanMode) return;
-        const current = this.plugin.settings.permissionMode;
+        const current = ProviderSettingsCoordinator.getProviderSettingsSnapshot(
+          this.plugin.settings as unknown as Record<string, unknown>,
+          providerId,
+        ).permissionMode as string;
         if (current === 'plan') {
           const restoreMode = activeTab.state.prePlanPermissionMode ?? 'normal';
           activeTab.state.prePlanPermissionMode = null;

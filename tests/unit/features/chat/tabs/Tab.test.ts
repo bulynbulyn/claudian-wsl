@@ -21,6 +21,10 @@ import {
   type TabCreateOptions,
   wireTabInputEvents,
 } from '@/features/chat/tabs/Tab';
+import {
+  DEFAULT_CODEX_PRIMARY_MODEL,
+  DEFAULT_CODEX_PRIMARY_MODEL_LABEL,
+} from '@/providers/codex/types/models';
 import * as envUtils from '@/utils/env';
 
 // Mock ResizeObserver (not available in jsdom)
@@ -110,6 +114,11 @@ const createMockModelSelector = () => ({
   setReady: jest.fn(),
 });
 
+const createMockModeSelector = () => ({
+  updateDisplay: jest.fn(),
+  renderOptions: jest.fn(),
+});
+
 const createMockClaudianService = (overrides?: {
   ensureReady?: jest.Mock;
   syncConversationState?: jest.Mock;
@@ -164,6 +173,7 @@ const createMockMcpServerSelector = () => ({
 });
 
 const createMockPermissionToggle = () => ({
+  setVisible: jest.fn(),
   updateDisplay: jest.fn(),
 });
 
@@ -179,6 +189,7 @@ let mockInstructionModeManager: ReturnType<typeof createMockInstructionModeManag
 let mockBangBashModeManager: ReturnType<typeof createMockBangBashModeManager>;
 let mockStatusPanel: ReturnType<typeof createMockStatusPanel>;
 let mockModelSelector: ReturnType<typeof createMockModelSelector>;
+let mockModeSelector: ReturnType<typeof createMockModeSelector>;
 let mockThinkingBudgetSelector: ReturnType<typeof createMockThinkingBudgetSelector>;
 let mockContextUsageMeter: ReturnType<typeof createMockContextUsageMeter>;
 let mockExternalContextSelector: ReturnType<typeof createMockExternalContextSelector>;
@@ -258,6 +269,7 @@ jest.mock('@/features/chat/ui/StatusPanel', () => ({
 jest.mock('@/features/chat/ui/InputToolbar', () => ({
   createInputToolbar: jest.fn().mockImplementation(() => {
     mockModelSelector = createMockModelSelector();
+    mockModeSelector = createMockModeSelector();
     mockThinkingBudgetSelector = createMockThinkingBudgetSelector();
     mockContextUsageMeter = createMockContextUsageMeter();
     mockExternalContextSelector = createMockExternalContextSelector();
@@ -266,6 +278,7 @@ jest.mock('@/features/chat/ui/InputToolbar', () => ({
     mockServiceTierToggle = createMockServiceTierToggle();
     return {
       modelSelector: mockModelSelector,
+      modeSelector: mockModeSelector,
       thinkingBudgetSelector: mockThinkingBudgetSelector,
       contextUsageMeter: mockContextUsageMeter,
       externalContextSelector: mockExternalContextSelector,
@@ -552,12 +565,12 @@ describe('Tab - Creation', () => {
 
     it('should derive the blank-tab provider from the default draft model', () => {
       const plugin = createMockPlugin();
-      plugin.settings.model = 'gpt-5.4';
+      plugin.settings.model = DEFAULT_CODEX_PRIMARY_MODEL;
 
       const tab = createTab(createMockOptions({ plugin }));
 
       expect(tab.lifecycleState).toBe('blank');
-      expect(tab.draftModel).toBe('gpt-5.4');
+      expect(tab.draftModel).toBe(DEFAULT_CODEX_PRIMARY_MODEL);
       expect(tab.providerId).toBe('codex');
     });
 
@@ -566,12 +579,12 @@ describe('Tab - Creation', () => {
       // Top-level model is Claude, but Codex has its own saved model
       plugin.settings.model = 'claude-sonnet-4-5';
       plugin.settings.settingsProvider = 'claude';
-      plugin.settings.savedProviderModel = { claude: 'claude-sonnet-4-5', codex: 'gpt-5.4' };
+      plugin.settings.savedProviderModel = { claude: 'claude-sonnet-4-5', codex: DEFAULT_CODEX_PRIMARY_MODEL };
 
       const tab = createTab(createMockOptions({ plugin, defaultProviderId: 'codex' }));
 
       expect(tab.lifecycleState).toBe('blank');
-      expect(tab.draftModel).toBe('gpt-5.4');
+      expect(tab.draftModel).toBe(DEFAULT_CODEX_PRIMARY_MODEL);
       expect(tab.providerId).toBe('codex');
     });
 
@@ -603,10 +616,10 @@ describe('Tab - Creation', () => {
     it('should keep a Claude custom gpt model on Claude when Codex is disabled', () => {
       const plugin = createMockPlugin();
       plugin.settings.settingsProvider = 'claude';
-      plugin.settings.model = 'gpt-5.4';
+      plugin.settings.model = DEFAULT_CODEX_PRIMARY_MODEL;
       plugin.settings.providerConfigs = {
         claude: {
-          environmentVariables: 'ANTHROPIC_MODEL=gpt-5.4',
+          environmentVariables: `ANTHROPIC_MODEL=${DEFAULT_CODEX_PRIMARY_MODEL}`,
         },
         codex: {
           enabled: false,
@@ -616,7 +629,7 @@ describe('Tab - Creation', () => {
       const tab = createTab(createMockOptions({ plugin }));
 
       expect(tab.lifecycleState).toBe('blank');
-      expect(tab.draftModel).toBe('gpt-5.4');
+      expect(tab.draftModel).toBe(DEFAULT_CODEX_PRIMARY_MODEL);
       expect(tab.providerId).toBe('claude');
     });
 
@@ -632,7 +645,7 @@ describe('Tab - Creation', () => {
       };
       plugin.settings.savedProviderModel = {
         claude: 'opus',
-        codex: 'gpt-5.4',
+        codex: DEFAULT_CODEX_PRIMARY_MODEL,
       };
 
       const tab = createTab(createMockOptions({ plugin, defaultProviderId: 'codex' }));
@@ -887,7 +900,7 @@ describe('Tab - Service Initialization', () => {
       initializeTabUI(tab, plugin);
 
       // Simulate blank tab with Codex draft model
-      tab.draftModel = 'gpt-5.4';
+      tab.draftModel = DEFAULT_CODEX_PRIMARY_MODEL;
       tab.providerId = 'codex';
       tab.lifecycleState = 'blank';
 
@@ -916,10 +929,10 @@ describe('Tab - Service Initialization', () => {
 
       const plugin = createMockPlugin();
       plugin.settings.settingsProvider = 'claude';
-      plugin.settings.model = 'gpt-5.4';
+      plugin.settings.model = DEFAULT_CODEX_PRIMARY_MODEL;
       plugin.settings.providerConfigs = {
         claude: {
-          environmentVariables: 'ANTHROPIC_MODEL=gpt-5.4',
+          environmentVariables: `ANTHROPIC_MODEL=${DEFAULT_CODEX_PRIMARY_MODEL}`,
         },
         codex: {
           enabled: false,
@@ -929,7 +942,7 @@ describe('Tab - Service Initialization', () => {
       const tab = createTab(createMockOptions({ plugin }));
       initializeTabUI(tab, plugin);
 
-      expect(tab.draftModel).toBe('gpt-5.4');
+      expect(tab.draftModel).toBe(DEFAULT_CODEX_PRIMARY_MODEL);
       expect(tab.providerId).toBe('claude');
 
       plugin.settings.providerConfigs = {
@@ -964,7 +977,7 @@ describe('Tab - Service Initialization', () => {
           codexEnabled: true,
           savedProviderModel: {
             claude: 'claude-sonnet-4-5',
-            codex: 'gpt-5.4',
+            codex: DEFAULT_CODEX_PRIMARY_MODEL,
           },
           savedProviderEffort: {
             claude: 'high',
@@ -998,18 +1011,91 @@ describe('Tab - Service Initialization', () => {
       const toolbarCallbacks = toolbarModule.createInputToolbar.mock.calls.at(-1)?.[1];
 
       expect(toolbarCallbacks.getSettings()).toEqual(expect.objectContaining({
-        model: 'gpt-5.4',
+        model: DEFAULT_CODEX_PRIMARY_MODEL,
         effortLevel: 'medium',
       }));
 
-      await toolbarCallbacks.onModelChange('gpt-5.4');
+      await toolbarCallbacks.onModelChange(DEFAULT_CODEX_PRIMARY_MODEL);
 
       expect(plugin.settings.model).toBe('claude-sonnet-4-5');
       expect(plugin.settings.savedProviderModel).toEqual(expect.objectContaining({
         claude: 'claude-sonnet-4-5',
-        codex: 'gpt-5.4',
+        codex: DEFAULT_CODEX_PRIMARY_MODEL,
       }));
       expect(plugin.saveSettings).toHaveBeenCalled();
+    });
+
+    it('maps shared permission mode selections onto managed OpenCode modes', async () => {
+      const plugin = createMockPlugin({
+        settings: {
+          excludedTags: [],
+          model: 'claude-sonnet-4-5',
+          thinkingBudget: 'low',
+          effortLevel: 'high',
+          permissionMode: 'yolo',
+          keyboardNavigation: {
+            scrollUpKey: 'k',
+            scrollDownKey: 'j',
+            focusInputKey: 'i',
+          },
+          persistentExternalContextPaths: [],
+          settingsProvider: 'claude',
+          providerConfigs: {
+            opencode: {
+              availableModes: [
+                { id: 'claudian-yolo', name: 'YOLO' },
+                { id: 'claudian-safe', name: 'Safe' },
+                { id: 'plan', name: 'Plan' },
+              ],
+              enabled: true,
+              selectedMode: 'claudian-yolo',
+            },
+          },
+          savedProviderEffort: {
+            claude: 'high',
+            opencode: 'default',
+          },
+          savedProviderModel: {
+            claude: 'claude-sonnet-4-5',
+            opencode: 'opencode:openai/gpt-5',
+          },
+          savedProviderPermissionMode: {
+            claude: 'yolo',
+          },
+        },
+      });
+
+      const tab = createTab(createMockOptions({
+        plugin,
+        conversation: {
+          id: 'conv-opencode-settings',
+          providerId: 'opencode',
+          title: 'OpenCode conversation',
+          messages: [],
+          sessionId: null,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+      }));
+
+      initializeTabUI(tab, plugin);
+      expect(mockPermissionToggle.setVisible).toHaveBeenLastCalledWith(true);
+
+      const toolbarModule = jest.requireMock('@/features/chat/ui/InputToolbar') as {
+        createInputToolbar: jest.Mock;
+      };
+      const toolbarCallbacks = toolbarModule.createInputToolbar.mock.calls.at(-1)?.[1];
+
+      await toolbarCallbacks.onPermissionModeChange('normal');
+
+      expect(plugin.settings.providerConfigs.opencode.selectedMode).toBe('claudian-safe');
+      expect(plugin.settings.savedProviderPermissionMode).toEqual(expect.objectContaining({
+        claude: 'yolo',
+        opencode: 'normal',
+      }));
+      expect(plugin.settings.permissionMode).toBe('yolo');
+      expect(plugin.saveSettings).toHaveBeenCalled();
+      expect(mockPermissionToggle.updateDisplay).toHaveBeenCalled();
     });
 
     it('resets to blank state when the new-conversation callback fires', () => {
@@ -1048,7 +1134,7 @@ describe('Tab - Service Initialization', () => {
       jest.spyOn(ProviderRegistry, 'getTaskResultInterpreter').mockReturnValue({} as any);
 
       const plugin = createMockPlugin();
-      plugin.settings.savedProviderModel = { claude: 'claude-sonnet-4-5', codex: 'gpt-5.4' };
+      plugin.settings.savedProviderModel = { claude: 'claude-sonnet-4-5', codex: DEFAULT_CODEX_PRIMARY_MODEL };
       const tab = createTab(createMockOptions({ plugin }));
       initializeTabUI(tab, plugin);
       initializeTabControllers(tab, plugin, {} as any, createMockMcpManager());
@@ -1066,7 +1152,7 @@ describe('Tab - Service Initialization', () => {
       callback();
 
       expect(tab.lifecycleState).toBe('blank');
-      expect(tab.draftModel).toBe('gpt-5.4');
+      expect(tab.draftModel).toBe(DEFAULT_CODEX_PRIMARY_MODEL);
       expect(tab.providerId).toBe('codex');
     });
 
@@ -1076,7 +1162,7 @@ describe('Tab - Service Initialization', () => {
       jest.spyOn(ProviderRegistry, 'getTaskResultInterpreter').mockReturnValue({} as any);
 
       const plugin = createMockPlugin();
-      plugin.settings.savedProviderModel = { claude: 'claude-sonnet-4-5', codex: 'gpt-5.4' };
+      plugin.settings.savedProviderModel = { claude: 'claude-sonnet-4-5', codex: DEFAULT_CODEX_PRIMARY_MODEL };
       const tab = createTab(createMockOptions({ plugin }));
       initializeTabUI(tab, plugin);
       initializeTabControllers(tab, plugin, {} as any, createMockMcpManager());
@@ -1100,7 +1186,7 @@ describe('Tab - Service Initialization', () => {
       expect(tab.serviceInitialized).toBe(false);
       expect(tab.lifecycleState).toBe('blank');
       expect(tab.providerId).toBe('codex');
-      expect(tab.draftModel).toBe('gpt-5.4');
+      expect(tab.draftModel).toBe(DEFAULT_CODEX_PRIMARY_MODEL);
     });
   });
 });
@@ -2367,7 +2453,7 @@ describe('Tab - UI Callback Wiring', () => {
       const plugin = createMockPlugin({
         settings: {
           excludedTags: [],
-          model: 'gpt-5.4',
+          model: DEFAULT_CODEX_PRIMARY_MODEL,
           thinkingBudget: 'low',
           effortLevel: 'high',
           permissionMode: 'yolo',
@@ -2381,7 +2467,7 @@ describe('Tab - UI Callback Wiring', () => {
           codexEnabled: true,
           savedProviderModel: {
             claude: 'claude-sonnet-4-5',
-            codex: 'gpt-5.4',
+            codex: DEFAULT_CODEX_PRIMARY_MODEL,
           },
           savedProviderEffort: {
             claude: 'high',
@@ -3238,7 +3324,7 @@ describe('Tab - Blank Tab Model Selector', () => {
       { value: 'sonnet', label: 'Sonnet' },
     ];
     const codexModels = [
-      { value: 'gpt-5.4', label: 'GPT-5.4' },
+      { value: DEFAULT_CODEX_PRIMARY_MODEL, label: DEFAULT_CODEX_PRIMARY_MODEL_LABEL },
     ];
 
     jest.spyOn(ProviderRegistry, 'getEnabledProviderIds').mockReturnValue(['codex', 'claude']);
@@ -3281,7 +3367,7 @@ describe('Tab - Cross-Provider Model Rejection', () => {
     expect(toolbarCallbacks).toBeDefined();
 
     // Attempt cross-provider model change (Claude -> Codex)
-    await toolbarCallbacks.onModelChange('gpt-5.4');
+    await toolbarCallbacks.onModelChange(DEFAULT_CODEX_PRIMARY_MODEL);
 
     // Should show a Notice rejecting it
     expect(Notice).toHaveBeenCalledWith(expect.stringContaining('Cannot switch provider'));
@@ -3360,9 +3446,9 @@ describe('Tab - Blank Tab Draft Model Change', () => {
     const toolbarCallbacks = toolbarModule.createInputToolbar.mock.calls.at(-1)?.[1];
 
     // Switch to Codex model on blank tab
-    await toolbarCallbacks.onModelChange('gpt-5.4');
+    await toolbarCallbacks.onModelChange(DEFAULT_CODEX_PRIMARY_MODEL);
 
-    expect(tab.draftModel).toBe('gpt-5.4');
+    expect(tab.draftModel).toBe(DEFAULT_CODEX_PRIMARY_MODEL);
     expect(tab.providerId).toBe('codex');
     // No runtime should have been created
     expect(tab.service).toBeNull();
@@ -3398,9 +3484,103 @@ describe('Tab - Blank Tab Draft Model Change', () => {
 
     mockServiceTierToggle.updateDisplay.mockClear();
 
-    await toolbarCallbacks.onModelChange('gpt-5.4');
+    await toolbarCallbacks.onModelChange(DEFAULT_CODEX_PRIMARY_MODEL);
 
     expect(mockServiceTierToggle.updateDisplay).toHaveBeenCalled();
+  });
+
+  it('awaits async provider warmup callbacks before resolving blank-tab provider changes', async () => {
+    jest.spyOn(ProviderRegistry, 'createInstructionRefineService').mockReturnValue({ cancel: jest.fn(), resetConversation: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'createTitleGenerationService').mockReturnValue({ cancel: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'getTaskResultInterpreter').mockReturnValue({} as any);
+
+    const plugin = createMockPlugin();
+    const tab = createTab(createMockOptions({ plugin }));
+    let releaseWarmup!: () => void;
+    const onProviderChanged = jest.fn().mockImplementation(() => new Promise<void>((resolve) => {
+      releaseWarmup = resolve;
+    }));
+    initializeTabUI(tab, plugin, { onProviderChanged });
+
+    const toolbarModule = jest.requireMock('@/features/chat/ui/InputToolbar') as {
+      createInputToolbar: jest.Mock;
+    };
+    const toolbarCallbacks = toolbarModule.createInputToolbar.mock.calls.at(-1)?.[1];
+
+    let settled = false;
+    const changePromise = toolbarCallbacks.onModelChange('gpt-5.4')
+      .then(() => { settled = true; });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(onProviderChanged).toHaveBeenCalledWith('codex');
+    expect(settled).toBe(false);
+
+    releaseWarmup();
+    await changePromise;
+
+    expect(settled).toBe(true);
+  });
+
+  it('does not trigger provider warmup when a blank-tab model switch stays on OpenCode', async () => {
+    jest.spyOn(ProviderRegistry, 'createInstructionRefineService').mockReturnValue({ cancel: jest.fn(), resetConversation: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'createTitleGenerationService').mockReturnValue({ cancel: jest.fn() } as any);
+    jest.spyOn(ProviderRegistry, 'getTaskResultInterpreter').mockReturnValue({} as any);
+    jest.spyOn(ProviderRegistry, 'resolveProviderForModel').mockImplementation((model: string) => {
+      if (model.startsWith('opencode:')) {
+        return 'opencode';
+      }
+      if (model.startsWith('gpt-') || /^o\d/.test(model)) {
+        return 'codex';
+      }
+      return 'claude';
+    });
+
+    const plugin = createMockPlugin();
+    plugin.settings.providerConfigs = {
+      opencode: {
+        enabled: true,
+      },
+    };
+    plugin.settings.savedProviderModel = {
+      ...plugin.settings.savedProviderModel,
+      opencode: 'opencode:openai/gpt-5',
+    };
+
+    const tab = createTab(createMockOptions({
+      draftModel: 'opencode:openai/gpt-5',
+      plugin,
+    }));
+
+    let releaseWarmup!: () => void;
+    const onProviderChanged = jest.fn().mockImplementation(() => new Promise<void>((resolve) => {
+      releaseWarmup = resolve;
+    }));
+    initializeTabUI(tab, plugin, { onProviderChanged });
+
+    const toolbarModule = jest.requireMock('@/features/chat/ui/InputToolbar') as {
+      createInputToolbar: jest.Mock;
+    };
+    const toolbarCallbacks = toolbarModule.createInputToolbar.mock.calls.at(-1)?.[1];
+
+    let settled = false;
+    const changePromise = toolbarCallbacks.onModelChange('opencode:anthropic/claude-sonnet-4')
+      .then(() => { settled = true; });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(tab.providerId).toBe('opencode');
+    expect(tab.draftModel).toBe('opencode:anthropic/claude-sonnet-4');
+    expect(onProviderChanged).not.toHaveBeenCalled();
+
+    await changePromise;
+    expect(settled).toBe(true);
+
+    if (releaseWarmup) {
+      releaseWarmup();
+    }
   });
 
   it('preserves the saved Codex fast preference when switching away and back', async () => {
@@ -3410,12 +3590,12 @@ describe('Tab - Blank Tab Draft Model Change', () => {
 
     const plugin = createMockPlugin();
     plugin.settings.settingsProvider = 'codex';
-    plugin.settings.model = 'gpt-5.4';
+    plugin.settings.model = DEFAULT_CODEX_PRIMARY_MODEL;
     plugin.settings.effortLevel = 'medium';
     plugin.settings.serviceTier = 'fast';
     plugin.settings.savedProviderModel = {
       claude: 'claude-sonnet-4-5',
-      codex: 'gpt-5.4',
+      codex: DEFAULT_CODEX_PRIMARY_MODEL,
     };
     plugin.settings.savedProviderEffort = {
       claude: 'high',
@@ -3441,7 +3621,7 @@ describe('Tab - Blank Tab Draft Model Change', () => {
     await toolbarCallbacks.onModelChange('gpt-5.4-mini');
     expect(plugin.settings.savedProviderServiceTier.codex).toBe('fast');
 
-    await toolbarCallbacks.onModelChange('gpt-5.4');
+    await toolbarCallbacks.onModelChange(DEFAULT_CODEX_PRIMARY_MODEL);
     expect(plugin.settings.savedProviderServiceTier.codex).toBe('fast');
   });
 
@@ -3517,7 +3697,7 @@ describe('Tab - Blank Tab Draft Model Change', () => {
     const toolbarCallbacks = toolbarModule.createInputToolbar.mock.calls.at(-1)?.[1];
 
     // Switch to Codex model → should swap catalog
-    await toolbarCallbacks.onModelChange('gpt-5.4');
+    await toolbarCallbacks.onModelChange(DEFAULT_CODEX_PRIMARY_MODEL);
 
     expect(setProviderCatalogSpy).toHaveBeenCalledTimes(1);
     const [config, getEntries] = setProviderCatalogSpy.mock.calls[0];
@@ -3580,7 +3760,7 @@ describe('Tab - Blank Tab Draft Model Change', () => {
         codexEnabled: true,
         savedProviderModel: {
           claude: 'claude-sonnet-4-5',
-          codex: 'gpt-5.4',
+          codex: DEFAULT_CODEX_PRIMARY_MODEL,
         },
         savedProviderEffort: {
           claude: 'high',
@@ -3609,7 +3789,7 @@ describe('Tab - Blank Tab Draft Model Change', () => {
     };
     const toolbarCallbacks = toolbarModule.createInputToolbar.mock.calls.at(-1)?.[1];
 
-    await toolbarCallbacks.onModelChange('gpt-5.4');
+    await toolbarCallbacks.onModelChange(DEFAULT_CODEX_PRIMARY_MODEL);
 
     expect(setHiddenCommandsSpy).toHaveBeenCalledWith(new Set(['analyze']));
   });
@@ -3649,7 +3829,7 @@ describe('Tab - Blank Tab Draft Model Change', () => {
     const initialInstructionCalls = createInstructionRefineServiceSpy.mock.calls.length;
     const initialTitleCalls = createTitleGenerationServiceSpy.mock.calls.length;
 
-    await toolbarCallbacks.onModelChange('gpt-5.4');
+    await toolbarCallbacks.onModelChange(DEFAULT_CODEX_PRIMARY_MODEL);
     await toolbarCallbacks.onModelChange('opus');
 
     expect(staleService.cleanup).toHaveBeenCalledTimes(1);
@@ -3691,7 +3871,7 @@ describe('Tab - First Send Binding', () => {
     const plugin = createMockPlugin();
     const tab = createTab(createMockOptions({ plugin }));
 
-    tab.draftModel = 'gpt-5.4';
+    tab.draftModel = DEFAULT_CODEX_PRIMARY_MODEL;
     tab.providerId = 'codex';
     tab.lifecycleState = 'blank';
 
@@ -3792,7 +3972,7 @@ describe('Tab - History Bind Without Runtime', () => {
         codexEnabled: true,
         savedProviderModel: {
           claude: 'claude-sonnet-4-5',
-          codex: 'gpt-5.4',
+          codex: DEFAULT_CODEX_PRIMARY_MODEL,
         },
         savedProviderEffort: {
           claude: 'high',

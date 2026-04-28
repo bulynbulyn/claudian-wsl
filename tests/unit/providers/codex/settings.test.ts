@@ -1,8 +1,11 @@
 import {
+  applyCodexModelDefaults,
   DEFAULT_CODEX_PROVIDER_SETTINGS,
   getCodexProviderSettings,
+  getEffectiveCodexReasoningSummary,
   updateCodexProviderSettings,
 } from '@/providers/codex/settings';
+import { CODEX_SPARK_MODEL } from '@/providers/codex/types/models';
 
 const mockGetHostnameKey = jest.fn(() => 'host-a');
 
@@ -18,6 +21,7 @@ describe('codex settings', () => {
   it('defaults installationMethod to native-windows and leaves wslDistroOverride empty', () => {
     const settings = getCodexProviderSettings({});
 
+    expect(settings.customModels).toBe('');
     expect(settings.installationMethod).toBe('native-windows');
     expect(settings.wslDistroOverride).toBe('');
     expect(settings.installationMethod).toBe(DEFAULT_CODEX_PROVIDER_SETTINGS.installationMethod);
@@ -110,5 +114,32 @@ describe('codex settings', () => {
     expect(next.wslDistroOverridesByHost).toEqual({
       'host-b': 'Debian',
     });
+  });
+
+  it('forces reasoning summary off for GPT-5.3 Codex Spark', () => {
+    const settingsBag: Record<string, unknown> = {
+      providerConfigs: {
+        codex: {
+          reasoningSummary: 'detailed',
+        },
+      },
+    };
+
+    expect(getEffectiveCodexReasoningSummary(settingsBag, CODEX_SPARK_MODEL)).toBe('none');
+    expect(getEffectiveCodexReasoningSummary(settingsBag, 'gpt-5.5')).toBe('detailed');
+  });
+
+  it('sets reasoning summary off when applying GPT-5.3 Codex Spark model defaults', () => {
+    const settingsBag: Record<string, unknown> = {
+      providerConfigs: {
+        codex: {
+          reasoningSummary: 'detailed',
+        },
+      },
+    };
+
+    applyCodexModelDefaults(CODEX_SPARK_MODEL, settingsBag);
+
+    expect(getCodexProviderSettings(settingsBag).reasoningSummary).toBe('none');
   });
 });

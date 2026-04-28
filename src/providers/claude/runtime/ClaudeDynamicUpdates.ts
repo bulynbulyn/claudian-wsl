@@ -6,7 +6,6 @@ import type {
 
 import type { McpServerManager } from '../../../core/mcp/McpServerManager';
 import type {
-  ChatRuntimeEnsureReadyOptions,
   ChatRuntimeQueryOptions,
 } from '../../../core/runtime/types';
 import type { ClaudianSettings, PermissionMode } from '../../../core/types/settings';
@@ -16,6 +15,7 @@ import {
 } from '../types/models';
 import { createClaudePathMapper, mapMcpServersForWsl } from './ClaudePathMapper';
 import type {
+  ClaudeEnsureReadyOptions,
   ClosePersistentQueryOptions,
   PersistentQueryConfig,
 } from './types';
@@ -36,7 +36,7 @@ export interface ClaudeDynamicUpdateDeps {
     externalContextPaths?: string[],
   ) => PersistentQueryConfig;
   needsRestart: (newConfig: PersistentQueryConfig) => boolean;
-  ensureReady: (options: ChatRuntimeEnsureReadyOptions) => Promise<boolean>;
+  ensureReady: (options: ClaudeEnsureReadyOptions) => Promise<boolean>;
   setCurrentExternalContextPaths: (paths: string[]) => void;
   notifyFailure: (message: string) => void;
 }
@@ -120,32 +120,26 @@ export async function applyClaudeDynamicUpdates(
   if (configBeforePermissionUpdate) {
     const sdkMode = deps.resolveSDKPermissionMode(permissionMode);
     const currentSdkMode = configBeforePermissionUpdate.sdkPermissionMode ?? null;
-    if (sdkMode !== currentSdkMode) {
-      // Switching to/from bypassPermissions requires a restart (CLI --permission-mode flag
-      // must be set at launch). Skip setPermissionMode and let the restart below handle it.
-      const needsPermissionRestart = sdkMode === 'bypassPermissions' || currentSdkMode === 'bypassPermissions';
-      console.log('[Claudian] Permission mode change detected:', {
-        from: currentSdkMode,
-        to: sdkMode,
-        needsRestart: needsPermissionRestart,
-      });
 
-      if (!needsPermissionRestart) {
-        try {
-          console.log('[Claudian] Dynamically updating permission mode via SDK...');
-          await persistentQuery.setPermissionMode(sdkMode);
-          console.log('[Claudian] Permission mode updated successfully (hot reload).');
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          deps.notifyFailure(`Failed to update permission mode: ${message}`);
-        }
+    // Check if auto mode restart is needed (auto mode requires CLI flag at launch)
+    const requiresAutoModeRestart = sdkMode === 'auto' && !configBeforePermissionUpdate.enableAutoMode;
+
+    // Check if bypassPermissions restart is needed (YOLO mode requires CLI flag at launch)
+    const requiresBypassRestart = sdkMode === 'bypassPermissions' || currentSdkMode === 'bypassPermissions';
+
+    if (requiresAutoModeRestart || requiresBypassRestart) {
+      // The Claude Code auto-mode/YOLO opt-in is a startup flag. The restart path below
+      // will rebuild the query with that capability before it becomes active.
+    } else if (sdkMode !== currentSdkMode) {
+      try {
+        await persistentQuery.setPermissionMode(sdkMode);
         deps.mutateCurrentConfig(config => {
           config.permissionMode = permissionMode;
           config.sdkPermissionMode = sdkMode;
         });
+      } catch {
+        deps.notifyFailure('Failed to update permission mode');
       }
-      // If needsPermissionRestart, don't update currentConfig here —
-      // the restart below will rebuild it with the correct launch args.
     } else {
       deps.mutateCurrentConfig(config => {
         config.permissionMode = permissionMode;
@@ -201,27 +195,18 @@ export async function applyClaudeDynamicUpdates(
 
   const newConfig = deps.buildPersistentQueryConfig(vaultPath, cliPath, newExternalContextPaths);
   const restartNeeded = deps.needsRestart(newConfig);
-  console.log('[Claudian] needsRestart check:', {
-    result: restartNeeded,
-    currentSdkMode: deps.getCurrentConfig()?.sdkPermissionMode,
-    newSdkMode: newConfig.sdkPermissionMode,
-  });
+
   if (!restartNeeded) {
-    console.log('[Claudian] No restart needed, continuing with current runtime.');
     return;
   }
 
-  console.log('[Claudian] Restart required! Rebuilding runtime with new config...');
   const restarted = await deps.ensureReady({
     externalContextPaths: newExternalContextPaths,
     preserveHandlers: restartOptions?.preserveHandlers,
     force: true,
   });
 
-  console.log('[Claudian] Runtime restart completed:', { success: restarted });
-
   if (restarted && deps.getPersistentQuery()) {
-    console.log('[Claudian] Applying remaining dynamic updates after restart...');
     await applyClaudeDynamicUpdates(deps, queryOptions, restartOptions, false);
   }
 }

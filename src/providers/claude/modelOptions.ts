@@ -1,15 +1,11 @@
 import { getRuntimeEnvironmentVariables } from '../../core/providers/providerEnvironment';
 import type { ProviderUIOption } from '../../core/providers/types';
 import { getModelsFromEnvironment } from './env/claudeModelEnv';
-import {
-  formatClaudeCustomModelLabel,
-  formatGenericCustomModelLabel,
-  getCustomModelLabelSource,
-} from './modelLabels';
+import { formatCustomModelLabel } from './modelLabels';
 import { getClaudeProviderSettings } from './settings';
 import { DEFAULT_CLAUDE_MODELS, filterVisibleModelOptions } from './types/models';
 
-export function parseConfiguredCustomModelIds(value: string): string[] {
+function parseConfiguredCustomModelIds(value: string): string[] {
   const modelIds: string[] = [];
   const seen = new Set<string>();
 
@@ -23,12 +19,6 @@ export function parseConfiguredCustomModelIds(value: string): string[] {
   }
 
   return modelIds;
-}
-
-export function formatConfiguredCustomModelLabel(modelId: string): string {
-  const labelSource = getCustomModelLabelSource(modelId);
-  return formatClaudeCustomModelLabel(labelSource)
-    ?? formatGenericCustomModelLabel(labelSource);
 }
 
 export function getClaudeModelOptions(settings: Record<string, unknown>): ProviderUIOption[] {
@@ -55,7 +45,7 @@ export function getClaudeModelOptions(settings: Record<string, unknown>): Provid
     seenValues.add(modelId);
     models.push({
       value: modelId,
-      label: formatConfiguredCustomModelLabel(modelId),
+      label: formatCustomModelLabel(modelId),
       description: 'Custom model',
     });
   }

@@ -1,14 +1,17 @@
 import * as fs from 'fs';
 import { Setting } from 'obsidian';
 
+import { ProviderSettingsCoordinator } from '../../../core/providers/ProviderSettingsCoordinator';
 import type { ProviderSettingsTabRenderer } from '../../../core/providers/types';
 import { renderEnvironmentSettingsSection } from '../../../features/settings/ui/EnvironmentSettingsSection';
 import { t } from '../../../i18n/i18n';
 import { getHostnameKey } from '../../../utils/env';
 import { expandHomePath } from '../../../utils/path';
 import { getCodexWorkspaceServices } from '../app/CodexWorkspaceServices';
+import { parseConfiguredCustomModelIds, resolveCodexModelSelection } from '../modelOptions';
 import { isWindowsStyleCliReference } from '../runtime/CodexBinaryLocator';
 import { getCodexProviderSettings, updateCodexProviderSettings } from '../settings';
+import { DEFAULT_CODEX_PRIMARY_MODEL } from '../types/models';
 import { CodexSkillSettings } from './CodexSkillSettings';
 import { CodexSubagentSettings } from './CodexSubagentSettings';
 
@@ -20,6 +23,21 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
     const hostnameKey = getHostnameKey();
     const isWindowsHost = process.platform === 'win32';
     let installationMethod = codexSettings.installationMethod;
+
+    const reconcileActiveCodexModelSelection = (): void => {
+      const activeProvider = settingsBag.settingsProvider;
+      if (activeProvider !== 'codex') {
+        return;
+      }
+
+      const currentModel = typeof settingsBag.model === 'string' ? settingsBag.model : '';
+      const nextModel = resolveCodexModelSelection(settingsBag, currentModel);
+      if (!nextModel || nextModel === currentModel) {
+        return;
+      }
+
+      settingsBag.model = nextModel;
+    };
 
     // --- Setup ---
 
@@ -246,6 +264,96 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
     ];
 
     new Setting(container)
+      .setName('Custom models')
+      .setDesc('Append additional Codex model IDs to the picker, one per line. OPENAI_MODEL still takes precedence when set.')
+      .addTextArea((text) => {
+        let pendingCustomModels = codexSettings.customModels;
+        let savedCustomModels = codexSettings.customModels;
+
+        const reconcileInactiveCodexProjection = (
+          previousCustomModels: string,
+        ): boolean => {
+          if (settingsBag.settingsProvider === 'codex') {
+            return false;
+          }
+
+          const savedProviderModel = (
+            settingsBag.savedProviderModel
+            && typeof settingsBag.savedProviderModel === 'object'
+          )
+            ? settingsBag.savedProviderModel as Record<string, unknown>
+            : {};
+          const currentSavedModel = typeof savedProviderModel.codex === 'string'
+            ? savedProviderModel.codex
+            : '';
+          if (!currentSavedModel) {
+            return false;
+          }
+
+          const previousCustomModelIds = new Set(parseConfiguredCustomModelIds(previousCustomModels));
+          if (!previousCustomModelIds.has(currentSavedModel)) {
+            return false;
+          }
+
+          const nextSavedModel = resolveCodexModelSelection(settingsBag, currentSavedModel);
+          if (!nextSavedModel || nextSavedModel === currentSavedModel) {
+            return false;
+          }
+
+          settingsBag.savedProviderModel = {
+            ...savedProviderModel,
+            codex: nextSavedModel,
+          };
+          return true;
+        };
+
+        const commitCustomModels = async (): Promise<void> => {
+          const previousCustomModels = savedCustomModels;
+          const previousModel = typeof settingsBag.model === 'string' ? settingsBag.model : '';
+          const previousTitleModel = typeof settingsBag.titleGenerationModel === 'string'
+            ? settingsBag.titleGenerationModel
+            : '';
+
+          if (pendingCustomModels !== savedCustomModels) {
+            updateCodexProviderSettings(settingsBag, { customModels: pendingCustomModels });
+            savedCustomModels = pendingCustomModels;
+          }
+
+          reconcileActiveCodexModelSelection();
+          const didReconcileInactiveProjection = reconcileInactiveCodexProjection(previousCustomModels);
+          const didReconcileTitleModel = ProviderSettingsCoordinator
+            .reconcileTitleGenerationModelSelection(settingsBag);
+          const nextModel = typeof settingsBag.model === 'string' ? settingsBag.model : '';
+          const nextTitleModel = typeof settingsBag.titleGenerationModel === 'string'
+            ? settingsBag.titleGenerationModel
+            : '';
+          const didModelSelectionChange = previousModel !== nextModel;
+          const didCustomModelsChange = previousCustomModels !== savedCustomModels;
+
+          if (!didCustomModelsChange && !didModelSelectionChange && !didReconcileInactiveProjection
+            && !didReconcileTitleModel
+            && previousTitleModel === nextTitleModel) {
+            return;
+          }
+
+          await context.plugin.saveSettings();
+          context.refreshModelSelectors();
+        };
+
+        text
+          .setPlaceholder('gpt-5.4\ngpt-5.3-codex-spark')
+          .setValue(codexSettings.customModels)
+          .onChange((value) => {
+            pendingCustomModels = value;
+          });
+        text.inputEl.rows = 4;
+        text.inputEl.cols = 40;
+        text.inputEl.addEventListener('blur', () => {
+          void commitCustomModels();
+        });
+      });
+
+    new Setting(container)
       .setName('Reasoning summary')
       .setDesc('Show a summary of the model\'s reasoning process in the thinking block.')
       .addDropdown((dropdown) => {
@@ -321,7 +429,7 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
       heading: t('settings.environment'),
       name: 'Codex environment',
       desc: 'Codex-owned runtime variables only. Use this for OPENAI_* and CODEX_* settings. If Codex auto-detection needs help, add its install directory to shared PATH instead of this provider section.',
-      placeholder: 'OPENAI_API_KEY=your-key\nOPENAI_BASE_URL=https://api.openai.com/v1\nOPENAI_MODEL=gpt-5.4\nCODEX_SANDBOX=workspace-write',
+      placeholder: `OPENAI_API_KEY=your-key\nOPENAI_BASE_URL=https://api.openai.com/v1\nOPENAI_MODEL=${DEFAULT_CODEX_PRIMARY_MODEL}\nCODEX_SANDBOX=workspace-write`,
       renderCustomContextLimits: (target) => context.renderCustomContextLimits(target, 'codex'),
     });
   },

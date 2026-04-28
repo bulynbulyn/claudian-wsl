@@ -10,7 +10,7 @@ function formatClaudeModelDateTag(date: string | undefined): string | null {
   return `(${date.slice(2, 6)})`;
 }
 
-export function getCustomModelLabelSource(modelId: string): string {
+function getCustomModelLabelSource(modelId: string): string {
   if (!modelId.includes('/')) {
     return modelId;
   }
@@ -18,13 +18,27 @@ export function getCustomModelLabelSource(modelId: string): string {
   return modelId.split('/').pop() || modelId;
 }
 
-export function formatGenericCustomModelLabel(labelSource: string): string {
+function formatGenericCustomModelLabel(labelSource: string): string {
   return labelSource
     .replace(/-/g, ' ')
     .replace(/\b\w/g, letter => letter.toUpperCase());
 }
 
-export function formatClaudeCustomModelLabel(labelSource: string): string | null {
+/**
+ * Formats a custom model ID for display. Prefers the Claude-aware label
+ * (e.g. `Sonnet 4.5`); falls back to the slug tail for namespaced IDs
+ * (`vendor/model`) or a Title Cased version of the raw ID.
+ */
+export function formatCustomModelLabel(modelId: string): string {
+  const labelSource = getCustomModelLabelSource(modelId);
+  const claudeLabel = formatClaudeCustomModelLabel(labelSource);
+  if (claudeLabel) {
+    return claudeLabel;
+  }
+  return modelId.includes('/') ? labelSource : formatGenericCustomModelLabel(labelSource);
+}
+
+function formatClaudeCustomModelLabel(labelSource: string): string | null {
   const trimmed = labelSource.trim();
   if (!trimmed) {
     return null;

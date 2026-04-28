@@ -30,7 +30,6 @@ export interface SubagentState {
   contentEl: HTMLElement;
   headerEl: HTMLElement;
   labelEl: HTMLElement;
-  countEl: HTMLElement;
   statusEl: HTMLElement;
   promptSectionEl: HTMLElement;
   promptBodyEl: HTMLElement;
@@ -88,10 +87,9 @@ function setPromptText(promptBodyEl: HTMLElement, prompt: string): void {
 }
 
 function updateSyncHeaderAria(state: SubagentState): void {
-  const toolCount = state.info.toolCalls.length;
   state.headerEl.setAttribute(
     'aria-label',
-    `Subagent task: ${truncateDescription(state.info.description)} - ${toolCount} tool uses - Status: ${state.info.status} - click to expand`
+    `Subagent task: ${truncateDescription(state.info.description)} - Status: ${state.info.status} - click to expand`
   );
   state.statusEl.setAttribute('aria-label', `Status: ${state.info.status}`);
 }
@@ -250,9 +248,6 @@ export function createSubagentBlock(
   const labelEl = headerEl.createDiv({ cls: 'claudian-subagent-label' });
   labelEl.setText(truncateDescription(description));
 
-  const countEl = headerEl.createDiv({ cls: 'claudian-subagent-count' });
-  countEl.setText('0 tool uses');
-
   const statusEl = headerEl.createDiv({ cls: 'claudian-subagent-status status-running' });
   statusEl.setAttribute('aria-label', 'Status: running');
 
@@ -271,7 +266,6 @@ export function createSubagentBlock(
     contentEl,
     headerEl,
     labelEl,
-    countEl,
     statusEl,
     promptSectionEl: promptSection.wrapperEl,
     promptBodyEl: promptSection.bodyEl,
@@ -317,9 +311,6 @@ export function addSubagentToolCall(
 
   state.info.toolCalls.push(toolCall);
 
-  const toolCount = state.info.toolCalls.length;
-  state.countEl.setText(`${toolCount} tool uses`);
-
   const toolView = createSubagentToolView(state.toolsContainerEl, toolCall);
   state.toolElements.set(toolCall.id, toolView);
 
@@ -353,7 +344,6 @@ export function finalizeSubagentBlock(
   state.info.result = result;
 
   state.labelEl.setText(truncateDescription(state.info.description));
-  state.countEl.setText(`${state.info.toolCalls.length} tool uses`);
 
   state.statusEl.className = 'claudian-subagent-status';
   state.statusEl.addClass(`status-${state.info.status}`);

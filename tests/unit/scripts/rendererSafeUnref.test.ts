@@ -29,6 +29,30 @@ describe('rendererSafeUnref helpers', () => {
     expect(findUnsafeTimerUnrefSites(result.contents)).toEqual([]);
   });
 
+  it('patches the current claude-sdk shape with a block-bodied exit handler', () => {
+    const input = [
+      'if ($ && !$.killed && $.exitCode === null) setTimeout((X) => {',
+      '  if (X.killed || X.exitCode !== null) return;',
+      '  X.kill("SIGTERM"), setTimeout((J) => {',
+      '    if (J.exitCode === null) J.kill("SIGKILL");',
+      '  }, 5e3, X).unref();',
+      '}, LM, $).unref(), $.once("exit", () => {',
+      '  if (this.processExitHandler) process.off("exit", this.processExitHandler), this.processExitHandler = void 0;',
+      '});',
+      'else if (this.processExitHandler) process.off("exit", this.processExitHandler), this.processExitHandler = void 0;',
+    ].join('\n');
+
+    const result = patchRendererUnsafeUnrefSites(input);
+
+    expect(result.appliedPatches).toEqual([
+      { name: 'claude-sdk-process-transport-close', count: 1 },
+    ]);
+    expect(result.contents).toContain('processKillTimer.unref?.();');
+    expect(result.contents).toContain('forceKillTimer.unref?.();');
+    expect(result.contents).toContain('this.processExitHandler');
+    expect(findUnsafeTimerUnrefSites(result.contents)).toEqual([]);
+  });
+
   it('reports remaining direct timer .unref() calls but ignores guarded usage', () => {
     const input = [
       'const timer = setTimeout(run, 1000);',

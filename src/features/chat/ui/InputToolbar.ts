@@ -5,16 +5,17 @@ import type { McpServerManager } from '../../../core/mcp/McpServerManager';
 import type {
   ProviderCapabilities,
   ProviderChatUIConfig,
-  ProviderIconSvg,
+  ProviderModeSelectorConfig,
   ProviderPermissionModeToggleConfig,
   ProviderReasoningOption,
   ProviderServiceTierToggleConfig,
+  ProviderUIOption,
 } from '../../../core/providers/types';
 import type {
   ManagedMcpServer,
   UsageInfo,
 } from '../../../core/types';
-import { CHECK_ICON_SVG, MCP_ICON_SVG } from '../../../shared/icons';
+import { CHECK_ICON_SVG, createProviderIconSvg, MCP_ICON_SVG } from '../../../shared/icons';
 import { filterValidPaths, findConflictingPath, isDuplicatePath, isValidDirectoryPath, validateDirectoryPath } from '../../../utils/externalContext';
 import { expandHomePath, normalizePathForFilesystem } from '../../../utils/path';
 
@@ -29,6 +30,7 @@ export interface ToolbarSettings {
 
 export interface ToolbarCallbacks {
   onModelChange: (model: string) => Promise<void>;
+  onModeChange: (mode: string) => Promise<void>;
   onThinkingBudgetChange: (budget: string) => Promise<void>;
   onEffortLevelChange: (effort: string) => Promise<void>;
   onServiceTierChange: (serviceTier: string) => Promise<void>;
@@ -106,7 +108,11 @@ export class ModelSelector {
 
       const icon = model.providerIcon ?? this.callbacks.getUIConfig().getProviderIcon?.();
       if (icon) {
-        option.appendChild(createProviderIconSvg(icon));
+        option.appendChild(createProviderIconSvg(icon, {
+          className: 'claudian-model-provider-icon',
+          height: 12,
+          width: 12,
+        }));
       }
       option.createSpan({ text: model.label });
       if (model.description) {
@@ -123,18 +129,92 @@ export class ModelSelector {
   }
 }
 
-function createProviderIconSvg(icon: ProviderIconSvg): SVGElement {
-  const NS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('viewBox', icon.viewBox);
-  svg.setAttribute('width', '12');
-  svg.setAttribute('height', '12');
-  svg.classList.add('claudian-model-provider-icon');
-  const path = document.createElementNS(NS, 'path');
-  path.setAttribute('d', icon.path);
-  path.setAttribute('fill', 'currentColor');
-  svg.appendChild(path);
-  return svg;
+export class ModeSelector {
+  private container: HTMLElement;
+  private labelEl: HTMLElement | null = null;
+  private toggleEl: HTMLElement | null = null;
+  private callbacks: ToolbarCallbacks;
+
+  constructor(parentEl: HTMLElement, callbacks: ToolbarCallbacks) {
+    this.callbacks = callbacks;
+    this.container = parentEl.createDiv({ cls: 'claudian-mode-selector' });
+    this.render();
+  }
+
+  private getSelectorConfig(): ProviderModeSelectorConfig | null {
+    return this.callbacks.getUIConfig().getModeSelector?.(this.callbacks.getSettings()) ?? null;
+  }
+
+  private render() {
+    this.container.empty();
+
+    this.labelEl = this.container.createSpan({ cls: 'claudian-mode-label' });
+    this.toggleEl = this.container.createDiv({ cls: 'claudian-toggle-switch' });
+
+    this.toggleEl.addEventListener('click', () => this.toggle());
+
+    this.updateDisplay();
+  }
+
+  /** Resolves the active/inactive option pair for a two-option toggle. */
+  private resolveOptionPair(
+    selectorConfig: ProviderModeSelectorConfig,
+  ): { active: ProviderUIOption; inactive: ProviderUIOption } {
+    const [first, second] = selectorConfig.options;
+    const active = selectorConfig.activeValue
+      ? selectorConfig.options.find((option) => option.value === selectorConfig.activeValue) ?? second
+      : second;
+    const inactive = active.value === first.value ? second : first;
+    return { active, inactive };
+  }
+
+  updateDisplay() {
+    if (!this.toggleEl || !this.labelEl) {
+      return;
+    }
+
+    const selectorConfig = this.getSelectorConfig();
+    if (!selectorConfig || selectorConfig.options.length !== 2) {
+      this.container.style.display = 'none';
+      return;
+    }
+
+    this.container.style.display = '';
+    const { active, inactive } = this.resolveOptionPair(selectorConfig);
+    const currentOption = selectorConfig.options.find((option) => option.value === selectorConfig.value)
+      ?? selectorConfig.options[0];
+    const isActive = currentOption.value === active.value;
+
+    this.labelEl.setText(currentOption.label || selectorConfig.label);
+    this.labelEl.toggleClass('active', isActive);
+    if (isActive) {
+      this.toggleEl.addClass('active');
+    } else {
+      this.toggleEl.removeClass('active');
+    }
+
+    const titleParts = [`${inactive.label} <-> ${active.label}`];
+    if (currentOption.description) {
+      titleParts.push(currentOption.description);
+    }
+    this.container.setAttribute('title', titleParts.join('\n'));
+  }
+
+  renderOptions() {
+    this.updateDisplay();
+  }
+
+  private async toggle() {
+    const selectorConfig = this.getSelectorConfig();
+    if (!selectorConfig || selectorConfig.options.length !== 2) {
+      return;
+    }
+
+    const { active, inactive } = this.resolveOptionPair(selectorConfig);
+    const nextValue = selectorConfig.value === active.value ? inactive.value : active.value;
+    await this.callbacks.onModeChange(nextValue);
+    this.updateDisplay();
+  }
 }
 
 export class ThinkingBudgetSelector {
@@ -175,12 +255,13 @@ export class ThinkingBudgetSelector {
 
     const currentEffort = this.callbacks.getSettings().effortLevel;
     const uiConfig = this.callbacks.getUIConfig();
-    const model = this.callbacks.getSettings().model;
-    const options = uiConfig.getReasoningOptions(model);
+    const settings = this.callbacks.getSettings();
+    const model = settings.model;
+    const options = uiConfig.getReasoningOptions(model, settings);
     const currentInfo = options.find(e => e.value === currentEffort);
 
     const currentEl = this.effortGearsEl.createDiv({ cls: 'claudian-thinking-current' });
-    currentEl.setText(currentInfo?.label || 'High');
+    currentEl.setText(currentInfo?.label || options[0]?.label || 'High');
 
     const optionsEl = this.effortGearsEl.createDiv({ cls: 'claudian-thinking-options' });
 
@@ -206,12 +287,13 @@ export class ThinkingBudgetSelector {
 
     const currentBudget = this.callbacks.getSettings().thinkingBudget;
     const uiConfig = this.callbacks.getUIConfig();
-    const model = this.callbacks.getSettings().model;
-    const options: ProviderReasoningOption[] = uiConfig.getReasoningOptions(model);
+    const settings = this.callbacks.getSettings();
+    const model = settings.model;
+    const options: ProviderReasoningOption[] = uiConfig.getReasoningOptions(model, settings);
     const currentBudgetInfo = options.find(b => b.value === currentBudget);
 
     const currentEl = this.budgetGearsEl.createDiv({ cls: 'claudian-thinking-current' });
-    currentEl.setText(currentBudgetInfo?.label || 'Off');
+    currentEl.setText(currentBudgetInfo?.label || options[0]?.label || 'Off');
 
     const optionsEl = this.budgetGearsEl.createDiv({ cls: 'claudian-thinking-options' });
 
@@ -241,9 +323,21 @@ export class ThinkingBudgetSelector {
       return;
     }
 
-    const model = this.callbacks.getSettings().model;
+    const settings = this.callbacks.getSettings();
+    const model = settings.model;
     const uiConfig = this.callbacks.getUIConfig();
-    const adaptive = uiConfig.isAdaptiveReasoningModel(model);
+    const options = uiConfig.getReasoningOptions(model, settings);
+    const defaultValue = uiConfig.getDefaultReasoningValue(model, settings);
+    const shouldHide = options.length === 0
+      || (options.length === 1 && options[0]?.value === defaultValue);
+
+    if (shouldHide) {
+      if (this.effortEl) this.effortEl.style.display = 'none';
+      if (this.budgetEl) this.budgetEl.style.display = 'none';
+      return;
+    }
+
+    const adaptive = uiConfig.isAdaptiveReasoningModel(model, settings);
 
     if (this.effortEl) {
       this.effortEl.style.display = adaptive ? '' : 'none';
@@ -265,11 +359,17 @@ export class PermissionToggle {
   private toggleEl: HTMLElement | null = null;
   private labelEl: HTMLElement | null = null;
   private callbacks: ToolbarCallbacks;
+  private visible = true;
 
   constructor(parentEl: HTMLElement, callbacks: ToolbarCallbacks) {
     this.callbacks = callbacks;
     this.container = parentEl.createDiv({ cls: 'claudian-permission-toggle' });
     this.render();
+  }
+
+  setVisible(visible: boolean): void {
+    this.visible = visible;
+    this.updateDisplay();
   }
 
   private render() {
@@ -293,7 +393,7 @@ export class PermissionToggle {
 
     const toggleConfig = this.getToggleConfig();
     const capabilities = this.callbacks.getCapabilities();
-    if (!toggleConfig) {
+    if (!this.visible || !toggleConfig) {
       this.container.style.display = 'none';
       return;
     }
@@ -1068,6 +1168,7 @@ export function createInputToolbar(
   callbacks: ToolbarCallbacks
 ): {
   modelSelector: ModelSelector;
+  modeSelector: ModeSelector;
   thinkingBudgetSelector: ThinkingBudgetSelector;
   contextUsageMeter: ContextUsageMeter | null;
   externalContextSelector: ExternalContextSelector;
@@ -1082,9 +1183,11 @@ export function createInputToolbar(
   const externalContextSelector = new ExternalContextSelector(parentEl, callbacks);
   const mcpServerSelector = new McpServerSelector(parentEl);
   const permissionToggle = new PermissionToggle(parentEl, callbacks);
+  const modeSelector = new ModeSelector(parentEl, callbacks);
 
   return {
     modelSelector,
+    modeSelector,
     thinkingBudgetSelector,
     serviceTierToggle,
     contextUsageMeter,

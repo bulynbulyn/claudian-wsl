@@ -2,6 +2,7 @@ import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvir
 import type { ProviderSettingsReconciler } from '../../../core/providers/types';
 import type { Conversation } from '../../../core/types';
 import { parseEnvironmentVariables } from '../../../utils/env';
+import { resolveCodexModelSelection } from '../modelOptions';
 import { getCodexProviderSettings, updateCodexProviderSettings } from '../settings';
 import { getCodexState } from '../types';
 import { codexChatUIConfig } from '../ui/CodexChatUIConfig';
@@ -40,22 +41,28 @@ export const codexSettingsReconciler: ProviderSettingsReconciler = {
       }
     }
 
-    const envVars = parseEnvironmentVariables(envText || '');
-    if (envVars.OPENAI_MODEL) {
-      settings.model = envVars.OPENAI_MODEL;
-    } else if (
-      typeof settings.model === 'string'
-      && settings.model.length > 0
-      && !codexChatUIConfig.isDefaultModel(settings.model)
-    ) {
-      settings.model = codexChatUIConfig.getModelOptions({})[0]?.value ?? 'gpt-5.4';
+    const currentModel = typeof settings.model === 'string' ? settings.model : '';
+    const nextModel = resolveCodexModelSelection(settings, currentModel);
+    if (nextModel) {
+      settings.model = nextModel;
     }
 
     updateCodexProviderSettings(settings, { environmentHash: currentHash });
     return { changed: true, invalidatedConversations };
   },
 
-  normalizeModelVariantSettings(): boolean {
-    return false;
+  normalizeModelVariantSettings(settings: Record<string, unknown>): boolean {
+    const model = settings.model as string;
+    if (!model) {
+      return false;
+    }
+
+    const normalizedModel = codexChatUIConfig.normalizeModelVariant(model, settings);
+    if (normalizedModel === model) {
+      return false;
+    }
+
+    settings.model = normalizedModel;
+    return true;
   },
 };

@@ -1,6 +1,6 @@
 # Claudian WSL
 
-> **基于 [Claudian](https://github.com/YishenTu/claudian) v2.0.4 by [Yishen Tu](https://github.com/YishenTu)**
+> **基于 [Claudian](https://github.com/YishenTu/claudian) v2.0.8 by [Yishen Tu](https://github.com/YishenTu)**
 
 ![GitHub release](https://img.shields.io/github/v/release/bulynbulyn/claudian-wsl)
 ![License](https://img.shields.io/github/license/bulynbulyn/claudian-wsl)
@@ -19,7 +19,7 @@
 
 > ⚠️ **说明**: 本项目由 **glm5 + Claude Code** 生成，仅测试了基本的 Claude Code-WSL 功能，其他功能未详细测试。如有问题请提 [Issues](https://github.com/bulynbulyn/claudian-wsl/issues)。
 
-An Obsidian plugin that embeds AI coding agents (Claude Code, Codex) in your vault with **WSL support for Windows users**.
+An Obsidian plugin that embeds AI coding agents (Claude Code, Codex, Opencode) in your vault with **WSL support for Windows users**. Your vault becomes the agent's working directory — file read/write, search, bash, and multi-step workflows all work out of the box.
 
 ## 新增功能：WSL 支持
 
@@ -28,8 +28,18 @@ An Obsidian plugin that embeds AI coding agents (Claude Code, Codex) in your vau
 - **Installation method 选择**：Settings 中新增 Native Windows / WSL 选项
 - **WSL distro 自动检测**：自动从 `\\wsl$\` 工作区路径推断，或手动指定
 - **路径自动转换**：`D:\vault` → `/mnt/d/vault`
+- **历史记录支持**：WSL 模式下正确加载 Claude SDK session 文件
+- **Rewind 支持**：文件回滚功能在 WSL 模式下正常工作
 
 详细改动说明请查看 [CHANGELOG-wsl.md](CHANGELOG-wsl.md)。
+
+## Requirements
+
+- **Claude provider**: [Claude Code CLI](https://code.claude.com/docs/en/overview) installed (native install recommended). Claude subscription/API or compatible provider ([Openrouter](https://openrouter.ai/docs/guides/guides/claude-code-integration), [Kimi](https://platform.moonshot.ai/docs/guide/agent-support), etc.).
+- **Optional providers**: [Codex CLI](https://github.com/openai/codex), [Opencode](https://opencode.ai/).
+- **WSL mode (Windows)**: Claude CLI + Node.js in WSL
+- Obsidian v1.4.5+
+- Desktop only (macOS, Linux, Windows)
 
 ## 安装
 
@@ -56,7 +66,9 @@ An Obsidian plugin that embeds AI coding agents (Claude Code, Codex) in your vau
 3. CLI path 填 Linux 路径（如 `/usr/local/bin/claude`）或 `claude`
 4. 确保 WSL 中已安装 Claude CLI 和 Node.js
 
-## 原版功能
+## 功能
+
+Open the chat sidebar from the ribbon icon or command palette. Select text and use the hotkey for inline edit. Everything works like your familiar coding agent — talk to the agent, and it reads, writes, edits, and searches files in your vault.
 
 - **Inline Edit** — Select text + hotkey for direct note editing with diff preview
 - **Slash Commands & Skills** — `/` for commands, `$` for skills
@@ -64,23 +76,82 @@ An Obsidian plugin that embeds AI coding agents (Claude Code, Codex) in your vau
 - **Plan Mode** — `Shift+Tab` to toggle
 - **MCP Servers** — Connect external tools via Model Context Protocol
 - **Multi-Tab & Conversations** — Multiple tabs, history, fork, resume
+- **Auto Safe Mode** — New `auto` permission mode for dynamic approvals
 
-## Requirements
+> **Tip**: Copy `.env.local.example` to `.env.local` or `npm install` and setup your vault path to auto-copy files during development.
 
-- **Claude provider**: [Claude Code CLI](https://code.claude.com/docs/en/overview) installed
-- **WSL mode (Windows)**: Claude CLI + Node.js in WSL
-- Obsidian v1.4.5+
-- Desktop only (macOS, Linux, Windows)
+## Privacy & Data Use
 
-## 原版文档
+- **Sent to API**: Your input, attached files, images, and tool call outputs. Default: Anthropic (Claude) or OpenAI (Codex); configurable via environment variables.
+- **Local storage**: Claudian settings and session metadata in `vault/.claudian/`; Claude provider files in `vault/.claude/`; transcripts in `~/.claude/projects/` (Claude) and `~/.codex/sessions/` (Codex).
+- **No telemetry**: No tracking beyond your configured API provider.
 
-完整功能说明请查看原版 [README](https://github.com/YishenTu/claudian#readme)。
+## Troubleshooting
 
-## 致谢
+### Claude CLI not found
 
-- 原版作者：[Yishen Tu](https://github.com/YishenTu)
-- WSL 支持实现参考 Codex provider 架构
+If you encounter `spawn claude ENOENT` or `Claude CLI not found`, the plugin can't auto-detect your Claude installation. Common with Node version managers (nvm, fnm, volta).
+
+**Solution**: Find your CLI path and set it in Settings → Advanced → Claude CLI path.
+
+| Platform | Command | Example Path |
+|----------|---------|--------------|
+| macOS/Linux | `which claude` | `/Users/you/.volta/bin/claude` |
+| Windows (native) | `where.exe claude` | `C:\Users\you\AppData\Local\Claude\claude.exe` |
+| Windows (WSL) | `wsl which claude` | `/usr/local/bin/claude` |
+
+### npm CLI and Node.js not in same directory
+
+If using npm-installed CLI, check if `claude` and `node` are in the same directory:
+```bash
+dirname $(which claude)
+dirname $(which node)
+```
+
+If different, GUI apps like Obsidian may not find Node.js.
+
+**Solutions**:
+1. Install native binary (recommended)
+2. Add Node.js path to Settings → Environment: `PATH=/path/to/node/bin`
+
+## Architecture
+
+```
+src/
+├── main.ts                      # Plugin entry point
+├── app/                         # Shared defaults and plugin-level storage
+├── core/                        # Provider-neutral runtime, registry, and type contracts
+│   ├── runtime/                 # ChatRuntime interface and approval types
+│   ├── providers/               # Provider registry and workspace services
+│   ├── auxiliary/               # Shared provider auxiliary services
+│   ├── bootstrap/               # Plugin bootstrap wiring
+│   ├── security/                # Approval utilities
+│   └── ...                      # commands, mcp, prompt, storage, tools, types
+├── providers/
+│   ├── claude/                  # Claude SDK adaptor, prompt encoding, storage, MCP, plugins
+│   ├── codex/                   # Codex app-server adaptor, JSON-RPC transport, JSONL history
+│   ├── opencode/                # Opencode adaptor
+│   └── acp/                     # Agent Client Protocol shared transport
+├── features/
+│   ├── chat/                    # Sidebar chat: tabs, controllers, renderers
+│   ├── inline-edit/             # Inline edit modal and provider-backed edit services
+│   └── settings/                # Settings shell with provider tabs
+├── shared/                      # Reusable UI components and modals
+├── i18n/                        # Internationalization (10 locales)
+├── types/                       # Shared ambient types
+├── utils/                       # Cross-cutting utilities
+└── style/                       # Modular CSS
+```
 
 ## License
 
-[MIT License](LICENSE) - 继承原项目
+Licensed under the [MIT License](LICENSE) - 继承原项目。
+
+## Acknowledgments
+
+- 原版作者：[Yishen Tu](https://github.com/YishenTu)
+- WSL 支持实现参考 Codex provider 架构
+- [Obsidian](https://obsidian.md) for the plugin API
+- [Anthropic](https://anthropic.com) for Claude and the [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/overview)
+- [OpenAI](https://openai.com) for [Codex](https://github.com/openai/codex)
+- [Opencode](https://opencode.ai/)

@@ -6,10 +6,15 @@ import {
   createInputToolbar,
   McpServerSelector,
   ModelSelector,
+  ModeSelector,
   PermissionToggle,
   ServiceTierToggle,
   ThinkingBudgetSelector,
 } from '@/features/chat/ui/InputToolbar';
+import {
+  DEFAULT_CODEX_PRIMARY_MODEL,
+  DEFAULT_CODEX_PRIMARY_MODEL_LABEL,
+} from '@/providers/codex/types/models';
 
 jest.mock('obsidian', () => ({
   Notice: jest.fn(),
@@ -119,7 +124,7 @@ function createMockUIConfig() {
       planLabel: 'PLAN',
     }),
     getServiceTierToggle: jest.fn().mockImplementation((settings: Record<string, unknown>) =>
-      settings.model === 'gpt-5.4'
+      settings.model === DEFAULT_CODEX_PRIMARY_MODEL
         ? {
           inactiveValue: 'default',
           inactiveLabel: 'Standard',
@@ -129,12 +134,24 @@ function createMockUIConfig() {
         }
         : null
     ),
+    getModeSelector: jest.fn().mockImplementation((settings: Record<string, unknown>) => ({
+      activeValue: 'build',
+      label: 'Mode',
+      options: [
+        { value: 'build', label: 'Build', description: 'Default editing agent' },
+        { value: 'plan', label: 'Plan', description: 'Planning-first agent' },
+      ],
+      value: typeof settings.selectedMode === 'string' && settings.selectedMode
+        ? settings.selectedMode
+        : 'build',
+    })),
   };
 }
 
 function createMockCallbacks(overrides: Record<string, any> = {}) {
   return {
     onModelChange: jest.fn().mockResolvedValue(undefined),
+    onModeChange: jest.fn().mockResolvedValue(undefined),
     onThinkingBudgetChange: jest.fn().mockResolvedValue(undefined),
     onEffortLevelChange: jest.fn().mockResolvedValue(undefined),
     onServiceTierChange: jest.fn().mockResolvedValue(undefined),
@@ -145,6 +162,7 @@ function createMockCallbacks(overrides: Record<string, any> = {}) {
       effortLevel: 'high',
       serviceTier: 'default',
       permissionMode: 'normal',
+      selectedMode: 'build',
       enableOpus1M: false,
       enableSonnet1M: false,
     }),
@@ -280,7 +298,7 @@ describe('ModelSelector', () => {
     const groupedModels = [
       { value: 'opus', label: 'Opus', group: 'Claude' },
       { value: 'sonnet', label: 'Sonnet', group: 'Claude' },
-      { value: 'gpt-5.4', label: 'GPT-5.4', group: 'Codex' },
+      { value: DEFAULT_CODEX_PRIMARY_MODEL, label: DEFAULT_CODEX_PRIMARY_MODEL_LABEL, group: 'Codex' },
     ];
     const uiConfig = createMockUIConfig();
     uiConfig.getModelOptions.mockReturnValue(groupedModels);
@@ -297,7 +315,7 @@ describe('ModelSelector', () => {
 
     const dropdown = parentEl.querySelector('.claudian-model-dropdown');
     const children = dropdown?.children || [];
-    // Reversed: [Codex group, gpt-5.4, Claude group, Sonnet, Opus]
+    // Reversed: [Codex group, built-in Codex model, Claude group, Sonnet, Opus]
     const groups = children.filter((c: any) => c.hasClass('claudian-model-group'));
     expect(groups.length).toBe(2);
     expect(groups[0]?.textContent).toBe('Codex');
@@ -333,6 +351,91 @@ describe('ModelSelector', () => {
     expect(options.find((o: any) => o.children[0]?.textContent === 'Opus')).toBeUndefined();
     expect(options.find((o: any) => o.children[0]?.textContent === 'Sonnet')).toBeUndefined();
     expect(parentEl.querySelector('.claudian-model-label')?.textContent).toBe('Opus 1M');
+  });
+});
+
+describe('ModeSelector', () => {
+  let parentEl: any;
+  let callbacks: ReturnType<typeof createMockCallbacks>;
+  let selector: ModeSelector;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    parentEl = createMockEl();
+    callbacks = createMockCallbacks();
+    selector = new ModeSelector(parentEl, callbacks);
+  });
+
+  it('should create a container with mode-selector class', () => {
+    const container = parentEl.querySelector('.claudian-mode-selector');
+    expect(container).not.toBeNull();
+  });
+
+  it('should display the current mode label', () => {
+    const label = parentEl.querySelector('.claudian-mode-label');
+    expect(label?.textContent).toBe('Build');
+  });
+
+  it('should call onModeChange when the toggle is clicked', async () => {
+    const toggle = parentEl.querySelector('.claudian-toggle-switch');
+    await toggle?.dispatchEvent('click');
+
+    expect(callbacks.onModeChange).toHaveBeenCalledWith('plan');
+  });
+
+  it('should show the active style when the configured active mode is selected', () => {
+    callbacks.getSettings.mockReturnValue({
+      model: 'sonnet',
+      thinkingBudget: 'low',
+      effortLevel: 'high',
+      serviceTier: 'default',
+      permissionMode: 'normal',
+      selectedMode: 'build',
+      enableOpus1M: false,
+      enableSonnet1M: false,
+    });
+
+    const parentEl2 = createMockEl();
+    new ModeSelector(parentEl2, callbacks);
+
+    const label = parentEl2.querySelector('.claudian-mode-label');
+    const toggle = parentEl2.querySelector('.claudian-toggle-switch');
+    expect(label?.textContent).toBe('Build');
+    expect(label?.hasClass('active')).toBe(true);
+    expect(toggle?.hasClass('active')).toBe(true);
+  });
+
+  it('should show the inactive style when the configured inactive mode is selected', () => {
+    callbacks.getSettings.mockReturnValue({
+      model: 'sonnet',
+      thinkingBudget: 'low',
+      effortLevel: 'high',
+      serviceTier: 'default',
+      permissionMode: 'normal',
+      selectedMode: 'plan',
+      enableOpus1M: false,
+      enableSonnet1M: false,
+    });
+
+    const parentEl2 = createMockEl();
+    new ModeSelector(parentEl2, callbacks);
+
+    const label = parentEl2.querySelector('.claudian-mode-label');
+    const toggle = parentEl2.querySelector('.claudian-toggle-switch');
+    expect(label?.textContent).toBe('Plan');
+    expect(label?.hasClass('active')).toBe(false);
+    expect(toggle?.hasClass('active')).toBe(false);
+  });
+
+  it('should hide when the provider exposes no mode selector', () => {
+    const uiConfig = createMockUIConfig();
+    uiConfig.getModeSelector.mockReturnValue(null);
+    callbacks.getUIConfig.mockReturnValue(uiConfig);
+
+    selector.updateDisplay();
+
+    const container = parentEl.querySelector('.claudian-mode-selector');
+    expect(container?.style?.display).toBe('none');
   });
 });
 
@@ -567,6 +670,16 @@ describe('PermissionToggle', () => {
     const container = parentEl2.querySelector('.claudian-permission-toggle');
     expect(container?.style.display).toBe('none');
   });
+
+  it('should hide the control when visibility is disabled explicitly', () => {
+    const parentEl2 = createMockEl();
+    const toggle = new PermissionToggle(parentEl2, callbacks);
+
+    toggle.setVisible(false);
+
+    const container = parentEl2.querySelector('.claudian-permission-toggle');
+    expect(container?.style.display).toBe('none');
+  });
 });
 
 describe('ServiceTierToggle', () => {
@@ -587,7 +700,7 @@ describe('ServiceTierToggle', () => {
     callbacks = createMockCallbacks({
       getUIConfig: jest.fn().mockReturnValue(uiConfig),
       getSettings: jest.fn().mockReturnValue({
-        model: 'gpt-5.4',
+        model: DEFAULT_CODEX_PRIMARY_MODEL,
         thinkingBudget: 'off',
         effortLevel: 'medium',
         serviceTier: 'default',
@@ -614,7 +727,7 @@ describe('ServiceTierToggle', () => {
 
   it('renders the icon button in the active state when fast mode is on', () => {
     callbacks.getSettings.mockReturnValue({
-      model: 'gpt-5.4',
+      model: DEFAULT_CODEX_PRIMARY_MODEL,
       thinkingBudget: 'off',
       effortLevel: 'medium',
       serviceTier: 'fast',
@@ -637,7 +750,7 @@ describe('ServiceTierToggle', () => {
 
   it('toggles from Fast to Standard on click', async () => {
     callbacks.getSettings.mockReturnValue({
-      model: 'gpt-5.4',
+      model: DEFAULT_CODEX_PRIMARY_MODEL,
       thinkingBudget: 'off',
       effortLevel: 'medium',
       serviceTier: 'fast',
@@ -1003,10 +1116,24 @@ describe('createInputToolbar', () => {
     const toolbar = createInputToolbar(parentEl, callbacks);
 
     expect(toolbar.modelSelector).toBeInstanceOf(ModelSelector);
+    expect(toolbar.modeSelector).toBeInstanceOf(ModeSelector);
     expect(toolbar.thinkingBudgetSelector).toBeInstanceOf(ThinkingBudgetSelector);
     expect(toolbar.contextUsageMeter).toBeInstanceOf(ContextUsageMeter);
     expect(toolbar.mcpServerSelector).toBeInstanceOf(McpServerSelector);
     expect(toolbar.permissionToggle).toBeInstanceOf(PermissionToggle);
     expect(toolbar.serviceTierToggle).toBeInstanceOf(ServiceTierToggle);
+  });
+
+  it('should place the mode selector after the permission toggle in toolbar order', () => {
+    const parentEl = createMockEl();
+    const callbacks = createMockCallbacks();
+
+    createInputToolbar(parentEl, callbacks);
+
+    const permissionIndex = parentEl.children.findIndex((child: any) => child.hasClass('claudian-permission-toggle'));
+    const modeIndex = parentEl.children.findIndex((child: any) => child.hasClass('claudian-mode-selector'));
+    expect(permissionIndex).toBeGreaterThanOrEqual(0);
+    expect(modeIndex).toBeGreaterThan(permissionIndex);
+    expect(modeIndex).toBe(parentEl.children.length - 1);
   });
 });

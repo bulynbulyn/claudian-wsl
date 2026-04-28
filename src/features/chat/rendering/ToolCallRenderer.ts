@@ -23,6 +23,7 @@ import {
   TOOL_WRITE,
   TOOL_WRITE_STDIN,
 } from '../../../core/tools/toolNames';
+import { extractToolResultContent } from '../../../core/tools/toolResultContent';
 import type { AskUserQuestionItem, AskUserQuestionOption, ToolCallInfo } from '../../../core/types';
 import { MCP_ICON_SVG } from '../../../shared/icons';
 import { parseApplyPatchDiffs } from '../../../utils/diff';
@@ -617,7 +618,7 @@ export function renderExpandedContent(
   result: string | undefined,
   input: Record<string, unknown> = {},
 ): void {
-  if (!result && toolName !== TOOL_WEB_SEARCH) {
+  if (!result && toolName !== TOOL_WEB_SEARCH && toolName !== TOOL_BASH) {
     container.createDiv({ cls: 'claudian-tool-empty', text: 'No result' });
     return;
   }
@@ -631,6 +632,8 @@ export function renderExpandedContent(
 
   switch (toolName) {
     case TOOL_BASH:
+      renderBashContent(container, input, resolvedResult);
+      break;
     case TOOL_WRITE_STDIN:
       renderLinesExpanded(container, resolvedResult, 20);
       break;
@@ -723,8 +726,8 @@ export function renderTodoWriteResult(
   renderTodoItems(container, todos);
 }
 
-export function isBlockedToolResult(content: string, isError?: boolean): boolean {
-  const lower = content.toLowerCase();
+export function isBlockedToolResult(content: unknown, isError?: boolean): boolean {
+  const lower = extractToolResultContent(content, { fallbackIndent: 2 }).toLowerCase();
   if (lower.includes('outside the vault')) return true;
   if (lower.includes('access denied')) return true;
   if (lower.includes('user denied')) return true;
@@ -749,6 +752,9 @@ function createToolElementStructure(
   toolCall: ToolCallInfo
 ): ToolElementStructure {
   const toolEl = parentEl.createDiv({ cls: 'claudian-tool-call' });
+  if (toolCall.name === TOOL_BASH) {
+    toolEl.addClass('claudian-tool-call-bash');
+  }
 
   const header = toolEl.createDiv({ cls: 'claudian-tool-header' });
   header.setAttribute('tabindex', '0');
@@ -886,6 +892,26 @@ function contentFallback(container: HTMLElement, text: string): void {
   resultText.setText(text);
 }
 
+function renderBashContent(
+  container: HTMLElement,
+  input: Record<string, unknown>,
+  result: string,
+  initialText?: string,
+): void {
+  const command = (input.command as string) || '';
+  if (command) {
+    const cmdEl = container.createDiv({ cls: 'claudian-tool-bash-command' });
+    cmdEl.setText(`$ ${command}`);
+  }
+  if (initialText) {
+    contentFallback(container, initialText);
+  } else if (result) {
+    renderLinesExpanded(container, result, 20);
+  } else {
+    container.createDiv({ cls: 'claudian-tool-empty', text: 'No result' });
+  }
+}
+
 function createCurrentTaskPreview(
   header: HTMLElement,
   input: Record<string, unknown>
@@ -929,6 +955,8 @@ function renderToolContent(
     } else if (!renderAskUserQuestionResult(content, toolCall)) {
       renderAskUserQuestionFallback(content, toolCall);
     }
+  } else if (toolCall.name === TOOL_BASH) {
+    renderBashContent(content, toolCall.input, toolCall.result ?? '', initialText);
   } else if (initialText) {
     contentFallback(content, initialText);
   } else {
