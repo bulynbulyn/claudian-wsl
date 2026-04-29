@@ -442,7 +442,7 @@ export class InputController {
 
         state.currentContentEl = null;
 
-        streamController.finalizeCurrentThinkingBlock(finalAssistantMsg);
+        await streamController.finalizeCurrentThinkingBlock(finalAssistantMsg);
         await streamController.finalizeCurrentTextBlock(finalAssistantMsg);
         this.deps.getSubagentManager().resetStreamingState();
 
@@ -909,7 +909,7 @@ export class InputController {
       if (shouldDiscardPlaceholder) {
         this.discardStreamingAssistantMessage(previousAssistant.id);
       } else {
-        this.deps.streamController.finalizeCurrentThinkingBlock(previousAssistant);
+        await this.deps.streamController.finalizeCurrentThinkingBlock(previousAssistant);
         await this.deps.streamController.finalizeCurrentTextBlock(previousAssistant);
       }
     }
@@ -956,7 +956,7 @@ export class InputController {
 
     const previousAssistant = this.activeStreamingAssistantMessage;
     if (previousAssistant) {
-      this.deps.streamController.finalizeCurrentThinkingBlock(previousAssistant);
+      await this.deps.streamController.finalizeCurrentThinkingBlock(previousAssistant);
       await this.deps.streamController.finalizeCurrentTextBlock(previousAssistant);
     }
 

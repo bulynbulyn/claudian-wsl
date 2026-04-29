@@ -34,12 +34,12 @@ jest.mock('@/features/chat/rendering/SubagentRenderer', () => ({
 
 jest.mock('@/features/chat/rendering/ThinkingBlockRenderer', () => ({
   appendThinkingContent: jest.fn(),
-  createThinkingBlock: jest.fn().mockReturnValue({
+  createThinkingBlock: jest.fn().mockImplementation(() => ({
     container: {},
     contentEl: {},
     content: '',
     startTime: Date.now(),
-  }),
+  })),
   finalizeThinkingBlock: jest.fn().mockReturnValue(0),
 }));
 
@@ -559,6 +559,11 @@ describe('StreamController - Text Content', () => {
 
       expect(deps.state.pendingTools.size).toBe(0);
       expect(renderToolCall).toHaveBeenCalled();
+      expect(updateToolCallResult).not.toHaveBeenCalled();
+
+      jest.advanceTimersByTime(16);
+      await Promise.resolve();
+
       expect(updateToolCallResult).toHaveBeenCalledWith(
         'bash-1',
         expect.objectContaining({
@@ -576,12 +581,51 @@ describe('StreamController - Text Content', () => {
 
       expect(msg.toolCalls![0].status).toBe('running');
       expect(msg.toolCalls![0].result).toBe('line 1\nline 2\n');
+      expect(updateToolCallResult).toHaveBeenCalledTimes(1);
+
+      jest.advanceTimersByTime(16);
+      await Promise.resolve();
+
       expect(updateToolCallResult).toHaveBeenLastCalledWith(
         'bash-1',
         expect.objectContaining({
           id: 'bash-1',
           status: 'running',
           result: 'line 1\nline 2\n',
+        }),
+        expect.any(Map)
+      );
+    });
+
+    it('should coalesce tool_output renders until the next animation frame', async () => {
+      const { updateToolCallResult } = jest.requireMock('@/features/chat/rendering/ToolCallRenderer');
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockEl();
+
+      await controller.handleStreamChunk(
+        { type: 'tool_use', id: 'bash-1', name: 'Bash', input: { command: 'npm test' } },
+        msg
+      );
+      await controller.handleStreamChunk(
+        { type: 'tool_output', id: 'bash-1', content: 'line 1\n' },
+        msg
+      );
+      await controller.handleStreamChunk(
+        { type: 'tool_output', id: 'bash-1', content: 'line 2\n' },
+        msg
+      );
+
+      expect(updateToolCallResult).not.toHaveBeenCalled();
+
+      jest.advanceTimersByTime(16);
+      await Promise.resolve();
+
+      expect(updateToolCallResult).toHaveBeenCalledTimes(1);
+      expect(updateToolCallResult).toHaveBeenCalledWith(
+        'bash-1',
+        expect.objectContaining({
+          result: 'line 1\nline 2\n',
+          status: 'running',
         }),
         expect.any(Map)
       );
@@ -1153,7 +1197,7 @@ describe('StreamController - Text Content', () => {
         startTime: Date.now(),
       } as any;
 
-      controller.finalizeCurrentThinkingBlock(msg);
+      await controller.finalizeCurrentThinkingBlock(msg);
 
       expect(msg.contentBlocks).toContainEqual(
         expect.objectContaining({ type: 'thinking', content: 'Let me think...' })
@@ -1161,7 +1205,7 @@ describe('StreamController - Text Content', () => {
       expect(deps.state.currentThinkingState).toBeNull();
     });
 
-    it('should not add to contentBlocks when no thinking content', () => {
+    it('should not add to contentBlocks when no thinking content', async () => {
       const msg = createTestMessage();
       deps.state.currentThinkingState = {
         content: '',
@@ -1170,18 +1214,57 @@ describe('StreamController - Text Content', () => {
         startTime: Date.now(),
       } as any;
 
-      controller.finalizeCurrentThinkingBlock(msg);
+      await controller.finalizeCurrentThinkingBlock(msg);
 
       expect(msg.contentBlocks).toEqual([]);
     });
 
-    it('should be a no-op when no thinking state', () => {
+    it('should be a no-op when no thinking state', async () => {
       const msg = createTestMessage();
       deps.state.currentThinkingState = null;
 
-      controller.finalizeCurrentThinkingBlock(msg);
+      await controller.finalizeCurrentThinkingBlock(msg);
 
       expect(msg.contentBlocks).toEqual([]);
+    });
+
+    it('should coalesce thinking renders until the next animation frame', async () => {
+      const { createThinkingBlock } = jest.requireMock('@/features/chat/rendering/ThinkingBlockRenderer');
+      const msg = createTestMessage();
+      const contentEl = createMockEl();
+      createThinkingBlock.mockReturnValueOnce({
+        wrapperEl: createMockEl(),
+        contentEl,
+        labelEl: createMockEl(),
+        content: '',
+        startTime: Date.now(),
+      });
+
+      await controller.handleStreamChunk({ type: 'thinking', content: 'Let ' }, msg);
+      await controller.handleStreamChunk({ type: 'thinking', content: 'me think' }, msg);
+
+      expect(deps.renderer.renderContent).not.toHaveBeenCalled();
+
+      jest.advanceTimersByTime(16);
+      await Promise.resolve();
+
+      expect(deps.renderer.renderContent).toHaveBeenCalledTimes(1);
+      expect(deps.renderer.renderContent).toHaveBeenCalledWith(contentEl, 'Let me think');
+    });
+
+    it('should flush a pending thinking render before finalizing', async () => {
+      const msg = createTestMessage();
+
+      await controller.handleStreamChunk({ type: 'thinking', content: 'Reasoning' }, msg);
+      await controller.finalizeCurrentThinkingBlock(msg);
+
+      expect(deps.renderer.renderContent).toHaveBeenCalledWith(
+        expect.anything(),
+        'Reasoning'
+      );
+      expect(msg.contentBlocks).toContainEqual(
+        expect.objectContaining({ type: 'thinking', content: 'Reasoning' })
+      );
     });
   });
 

@@ -634,8 +634,10 @@ export class MessageRenderer {
         }
       });
 
-      // Process file paths to make them clickable links
-      processFileLinks(this.app, el);
+      // Process wikilinks only when the source can contain them; the DOM pass is expensive.
+      if (processedMarkdown.includes('[[')) {
+        processFileLinks(this.app, el);
+      }
     } catch {
       el.createDiv({
         cls: 'claudian-render-error',
