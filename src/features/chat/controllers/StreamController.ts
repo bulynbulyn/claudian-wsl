@@ -25,6 +25,11 @@ import { extractToolResultContent } from '../../../core/tools/toolResultContent'
 import type { ChatMessage, StreamChunk, SubagentInfo, ToolCallInfo } from '../../../core/types';
 import type { SDKToolUseResult } from '../../../core/types/diff';
 import type ClaudianPlugin from '../../../main';
+import {
+  cancelScheduledAnimationFrame,
+  scheduleAnimationFrame,
+  type ScheduledAnimationFrame,
+} from '../../../utils/animationFrame';
 import { formatDurationMmSs } from '../../../utils/date';
 import { extractDiffData } from '../../../utils/diff';
 import { getVaultPath, normalizePathForVault } from '../../../utils/path';
@@ -73,6 +78,10 @@ export class StreamController {
   private static readonly ASYNC_SUBAGENT_RESULT_RETRY_DELAYS_MS = [200, 600, 1500] as const;
 
   private deps: StreamControllerDeps;
+  private pendingTextRenderFrame: ScheduledAnimationFrame | null = null;
+  private pendingTextRenderPromise: Promise<void> | null = null;
+  private resolvePendingTextRender: (() => void) | null = null;
+  private isTextRenderRunning = false;
 
   // Provider lifecycle agent tracking (spawn → wait/close lifecycle)
   private lifecycleSubagentStates = new Map<string, SubagentState>(); // spawn callId → SubagentState
@@ -106,7 +115,7 @@ export class StreamController {
         // Flush pending tools before rendering new content type
         this.flushPendingTools();
         if (state.currentTextEl) {
-          this.finalizeCurrentTextBlock(msg);
+          await this.finalizeCurrentTextBlock(msg);
         }
         await this.appendThinking(chunk.content);
         break;
@@ -125,7 +134,7 @@ export class StreamController {
         if (state.currentThinkingState) {
           this.finalizeCurrentThinkingBlock(msg);
         }
-        this.finalizeCurrentTextBlock(msg);
+        await this.finalizeCurrentTextBlock(msg);
 
         if (isSubagentToolName(chunk.name)) {
           // Flush pending tools before Agent
@@ -188,7 +197,7 @@ export class StreamController {
         if (state.currentThinkingState) {
           this.finalizeCurrentThinkingBlock(msg);
         }
-        this.finalizeCurrentTextBlock(msg);
+        await this.finalizeCurrentTextBlock(msg);
         msg.contentBlocks = msg.contentBlocks || [];
         msg.contentBlocks.push({ type: 'context_compacted' });
         this.renderCompactBoundary();
@@ -628,7 +637,7 @@ export class StreamController {
   // ============================================
 
   async appendText(text: string): Promise<void> {
-    const { state, renderer } = this.deps;
+    const { state } = this.deps;
     if (!state.currentContentEl) return;
 
     this.hideThinkingIndicator();
@@ -639,11 +648,13 @@ export class StreamController {
     }
 
     state.currentTextContent += text;
-    await renderer.renderContent(state.currentTextEl, state.currentTextContent);
+    void this.scheduleCurrentTextRender();
   }
 
-  finalizeCurrentTextBlock(msg?: ChatMessage): void {
+  async finalizeCurrentTextBlock(msg?: ChatMessage): Promise<void> {
     const { state, renderer } = this.deps;
+    await this.flushPendingTextRender();
+
     if (msg && state.currentTextContent) {
       msg.contentBlocks = msg.contentBlocks || [];
       msg.contentBlocks.push({ type: 'text', content: state.currentTextContent });
@@ -654,6 +665,81 @@ export class StreamController {
     }
     state.currentTextEl = null;
     state.currentTextContent = '';
+  }
+
+  private scheduleCurrentTextRender(): Promise<void> {
+    if (!this.pendingTextRenderPromise) {
+      this.pendingTextRenderPromise = new Promise(resolve => {
+        this.resolvePendingTextRender = resolve;
+      });
+    }
+
+    if (this.pendingTextRenderFrame === null && !this.isTextRenderRunning) {
+      this.pendingTextRenderFrame = scheduleAnimationFrame(() => {
+        this.pendingTextRenderFrame = null;
+        void this.renderPendingText();
+      });
+    }
+
+    return this.pendingTextRenderPromise;
+  }
+
+  private async flushPendingTextRender(): Promise<void> {
+    const pendingRender = this.pendingTextRenderPromise;
+    if (!pendingRender) return;
+
+    if (this.pendingTextRenderFrame !== null) {
+      cancelScheduledAnimationFrame(this.pendingTextRenderFrame);
+      this.pendingTextRenderFrame = null;
+      void this.renderPendingText();
+    }
+
+    await pendingRender;
+  }
+
+  private async renderPendingText(): Promise<void> {
+    if (this.isTextRenderRunning) return;
+    this.isTextRenderRunning = true;
+
+    const { state, renderer } = this.deps;
+    const textEl = state.currentTextEl;
+    const content = state.currentTextContent;
+
+    try {
+      if (textEl) {
+        await renderer.renderContent(textEl, content);
+        this.scrollToBottom();
+      }
+    } catch {
+      // MessageRenderer owns user-visible render fallback; keep stream state moving.
+    } finally {
+      this.isTextRenderRunning = false;
+    }
+
+    if (state.currentTextEl === textEl && state.currentTextContent !== content) {
+      this.pendingTextRenderFrame = scheduleAnimationFrame(() => {
+        this.pendingTextRenderFrame = null;
+        void this.renderPendingText();
+      });
+      return;
+    }
+
+    const resolve = this.resolvePendingTextRender;
+    this.pendingTextRenderPromise = null;
+    this.resolvePendingTextRender = null;
+    resolve?.();
+  }
+
+  private cancelPendingTextRender(): void {
+    if (this.pendingTextRenderFrame !== null) {
+      cancelScheduledAnimationFrame(this.pendingTextRenderFrame);
+      this.pendingTextRenderFrame = null;
+    }
+
+    const resolve = this.resolvePendingTextRender;
+    this.pendingTextRenderPromise = null;
+    this.resolvePendingTextRender = null;
+    resolve?.();
   }
 
   // ============================================
@@ -1249,6 +1335,7 @@ export class StreamController {
 
   resetStreamingState(): void {
     const { state } = this.deps;
+    this.cancelPendingTextRender();
     this.hideThinkingIndicator();
     state.currentContentEl = null;
     state.currentTextEl = null;

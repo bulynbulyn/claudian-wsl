@@ -191,15 +191,53 @@ describe('StreamController - Text Content', () => {
 
       expect(msg.content).toBe('This is a test.');
     });
+
+    it('should coalesce text renders until the next animation frame', async () => {
+      deps.state.currentTextEl = createMockEl();
+
+      await controller.appendText('Hello ');
+      await controller.appendText('World');
+
+      expect(deps.renderer.renderContent).not.toHaveBeenCalled();
+
+      jest.advanceTimersByTime(16);
+      await Promise.resolve();
+
+      expect(deps.renderer.renderContent).toHaveBeenCalledTimes(1);
+      expect(deps.renderer.renderContent).toHaveBeenCalledWith(
+        deps.state.currentTextEl,
+        'Hello World'
+      );
+    });
+
+    it('should flush a pending text render before finalizing text', async () => {
+      const msg = createTestMessage();
+
+      await controller.appendText('Hello');
+      await controller.finalizeCurrentTextBlock(msg);
+
+      expect(deps.renderer.renderContent).toHaveBeenCalledWith(
+        expect.anything(),
+        'Hello'
+      );
+      expect(deps.renderer.addTextCopyButton).toHaveBeenCalledWith(
+        expect.anything(),
+        'Hello'
+      );
+      expect(msg.contentBlocks).toContainEqual({
+        type: 'text',
+        content: 'Hello',
+      });
+    });
   });
 
   describe('Text block finalization', () => {
-    it('should add copy button when finalizing text block with content', () => {
+    it('should add copy button when finalizing text block with content', async () => {
       const msg = createTestMessage();
       deps.state.currentTextEl = createMockEl();
       deps.state.currentTextContent = 'Hello World';
 
-      controller.finalizeCurrentTextBlock(msg);
+      await controller.finalizeCurrentTextBlock(msg);
 
       expect(deps.renderer.addTextCopyButton).toHaveBeenCalledWith(
         expect.anything(),
@@ -211,12 +249,12 @@ describe('StreamController - Text Content', () => {
       });
     });
 
-    it('should not add copy button when no text element exists', () => {
+    it('should not add copy button when no text element exists', async () => {
       const msg = createTestMessage();
       deps.state.currentTextEl = null;
       deps.state.currentTextContent = 'Hello World';
 
-      controller.finalizeCurrentTextBlock(msg);
+      await controller.finalizeCurrentTextBlock(msg);
 
       expect(deps.renderer.addTextCopyButton).not.toHaveBeenCalled();
       // Content block should still be added
@@ -226,23 +264,23 @@ describe('StreamController - Text Content', () => {
       });
     });
 
-    it('should not add copy button when no text content exists', () => {
+    it('should not add copy button when no text content exists', async () => {
       const msg = createTestMessage();
       deps.state.currentTextEl = createMockEl();
       deps.state.currentTextContent = '';
 
-      controller.finalizeCurrentTextBlock(msg);
+      await controller.finalizeCurrentTextBlock(msg);
 
       expect(deps.renderer.addTextCopyButton).not.toHaveBeenCalled();
       expect(msg.contentBlocks).toEqual([]);
     });
 
-    it('should reset text state after finalization', () => {
+    it('should reset text state after finalization', async () => {
       const msg = createTestMessage();
       deps.state.currentTextEl = createMockEl();
       deps.state.currentTextContent = 'Test content';
 
-      controller.finalizeCurrentTextBlock(msg);
+      await controller.finalizeCurrentTextBlock(msg);
 
       expect(deps.state.currentTextEl).toBeNull();
       expect(deps.state.currentTextContent).toBe('');
