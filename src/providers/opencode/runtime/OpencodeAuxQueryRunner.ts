@@ -17,6 +17,7 @@ import {
   extractAcpSessionModelState,
 } from '../../acp';
 import { decodeOpencodeModelId } from '../models';
+import { getOpencodeProviderSettings } from '../settings';
 import { opencodeChatUIConfig } from '../ui/OpencodeChatUIConfig';
 import {
   type OpencodeManagedAgentConfig,
@@ -170,6 +171,7 @@ export class OpencodeAuxQueryRunner implements AuxQueryRunner {
 
     const settings = this.plugin.settings as unknown as Record<string, unknown>;
     const runtimeEnv = buildOpencodeRuntimeEnv(settings, resolvedCliPath);
+    const opencodeSettings = getOpencodeProviderSettings(settings);
     const auxAgentId = OPENCODE_AUX_AGENT_IDS[this.options.agentProfile];
     const artifacts = await prepareOpencodeLaunchArtifacts({
       artifactsSubdir: `opencode/aux/${this.options.artifactPurpose}`,
@@ -180,6 +182,11 @@ export class OpencodeAuxQueryRunner implements AuxQueryRunner {
       systemPromptText: systemPrompt,
       userName: typeof settings.userName === 'string' ? settings.userName : undefined,
       workspaceRoot: cwd,
+      wslSettings: {
+        installationMethod: opencodeSettings.installationMethod,
+        wslDistroOverride: opencodeSettings.wslDistroOverride,
+        wslHomePath: opencodeSettings.wslHomePath,
+      },
     });
     const nextLaunchKey = JSON.stringify({
       artifactKey: artifacts.launchKey,
