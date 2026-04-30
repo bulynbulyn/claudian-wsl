@@ -113,6 +113,21 @@ export function normalizeManagedOpencodeSelectedMode(
     : (managedModes[0]?.id ?? '');
 }
 
+export function resolveOpencodeModeNameForId(
+  modeId: string,
+  modes: OpencodeMode[] = [],
+): string {
+  const effectiveModes = getEffectiveOpencodeModes(modes);
+  const mode = effectiveModes.find((m) => m.id === modeId);
+  if (mode) {
+    return mode.name || mode.id;
+  }
+  // Fallback to the managed modes
+  const managedModes = getManagedOpencodeModes(modes);
+  const managedMode = managedModes.find((m) => m.id === modeId);
+  return managedMode?.name || managedMode?.id || modeId;
+}
+
 export function resolveOpencodeModeForPermissionMode(
   permissionMode: unknown,
   modes: OpencodeMode[] = [],

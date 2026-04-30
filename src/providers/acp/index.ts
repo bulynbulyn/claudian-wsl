@@ -4,6 +4,7 @@ export * from './AcpSessionConfig';
 export * from './AcpSessionUpdateNormalizer';
 export * from './AcpSubprocess';
 export * from './AcpToolStreamAdapter';
+export * from './AcpWslLaunchSpec';
 export * from './buildAcpUsageInfo';
 export * from './methodNames';
 export * from './types';
