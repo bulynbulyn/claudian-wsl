@@ -53,6 +53,25 @@
 
 ## Bug 修复
 
+### v2.0.8-wsl.1 OpenCode WSL 历史记录加载
+
+**问题**：OpenCode WSL 连接下，重新打开 Obsidian 查看对话历史为空白。
+
+**原因**：
+1. JavaScript 字符串转义问题：`'\\wsl$'` = `\wsl$`（单反斜杠），但 UNC 路径实际是 `\\wsl$`（双反斜杠），导致 WSL 路径检测失败
+2. `node:sqlite` 模块在 Obsidian/Electron 中被 CORS 政策阻止
+3. Windows 端 sqlite3 CLI 无法直接读取 WSL 文件系统中的数据库
+4. SQL 引号转义问题：使用 `'"'"'` 转义后放在双引号内，单引号被错误处理
+
+**修复**：
+- 修正 JavaScript 字符串转义：`'\\wsl$'` → `'\\\\wsl$'`（检测双反斜杠 UNC 路径）
+- 正则表达式转义修正：`/^\\wsl\$/` → `/^\\\\wsl\$/`
+- 新增 `runSqlite3ViaWsl()` 函数通过 `wsl.exe` 执行 `sqlite3 -json` 命令
+- 新增 `convertWslUncToLinux()` 函数转换 UNC 路径到 Linux 路径（`\\wsl$\Ubuntu\path` → `/path`）
+- 修正 SQL 引号处理：双引号包裹 SQL，内部单引号无需转义
+- 新增 `resolveOpencodeDatabasePathForWsl()` 强制使用 Linux 格式路径计算
+- `prepareOpencodeLaunchArtifacts()` 支持 WSL 模式下生成正确 UNC 路径
+
 ### v2.0.4-wsl.2 历史记录加载失败
 
 **问题**：WSL 模式下点击历史对话显示空白内容，Obsidian 重启后历史全部消失。
