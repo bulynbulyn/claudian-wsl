@@ -54,6 +54,90 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
           })
       );
 
+    // WSL Installation Method (Windows only)
+    let installationMethod = opencodeSettings.installationMethod;
+    let wslDistroInputEl: HTMLInputElement | null = null;
+    let wslDistroSettingEl: HTMLElement | null = null;
+    let wslHomePathInputEl: HTMLInputElement | null = null;
+    let wslHomePathSettingEl: HTMLElement | null = null;
+
+    if (process.platform === 'win32') {
+      const refreshInstallationMethodUI = (): void => {
+        if (wslDistroInputEl) {
+          wslDistroInputEl.disabled = installationMethod !== 'wsl';
+        }
+        if (wslDistroSettingEl) {
+          wslDistroSettingEl.style.display = installationMethod === 'wsl' ? '' : 'none';
+        }
+        if (wslHomePathInputEl) {
+          wslHomePathInputEl.disabled = installationMethod !== 'wsl';
+        }
+        if (wslHomePathSettingEl) {
+          wslHomePathSettingEl.style.display = installationMethod === 'wsl' ? '' : 'none';
+        }
+      };
+
+      new Setting(container)
+        .setName('Installation method')
+        .setDesc('How Claudian should launch OpenCode on Windows. Native Windows uses a Windows executable path. WSL launches the Linux CLI inside a selected distro.')
+        .addDropdown((dropdown) => {
+          dropdown
+            .addOption('native-windows', 'Native Windows')
+            .addOption('wsl', 'WSL')
+            .setValue(installationMethod)
+            .onChange(async (value) => {
+              installationMethod = value === 'wsl' ? 'wsl' : 'native-windows';
+              updateOpencodeProviderSettings(settingsBag, { installationMethod });
+              refreshInstallationMethodUI();
+              await context.plugin.saveSettings();
+            });
+        });
+
+      const wslDistroSetting = new Setting(container)
+        .setName('WSL distro override')
+        .setDesc('Optional advanced override. Leave empty to infer the distro from a \\wsl$ workspace path when possible, otherwise use the default WSL distro.');
+
+      wslDistroSettingEl = wslDistroSetting.settingEl;
+
+      wslDistroSetting.addText((text) => {
+        text
+          .setPlaceholder('Ubuntu')
+          .setValue(opencodeSettings.wslDistroOverride)
+          .onChange(async (value) => {
+            updateOpencodeProviderSettings(settingsBag, { wslDistroOverride: value });
+            await context.plugin.saveSettings();
+          });
+
+        text.inputEl.addClass('claudian-settings-cli-path-input');
+        text.inputEl.style.width = '100%';
+        text.inputEl.disabled = installationMethod !== 'wsl';
+        wslDistroInputEl = text.inputEl;
+      });
+
+      const wslHomePathSetting = new Setting(container)
+        .setName('WSL home path')
+        .setDesc('The home directory path in WSL where OpenCode stores session files. E.g., /home/username. Required for history loading when Windows username differs from WSL username.');
+
+      wslHomePathSettingEl = wslHomePathSetting.settingEl;
+
+      wslHomePathSetting.addText((text) => {
+        text
+          .setPlaceholder('/home/username')
+          .setValue(opencodeSettings.wslHomePath)
+          .onChange(async (value) => {
+            updateOpencodeProviderSettings(settingsBag, { wslHomePath: value });
+            await context.plugin.saveSettings();
+          });
+
+        text.inputEl.addClass('claudian-settings-cli-path-input');
+        text.inputEl.style.width = '100%';
+        text.inputEl.disabled = installationMethod !== 'wsl';
+        wslHomePathInputEl = text.inputEl;
+      });
+
+      refreshInstallationMethodUI();
+    }
+
     const cliPathSetting = new Setting(container)
       .setName(`CLI Path (${hostnameKey})`)
       .setDesc('Optional absolute path to the OpenCode CLI for this computer. Leave empty to use `opencode` from PATH.');
@@ -65,12 +149,26 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     validationEl.style.marginBottom = '0.5em';
     validationEl.style.display = 'none';
 
-    const validatePath = (value: string): string | null => {
+    const validatePath = (value: string, isWsl: boolean): string | null => {
       const trimmed = value.trim();
       if (!trimmed) {
         return null;
       }
 
+      // WSL mode: skip fs validation for Linux paths
+      if (isWsl) {
+        // Accept Linux absolute paths or plain command names
+        if (trimmed.startsWith('/') || !trimmed.includes('/')) {
+          return null;
+        }
+        // Windows path in WSL mode - warn but allow
+        if (/^[A-Za-z]:/.test(trimmed)) {
+          return 'Windows path in WSL mode - use Linux path instead';
+        }
+        return null;
+      }
+
+      // Native mode: validate path exists
       const expandedPath = expandHomePath(trimmed);
       if (!fs.existsSync(expandedPath)) {
         return 'Path does not exist';
@@ -85,7 +183,7 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     };
 
     const updateCliPathValidation = (value: string, inputEl?: HTMLInputElement): boolean => {
-      const error = validatePath(value);
+      const error = validatePath(value, installationMethod === 'wsl');
       if (error) {
         validationEl.setText(error);
         validationEl.style.display = 'block';

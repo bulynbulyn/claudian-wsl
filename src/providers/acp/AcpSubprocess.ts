@@ -1,6 +1,8 @@
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import type { Readable, Writable } from 'node:stream';
 
+import type { WslLaunchSpec } from '../../core/wsl';
+
 const SIGKILL_TIMEOUT_MS = 3_000;
 const STDERR_BUFFER_LIMIT = 8_000;
 
@@ -9,6 +11,7 @@ export interface AcpSubprocessLaunchSpec {
   command: string;
   cwd: string;
   env: NodeJS.ProcessEnv;
+  wslLaunchSpec?: WslLaunchSpec;
 }
 
 type CloseListener = (error?: Error) => void;
@@ -46,13 +49,32 @@ export class AcpSubprocess {
       return;
     }
 
+    // WSL mode: use wslLaunchSpec if provided
+    if (this.launchSpec.wslLaunchSpec) {
+      const wslSpec = this.launchSpec.wslLaunchSpec;
+      const proc = spawn(wslSpec.command, wslSpec.args, {
+        cwd: wslSpec.spawnCwd,
+        env: wslSpec.env,
+        stdio: 'pipe',
+        windowsHide: true,
+      });
+      this.attachProcessHandlers(proc);
+      this.proc = proc;
+      return;
+    }
+
+    // Native mode
     const proc = spawn(this.launchSpec.command, this.launchSpec.args, {
       cwd: this.launchSpec.cwd,
       env: this.launchSpec.env,
       stdio: 'pipe',
       windowsHide: true,
     });
+    this.attachProcessHandlers(proc);
+    this.proc = proc;
+  }
 
+  private attachProcessHandlers(proc: ChildProcessWithoutNullStreams): void {
     proc.stderr.on('data', (chunk: Buffer | string) => {
       const text = typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
       this.stderrBuffer = `${this.stderrBuffer}${text}`.slice(-STDERR_BUFFER_LIMIT);
@@ -71,8 +93,6 @@ export class AcpSubprocess {
       );
       this.notifyClose(exitError);
     });
-
-    this.proc = proc;
   }
 
   isAlive(): boolean {

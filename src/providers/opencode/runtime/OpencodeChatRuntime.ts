@@ -54,9 +54,11 @@ import {
   type AcpUsageUpdate,
   type AcpWriteTextFileRequest,
   buildAcpUsageInfo,
+  buildAcpWslLaunchSpec,
   extractAcpSessionModelState,
   extractAcpSessionModeState,
 } from '../../acp';
+import type { WslPathMapper } from '../../../core/wsl';
 import { OPENCODE_PROVIDER_CAPABILITIES } from '../capabilities';
 import { updateOpencodeDiscoveryState } from '../discoveryState';
 import {
@@ -78,10 +80,12 @@ import {
   resolveOpencodeBaseModelRawId,
 } from '../models';
 import {
+  getEffectiveOpencodeModes,
   getManagedOpencodeModes,
   isManagedOpencodeModeId,
   normalizeOpencodeAvailableModes,
   resolveOpencodeModeForPermissionMode,
+  resolveOpencodeModeNameForId,
   resolvePermissionModeForManagedOpencodeMode,
 } from '../modes';
 import { createOpencodeToolStreamAdapter } from '../normalization/opencodeToolNormalization';
@@ -150,6 +154,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
   private currentTurnMetadata: ChatTurnMetadata = {};
   private loadedSessionId: string | null = null;
   private permissionModeSyncCallback: ((mode: string) => void) | null = null;
+  private pathMapper: WslPathMapper | null = null;
   private process: AcpSubprocess | null = null;
   private promptUsage: AcpUsage | null = null;
   private readonly readyListeners: Array<(ready: boolean) => void> = [];
@@ -538,21 +543,39 @@ export class OpencodeChatRuntime implements ChatRuntime {
     cwd: string;
     runtimeEnv: NodeJS.ProcessEnv;
   }): Promise<void> {
+    const opencodeSettings = getOpencodeProviderSettings(this.plugin.settings as Record<string, unknown>);
+    const runtimeEnvRecord: Record<string, string> = {};
+    for (const [key, value] of Object.entries(params.runtimeEnv)) {
+      if (value !== undefined) {
+        runtimeEnvRecord[key] = value;
+      }
+    }
+    const launchSpec = buildAcpWslLaunchSpec({
+      command: params.command,
+      cliArgs: ['acp', `--cwd=${params.cwd}`],
+      env: runtimeEnvRecord,
+      hostVaultPath: params.cwd,
+      installationMethod: opencodeSettings.installationMethod,
+      settings: this.plugin.settings as Record<string, unknown>,
+      wslDistroOverride: opencodeSettings.wslDistroOverride,
+    });
+
     const processEnv: NodeJS.ProcessEnv = {
       ...process.env,
-      ...params.runtimeEnv,
-      OPENCODE_CONFIG: params.configPath,
+      ...launchSpec.env,
+      OPENCODE_CONFIG: launchSpec.pathMapper.toTargetPath(params.configPath) ?? params.configPath,
       PATH: getEnhancedPath(
-        params.runtimeEnv.PATH,
-        path.isAbsolute(params.command) ? params.command : undefined,
+        launchSpec.env.PATH ?? process.env.PATH,
+        path.isAbsolute(launchSpec.command) ? launchSpec.command : undefined,
       ),
     };
 
     this.process = new AcpSubprocess({
-      args: ['acp', `--cwd=${params.cwd}`],
-      command: params.command,
-      cwd: params.cwd,
+      args: launchSpec.args,
+      command: launchSpec.command,
+      cwd: launchSpec.spawnCwd,
       env: processEnv,
+      wslLaunchSpec: launchSpec.target.method === 'wsl' ? launchSpec : undefined,
     });
     this.process.start();
 
@@ -580,6 +603,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
 
     this.transport.start();
     await this.connection.initialize();
+    this.pathMapper = launchSpec.pathMapper;
     this.setReady(true);
   }
 
@@ -589,6 +613,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
     this.activeTurn = null;
     this.currentSessionModelId = null;
     this.currentSessionModeId = null;
+    this.pathMapper = null;
     this.setSupportedCommands([]);
 
     this.connection?.dispose();
@@ -711,24 +736,32 @@ export class OpencodeChatRuntime implements ChatRuntime {
   private resolveSelectedModeId(): string | null {
     const providerSettings = this.getProviderSettings();
     const opencodeSettings = getOpencodeProviderSettings(providerSettings);
-    const availableModes = getManagedOpencodeModes(opencodeSettings.availableModes);
-    const mappedModeId = resolveOpencodeModeForPermissionMode(
-      providerSettings.permissionMode,
-      opencodeSettings.availableModes,
-    );
-    if (mappedModeId) {
-      return mappedModeId;
-    }
+    const availableModes = getEffectiveOpencodeModes(opencodeSettings.availableModes);
 
-    if (opencodeSettings.selectedMode) {
-      if (
-        availableModes.some((mode) => mode.id === opencodeSettings.selectedMode)
-      ) {
-        return opencodeSettings.selectedMode;
+    // If CLI returned available modes, use one of them
+    if (availableModes.length > 0) {
+      // First try to match by permission mode mapping
+      const mappedModeId = resolveOpencodeModeForPermissionMode(
+        providerSettings.permissionMode,
+        opencodeSettings.availableModes,
+      );
+      if (mappedModeId && availableModes.some((m) => m.id === mappedModeId)) {
+        return mappedModeId;
       }
+
+      // Try user's selected mode
+      if (opencodeSettings.selectedMode) {
+        if (availableModes.some((mode) => mode.id === opencodeSettings.selectedMode)) {
+          return opencodeSettings.selectedMode;
+        }
+      }
+
+      // Use first available mode from CLI
+      return availableModes[0]?.id || null;
     }
 
-    return availableModes[0]?.id || null;
+    // No modes from CLI - return null (don't try to set mode)
+    return null;
   }
 
   private async applySelectedMode(sessionId: string): Promise<void> {
@@ -736,16 +769,28 @@ export class OpencodeChatRuntime implements ChatRuntime {
       return;
     }
 
+    const providerSettings = this.getProviderSettings();
+    const opencodeSettings = getOpencodeProviderSettings(providerSettings);
     const selectedModeId = this.resolveSelectedModeId();
+
+    // Don't set mode if no valid mode available from CLI
     if (!selectedModeId || selectedModeId === this.currentSessionModeId) {
       return;
     }
 
+    // Get the actual mode id/name from CLI's available modes
+    const availableModes = getEffectiveOpencodeModes(opencodeSettings.availableModes);
+    const targetMode = availableModes.find((m) => m.id === selectedModeId);
+    if (!targetMode) {
+      return;
+    }
+
+    // Use the mode's id (as returned by CLI) directly
     const response = await this.connection.setConfigOption({
       configId: 'mode',
       sessionId,
       type: 'select',
-      value: selectedModeId,
+      value: targetMode.id,
     });
     this.currentSessionModeId = selectedModeId;
     await this.syncSessionModeState({
@@ -949,13 +994,15 @@ export class OpencodeChatRuntime implements ChatRuntime {
 
     try {
       this.setSupportedCommands([]);
+      // WSL mode: convert cwd to target path for CLI, store target cwd for session
+      const targetCwd = this.pathMapper?.toTargetPath(cwd) ?? cwd;
       const response = await this.connection.newSession({
-        cwd,
+        cwd: targetCwd,
         mcpServers: [],
       });
       this.loadedSessionId = response.sessionId;
       this.sessionId = response.sessionId;
-      this.sessionCwds.set(response.sessionId, cwd);
+      this.sessionCwds.set(response.sessionId, targetCwd);
       await this.syncSessionModelState({
         configOptions: response.configOptions ?? null,
         models: response.models ?? null,
@@ -977,15 +1024,17 @@ export class OpencodeChatRuntime implements ChatRuntime {
 
     try {
       this.setSupportedCommands([]);
+      // WSL mode: convert cwd to target path for CLI, store target cwd for session
+      const targetCwd = this.pathMapper?.toTargetPath(cwd) ?? cwd;
       const response = await this.connection.loadSession({
-        cwd,
+        cwd: targetCwd,
         mcpServers: [],
         sessionId,
       });
       this.sessionInvalidated = false;
       this.loadedSessionId = response.sessionId;
       this.sessionId = response.sessionId;
-      this.sessionCwds.set(response.sessionId, cwd);
+      this.sessionCwds.set(response.sessionId, targetCwd);
       await this.syncSessionModelState({
         configOptions: response.configOptions ?? null,
         models: response.models ?? null,
@@ -1164,6 +1213,31 @@ export class OpencodeChatRuntime implements ChatRuntime {
   }
 
   private resolveSessionPath(sessionId: string, rawPath: string): string {
+    // WSL mode: CLI returns Linux paths, need to convert to Windows paths for fs access
+    if (this.pathMapper && this.pathMapper.target.method === 'wsl') {
+      // If rawPath is a Linux absolute path, convert to Windows path
+      if (rawPath.startsWith('/')) {
+        const hostPath = this.pathMapper.toHostPath(rawPath);
+        if (hostPath) {
+          return hostPath;
+        }
+      }
+      // If rawPath is relative, resolve against target cwd (Linux path), then convert
+      const targetCwd = this.sessionCwds.get(sessionId);
+      if (targetCwd && !path.isAbsolute(rawPath)) {
+        const resolvedTargetPath = path.posix.resolve(targetCwd, rawPath);
+        const hostPath = this.pathMapper.toHostPath(resolvedTargetPath);
+        if (hostPath) {
+          return hostPath;
+        }
+      }
+      // Fallback: rawPath might already be a Windows path or conversion failed
+      if (path.isAbsolute(rawPath)) {
+        return rawPath;
+      }
+    }
+
+    // Native mode or non-WSL: standard path resolution
     if (path.isAbsolute(rawPath)) {
       return rawPath;
     }
