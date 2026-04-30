@@ -34,19 +34,47 @@ export async function loadOpencodeSessionMessages(
   sessionId: string,
   providerState?: OpencodeProviderState,
 ): Promise<ChatMessage[]> {
+  console.log('[OpenCode History] Loading session:', sessionId);
+  console.log('[OpenCode History] Provider state:', providerState);
+
   const databasePath = resolveExistingOpencodeDatabasePath(providerState?.databasePath);
-  if (!databasePath || databasePath === ':memory:' || !fs.existsSync(databasePath)) {
+  console.log('[OpenCode History] Resolved database path:', databasePath);
+  console.log('[OpenCode History] Platform:', process.platform);
+
+  if (!databasePath) {
+    console.log('[OpenCode History] No database path resolved, returning empty');
     return [];
   }
 
+  if (databasePath === ':memory:') {
+    console.log('[OpenCode History] In-memory database, returning empty');
+    return [];
+  }
+
+  const exists = fs.existsSync(databasePath);
+  console.log('[OpenCode History] Database exists:', exists, 'Path:', databasePath);
+
+  if (!exists) {
+    console.log('[OpenCode History] Database file not found, returning empty');
+    return [];
+  }
+
+  console.log('[OpenCode History] Loading rows from database...');
   const rows = await loadOpencodeSessionRows(databasePath, sessionId);
   if (!rows) {
+    console.log('[OpenCode History] No rows loaded, returning empty');
     return [];
   }
 
-  return mapOpencodeMessages(
+  console.log('[OpenCode History] Loaded message rows:', rows.messageRows.length);
+  console.log('[OpenCode History] Loaded part rows:', rows.partRows.length);
+
+  const messages = mapOpencodeMessages(
     hydrateStoredMessages(rows.messageRows, rows.partRows),
   );
+  console.log('[OpenCode History] Mapped messages:', messages.length);
+
+  return messages;
 }
 
 export function mapOpencodeMessages(messages: StoredMessage[]): ChatMessage[] {
@@ -378,12 +406,17 @@ async function loadOpencodeSessionRows(
   databasePath: string,
   sessionId: string,
 ): Promise<StoredSessionRows | null> {
+  console.log('[OpenCode History] Attempting node:sqlite...');
   const viaNodeSqlite = await loadSessionRowsWithNodeSqlite(databasePath, sessionId);
   if (viaNodeSqlite) {
+    console.log('[OpenCode History] node:sqlite succeeded');
     return viaNodeSqlite;
   }
+  console.log('[OpenCode History] node:sqlite failed, falling back to sqlite3 CLI');
 
-  return loadSessionRowsWithSqliteCli(databasePath, sessionId);
+  const viaCli = loadSessionRowsWithSqliteCli(databasePath, sessionId);
+  console.log('[OpenCode History] sqlite3 CLI result:', viaCli ? 'success' : 'failed');
+  return viaCli;
 }
 
 async function loadSessionRowsWithNodeSqlite(
@@ -416,15 +449,20 @@ function loadSessionRowsWithSqliteCli(
   databasePath: string,
   sessionId: string,
 ): StoredSessionRows | null {
+  console.log('[OpenCode History CLI] databasePath:', databasePath);
+  console.log('[OpenCode History CLI] sessionId:', sessionId);
+
   const escapedSessionId = escapeSqlLiteral(sessionId);
-  const messageRows = runSqlite3JsonQuery(
-    databasePath,
-    `select id, time_created, data from message where session_id = '${escapedSessionId}' order by time_created asc, id asc;`,
-  );
-  const partRows = runSqlite3JsonQuery(
-    databasePath,
-    `select id, message_id, data from part where session_id = '${escapedSessionId}' order by message_id asc, id asc;`,
-  );
+  const messageSql = `select id, time_created, data from message where session_id = '${escapedSessionId}' order by time_created asc, id asc;`;
+  const partSql = `select id, message_id, data from part where session_id = '${escapedSessionId}' order by message_id asc, id asc;`;
+
+  console.log('[OpenCode History CLI] Running message query...');
+  const messageRows = runSqlite3JsonQuery(databasePath, messageSql);
+  console.log('[OpenCode History CLI] Message rows result:', messageRows?.length ?? 'null');
+
+  console.log('[OpenCode History CLI] Running part query...');
+  const partRows = runSqlite3JsonQuery(databasePath, partSql);
+  console.log('[OpenCode History CLI] Part rows result:', partRows?.length ?? 'null');
 
   if (!messageRows || !partRows) {
     return null;
@@ -437,6 +475,22 @@ function runSqlite3JsonQuery(
   databasePath: string,
   sql: string,
 ): StoredRow[] | null {
+  console.log('[OpenCode History CLI] runSqlite3JsonQuery - databasePath:', databasePath);
+  console.log('[OpenCode History CLI] runSqlite3JsonQuery - sql:', sql.substring(0, 100));
+  console.log('[OpenCode History CLI] runSqlite3JsonQuery - startsWith \\wsl$:', databasePath.startsWith('\\wsl$'));
+  console.log('[OpenCode History CLI] runSqlite3JsonQuery - startsWith \\wsl.localhost:', databasePath.startsWith('\\wsl.localhost'));
+
+  // Check if database path is a WSL UNC path (starts with \\wsl$ or \\wsl.localhost)
+  const isWslPath = databasePath.startsWith('\\\\wsl$') || databasePath.startsWith('\\\\wsl.localhost');
+  console.log('[OpenCode History CLI] runSqlite3JsonQuery - isWslPath:', isWslPath);
+
+  if (isWslPath) {
+    // Convert UNC path back to Linux path and run via wsl.exe
+    console.log('[OpenCode History CLI] WSL path detected, using wsl.exe');
+    return runSqlite3ViaWsl(databasePath, sql);
+  }
+
+  // Try native sqlite3 for Windows paths
   const result = spawnSync(
     'sqlite3',
     ['-json', databasePath, sql],
@@ -445,18 +499,94 @@ function runSqlite3JsonQuery(
     },
   );
 
+  console.log('[OpenCode History CLI] spawnSync result - error:', result.error);
+  console.log('[OpenCode History CLI] spawnSync result - status:', result.status);
+  console.log('[OpenCode History CLI] spawnSync result - stderr:', result.stderr?.substring(0, 200));
+  console.log('[OpenCode History CLI] spawnSync result - stdout length:', result.stdout?.length);
+
   if (result.error || result.status !== 0) {
+    console.log('[OpenCode History CLI] spawnSync failed');
     return null;
   }
 
   try {
     const parsed = JSON.parse(result.stdout || '[]') as unknown;
+    console.log('[OpenCode History CLI] JSON parsed, rows:', Array.isArray(parsed) ? parsed.length : 'not array');
     return Array.isArray(parsed)
       ? parsed.filter((row): row is StoredRow => isPlainObject(row))
       : null;
-  } catch {
+  } catch (parseError) {
+    console.log('[OpenCode History CLI] JSON parse error:', parseError);
     return null;
   }
+}
+
+function runSqlite3ViaWsl(windowsPath: string, sql: string): StoredRow[] | null {
+  // Convert \\wsl$\Ubuntu\path to /path
+  const linuxPath = convertWslUncToLinux(windowsPath);
+  if (!linuxPath) {
+    console.log('[OpenCode History CLI WSL] Failed to convert UNC to Linux path');
+    return null;
+  }
+
+  console.log('[OpenCode History CLI WSL] Linux path:', linuxPath);
+  console.log('[OpenCode History CLI WSL] SQL:', sql.substring(0, 100));
+
+  // Extract distro name from UNC path (use double backslash for UNC paths)
+  const distroMatch = windowsPath.match(/\\\\wsl\$\\\\([^\\\\]+)/i) || windowsPath.match(/\\\\wsl\.localhost\\\\([^\\\\]+)/i);
+  const distro = distroMatch?.[1] || 'Ubuntu';
+
+  // Use double quotes for SQL - single quotes inside double quotes are literal and don't need escaping
+  // Escape double quotes and backslashes in the SQL string
+  const escapedSql = sql.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const wslCommand = `sqlite3 -json '${linuxPath}' "${escapedSql}"`;
+
+  console.log('[OpenCode History CLI WSL] Running via wsl.exe:', wslCommand.substring(0, 150));
+
+  const result = spawnSync(
+    'wsl.exe',
+    ['-d', distro, '--', 'bash', '-c', wslCommand],
+    {
+      encoding: 'utf8',
+    },
+  );
+
+  console.log('[OpenCode History CLI WSL] Result - error:', result.error);
+  console.log('[OpenCode History CLI WSL] Result - status:', result.status);
+  console.log('[OpenCode History CLI WSL] Result - stderr:', result.stderr?.substring(0, 200));
+  console.log('[OpenCode History CLI WSL] Result - stdout length:', result.stdout?.length);
+
+  if (result.error || result.status !== 0) {
+    console.log('[OpenCode History CLI WSL] Failed');
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(result.stdout || '[]') as unknown;
+    console.log('[OpenCode History CLI WSL] JSON parsed, rows:', Array.isArray(parsed) ? parsed.length : 'not array');
+    return Array.isArray(parsed)
+      ? parsed.filter((row): row is StoredRow => isPlainObject(row))
+      : null;
+  } catch (parseError) {
+    console.log('[OpenCode History CLI WSL] JSON parse error:', parseError);
+    return null;
+  }
+}
+
+function convertWslUncToLinux(windowsPath: string): string | null {
+  // Handle \\wsl$\Ubuntu\path format (UNC path with double backslash)
+  const wslDollarMatch = windowsPath.match(/^\\\\wsl\$\\([^\\]+)\\(.*)$/i);
+  if (wslDollarMatch) {
+    return '/' + wslDollarMatch[2].replace(/\\/g, '/');
+  }
+
+  // Handle \\wsl.localhost\Ubuntu\path format
+  const wslLocalhostMatch = windowsPath.match(/^\\\\wsl\.localhost\\([^\\]+)\\(.*)$/i);
+  if (wslLocalhostMatch) {
+    return '/' + wslLocalhostMatch[2].replace(/\\/g, '/');
+  }
+
+  return null;
 }
 
 function escapeSqlLiteral(value: string): string {

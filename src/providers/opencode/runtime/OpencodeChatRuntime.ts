@@ -35,6 +35,7 @@ import type {
   StreamChunk,
   ToolCallInfo,
 } from '../../../core/types';
+import type { WslPathMapper } from '../../../core/wsl';
 import type ClaudianPlugin from '../../../main';
 import { getEnhancedPath } from '../../../utils/env';
 import { getVaultPath } from '../../../utils/path';
@@ -58,7 +59,6 @@ import {
   extractAcpSessionModelState,
   extractAcpSessionModeState,
 } from '../../acp';
-import type { WslPathMapper } from '../../../core/wsl';
 import { OPENCODE_PROVIDER_CAPABILITIES } from '../capabilities';
 import { updateOpencodeDiscoveryState } from '../discoveryState';
 import {
@@ -238,10 +238,16 @@ export class OpencodeChatRuntime implements ChatRuntime {
       this.currentDatabasePath,
     );
     const promptSettings = this.getSystemPromptSettings(cwd);
+    const opencodeSettings = getOpencodeProviderSettings(this.plugin.settings as unknown as Record<string, unknown>);
     const artifacts = await prepareOpencodeLaunchArtifacts({
       runtimeEnv,
       settings: promptSettings,
       workspaceRoot: cwd,
+      wslSettings: {
+        installationMethod: opencodeSettings.installationMethod,
+        wslDistroOverride: opencodeSettings.wslDistroOverride,
+        wslHomePath: opencodeSettings.wslHomePath,
+      },
     });
     this.currentDatabasePath = artifacts.databasePath;
 

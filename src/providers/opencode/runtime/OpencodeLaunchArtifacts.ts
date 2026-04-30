@@ -14,7 +14,7 @@ import {
   OPENCODE_SAFE_MODE_ID,
   OPENCODE_YOLO_MODE_ID,
 } from '../modes';
-import { resolveOpencodeDatabasePath } from './OpencodePaths';
+import { resolveOpencodeDatabasePath, resolveOpencodeDatabasePathForWsl } from './OpencodePaths';
 
 export interface OpencodeLaunchArtifacts {
   configPath: string;
@@ -66,6 +66,12 @@ export interface PrepareOpencodeLaunchArtifactsParams {
   systemPromptText?: string;
   userName?: string;
   workspaceRoot: string;
+  // WSL support
+  wslSettings?: {
+    installationMethod?: 'native-windows' | 'wsl';
+    wslDistroOverride?: string;
+    wslHomePath?: string;
+  };
 }
 
 export async function prepareOpencodeLaunchArtifacts(
@@ -100,7 +106,35 @@ export async function prepareOpencodeLaunchArtifacts(
     null,
     2,
   )}\n`;
-  const databasePath = resolveOpencodeDatabasePath(params.runtimeEnv);
+
+  // Compute database path considering WSL mode
+  let databasePath: string | null;
+  const isWslMode = params.wslSettings?.installationMethod === 'wsl';
+
+  console.log('[OpenCode Artifacts] Preparing launch artifacts');
+  console.log('[OpenCode Artifacts] WSL mode:', isWslMode);
+  console.log('[OpenCode Artifacts] WSL settings:', params.wslSettings);
+
+  if (isWslMode) {
+    // In WSL mode, use forced Linux path calculation
+    const wslHomePath = params.wslSettings?.wslHomePath || '';
+    const linuxDbPath = wslHomePath
+      ? resolveOpencodeDatabasePathForWsl(wslHomePath)
+      : null;
+    console.log('[OpenCode Artifacts] Linux database path:', linuxDbPath);
+
+    // Convert to Windows UNC path for storage (used by history loader)
+    if (linuxDbPath) {
+      databasePath = convertLinuxToWslUncPath(linuxDbPath, params.wslSettings?.wslDistroOverride);
+      console.log('[OpenCode Artifacts] Converted to UNC:', databasePath);
+    } else {
+      databasePath = null;
+    }
+  } else {
+    // Native mode: use Windows environment
+    databasePath = resolveOpencodeDatabasePath(params.runtimeEnv);
+    console.log('[OpenCode Artifacts] Native database path:', databasePath);
+  }
 
   await fs.mkdir(artifactsDir, { recursive: true });
   await writeIfChanged(systemPromptPath, systemPrompt);
@@ -210,6 +244,18 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 function normalizeSystemPrompt(systemPrompt: string): string {
   return systemPrompt.endsWith('\n') ? systemPrompt : `${systemPrompt}\n`;
+}
+
+function convertLinuxToWslUncPath(linuxPath: string, distroOverride?: string): string {
+  if (!linuxPath.startsWith('/')) {
+    return linuxPath;
+  }
+
+  const normalized = path.posix.normalize(linuxPath);
+  const tail = normalized === '/' ? '' : normalized.slice(1).replace(/\//g, '\\');
+  const distro = distroOverride || 'Ubuntu';
+
+  return tail ? `\\\\wsl$\\${distro}\\${tail}` : `\\\\wsl$\\${distro}`;
 }
 
 function requireSettings(
