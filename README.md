@@ -7,7 +7,7 @@
 
 ## ⚠️ 适用范围
 
-**本分支仅供 Claude Code 安装在 WSL 的 Windows 用户使用。**
+**本分支仅供 Claude Code / OpenCode安装在 WSL 的 Windows 用户使用。**
 
 如果你的 Claude Code：
 - 安装在 **Windows 本机**（Native Windows）
