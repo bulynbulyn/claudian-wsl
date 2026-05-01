@@ -124,8 +124,10 @@ export async function applyClaudeDynamicUpdates(
     // Check if auto mode restart is needed (auto mode requires CLI flag at launch)
     const requiresAutoModeRestart = sdkMode === 'auto' && !configBeforePermissionUpdate.enableAutoMode;
 
-    // Check if bypassPermissions restart is needed (YOLO mode requires CLI flag at launch)
-    const requiresBypassRestart = sdkMode === 'bypassPermissions' || currentSdkMode === 'bypassPermissions';
+    // Check if bypassPermissions restart is needed in WSL mode
+    // (YOLO mode requires CLI flag at launch in WSL, but can be switched dynamically in native mode)
+    const isWslMode = configBeforePermissionUpdate.installationMethod === 'wsl' && process.platform === 'win32';
+    const requiresBypassRestart = isWslMode && (sdkMode === 'bypassPermissions' || currentSdkMode === 'bypassPermissions');
 
     if (requiresAutoModeRestart || requiresBypassRestart) {
       // The Claude Code auto-mode/YOLO opt-in is a startup flag. The restart path below
