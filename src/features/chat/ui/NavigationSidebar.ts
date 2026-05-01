@@ -1,5 +1,11 @@
 import { setIcon } from 'obsidian';
 
+import {
+  cancelScheduledAnimationFrame,
+  scheduleAnimationFrame,
+  type ScheduledAnimationFrame,
+} from '../../../utils/animationFrame';
+
 /**
  * Floating sidebar for navigating chat history.
  * Provides quick access to top/bottom and previous/next user messages.
@@ -11,6 +17,8 @@ export class NavigationSidebar {
   private nextBtn: HTMLElement;
   private bottomBtn: HTMLElement;
   private scrollHandler: () => void = () => {};
+  private pendingVisibilityFrame: ScheduledAnimationFrame | null = null;
+  private isVisible: boolean | null = null;
 
   constructor(
     private parentEl: HTMLElement,
@@ -25,7 +33,7 @@ export class NavigationSidebar {
     this.bottomBtn = this.createButton('claudian-nav-btn-bottom', 'chevrons-down', 'Scroll to bottom');
 
     this.setupEventListeners();
-    this.updateVisibility();
+    this.applyVisibility();
   }
 
   private createButton(cls: string, icon: string, label: string): HTMLElement {
@@ -58,8 +66,18 @@ export class NavigationSidebar {
    * Visible if content overflows.
    */
   updateVisibility(): void {
+    if (this.pendingVisibilityFrame !== null) return;
+    this.pendingVisibilityFrame = scheduleAnimationFrame(() => {
+      this.pendingVisibilityFrame = null;
+      this.applyVisibility();
+    });
+  }
+
+  private applyVisibility(): void {
     const { scrollHeight, clientHeight } = this.messagesEl;
     const isScrollable = scrollHeight > clientHeight + 50; // Small buffer
+    if (this.isVisible === isScrollable) return;
+    this.isVisible = isScrollable;
     this.container.classList.toggle('visible', isScrollable);
   }
 
@@ -98,6 +116,10 @@ export class NavigationSidebar {
   }
 
   destroy(): void {
+    if (this.pendingVisibilityFrame !== null) {
+      cancelScheduledAnimationFrame(this.pendingVisibilityFrame);
+      this.pendingVisibilityFrame = null;
+    }
     this.messagesEl.removeEventListener('scroll', this.scrollHandler);
     this.container.remove();
   }

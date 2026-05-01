@@ -744,36 +744,4 @@ describe('types.ts', () => {
       expect(normalizeEffortLevel('claude-sonnet-4-5', undefined)).toBe('high');
     });
   });
-
-  describe('supportsXHighEffort', () => {
-    it('returns true for opus aliases and 4.7+ opus ids', () => {
-      expect(supportsXHighEffort('opus')).toBe(true);
-      expect(supportsXHighEffort('opus[1m]')).toBe(true);
-      expect(supportsXHighEffort('claude-opus-4-7')).toBe(true);
-      expect(supportsXHighEffort('claude-opus-5')).toBe(true);
-    });
-
-    it('returns false for non-opus models and older opus ids', () => {
-      expect(supportsXHighEffort('sonnet')).toBe(false);
-      expect(supportsXHighEffort('claude-sonnet-4-5')).toBe(false);
-      expect(supportsXHighEffort('claude-opus-4-6')).toBe(false);
-    });
-  });
-
-  describe('normalizeEffortLevel', () => {
-    it('preserves supported effort levels', () => {
-      expect(normalizeEffortLevel('claude-opus-4-7', 'xhigh')).toBe('xhigh');
-      expect(normalizeEffortLevel('claude-sonnet-4-5', 'max')).toBe('max');
-    });
-
-    it('clamps unsupported xhigh values to the model default', () => {
-      expect(normalizeEffortLevel('claude-sonnet-4-5', 'xhigh')).toBe('high');
-      expect(normalizeEffortLevel('haiku', 'xhigh')).toBe('high');
-    });
-
-    it('falls back to high for unknown or missing effort values', () => {
-      expect(normalizeEffortLevel('claude-sonnet-4-5', 'invalid')).toBe('high');
-      expect(normalizeEffortLevel('claude-sonnet-4-5', undefined)).toBe('high');
-    });
-  });
 });

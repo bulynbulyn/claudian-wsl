@@ -1064,6 +1064,16 @@ describe('MessageRenderer', () => {
     expect(el.children.length).toBe(0);
   });
 
+  it('renderContent should skip file-link post-processing when markdown has no wikilinks', async () => {
+    const { processFileLinks } = await import('@/utils/fileLink');
+    const { renderer } = createRenderer();
+    const el = createMockEl();
+
+    await renderer.renderContent(el, 'plain markdown without links');
+
+    expect(processFileLinks).not.toHaveBeenCalled();
+  });
+
   // ============================================
   // addTextCopyButton - click behavior
   // ============================================

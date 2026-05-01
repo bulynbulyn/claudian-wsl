@@ -81,11 +81,9 @@ import {
 } from '../models';
 import {
   getEffectiveOpencodeModes,
-  getManagedOpencodeModes,
   isManagedOpencodeModeId,
   normalizeOpencodeAvailableModes,
   resolveOpencodeModeForPermissionMode,
-  resolveOpencodeModeNameForId,
   resolvePermissionModeForManagedOpencodeMode,
 } from '../modes';
 import { createOpencodeToolStreamAdapter } from '../normalization/opencodeToolNormalization';
