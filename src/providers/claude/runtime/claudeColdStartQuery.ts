@@ -6,7 +6,10 @@ import type ClaudianPlugin from '../../../main';
 import { getEnhancedPath, getMissingNodeError, parseEnvironmentVariables } from '../../../utils/env';
 import { getVaultPath } from '../../../utils/path';
 import { extractAssistantText } from '../auxiliary/extractAssistantText';
-import { getClaudeProviderSettings } from '../settings';
+import {
+  getClaudeProviderSettings,
+  resolveClaudeSettingSources,
+} from '../settings';
 import {
   resolveAdaptiveEffortLevel,
   resolveThinkingTokens,
@@ -62,11 +65,6 @@ export async function runColdStartQuery(
   );
   const enhancedPath = getEnhancedPath(customEnv.PATH, resolvedClaudePath);
 
-  const missingNodeError = getMissingNodeError(resolvedClaudePath, enhancedPath);
-  if (missingNodeError) {
-    throw new Error(missingNodeError);
-  }
-
   const settings = config.providerSettings
     ?? ProviderSettingsCoordinator.getProviderSettingsSnapshot(
       config.plugin.settings as unknown as Record<string, unknown>,
@@ -118,9 +116,7 @@ export async function runColdStartQuery(
     },
     permissionMode: 'bypassPermissions',
     allowDangerouslySkipPermissions: true,
-    settingSources: claudeSettings.loadUserSettings
-      ? ['user', 'project']
-      : ['project'],
+    settingSources: resolveClaudeSettingSources(claudeSettings.loadUserSettings),
     spawnClaudeCodeProcess: createCustomSpawnFunction(enhancedPath, launchSpec ?? undefined),
   };
 

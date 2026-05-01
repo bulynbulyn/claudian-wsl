@@ -198,6 +198,7 @@ describe('NavigationSidebar', () => {
   let sidebar: NavigationSidebar;
 
   beforeEach(() => {
+    jest.useFakeTimers();
     parentEl = new MockElement('div');
     messagesEl = new MockElement('div');
     parentEl.appendChild(messagesEl);
@@ -205,6 +206,7 @@ describe('NavigationSidebar', () => {
 
   afterEach(() => {
     sidebar?.destroy();
+    jest.useRealTimers();
   });
 
   describe('initialization', () => {
@@ -302,6 +304,28 @@ describe('NavigationSidebar', () => {
       // Simulate content growth
       messagesEl.scrollHeight = 1000;
       sidebar.updateVisibility();
+      jest.advanceTimersByTime(16);
+
+      expect(container!.classList.contains('visible')).toBe(true);
+    });
+
+    it('should batch visibility updates until the next animation frame', () => {
+      messagesEl.scrollHeight = 500;
+      messagesEl.clientHeight = 500;
+
+      sidebar = new NavigationSidebar(
+        parentEl as unknown as HTMLElement,
+        messagesEl as unknown as HTMLElement
+      );
+
+      const container = parentEl.querySelector('.claudian-nav-sidebar');
+      messagesEl.scrollHeight = 1000;
+      sidebar.updateVisibility();
+      sidebar.updateVisibility();
+
+      expect(container!.classList.contains('visible')).toBe(false);
+
+      jest.advanceTimersByTime(16);
 
       expect(container!.classList.contains('visible')).toBe(true);
     });

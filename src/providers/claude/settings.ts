@@ -6,6 +6,7 @@ export const CLAUDE_SAFE_MODES = ['acceptEdits', 'auto', 'default'] as const;
 export type ClaudeSafeMode = typeof CLAUDE_SAFE_MODES[number];
 export type ClaudeInstallationMethod = 'native-windows' | 'wsl';
 export type HostnameInstallationMethods = Record<string, ClaudeInstallationMethod>;
+export type ClaudeSettingSource = 'user' | 'project' | 'local';
 
 export interface ClaudeProviderSettings {
   safeMode: ClaudeSafeMode;
@@ -140,6 +141,14 @@ export function getClaudeProviderSettings(
       ? config.wslHomePath.trim()
       : DEFAULT_CLAUDE_PROVIDER_SETTINGS.wslHomePath,
   };
+}
+
+export function resolveClaudeSettingSources(
+  loadUserSettings: boolean,
+): ClaudeSettingSource[] {
+  return loadUserSettings
+    ? ['user', 'project', 'local']
+    : ['project', 'local'];
 }
 
 export function updateClaudeProviderSettings(

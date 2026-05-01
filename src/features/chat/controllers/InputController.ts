@@ -384,7 +384,7 @@ export class InputController {
           break;
         }
 
-        if (this.handleProviderMessageBoundaryChunk(chunk)) {
+        if (await this.handleProviderMessageBoundaryChunk(chunk)) {
           continue;
         }
 
@@ -442,8 +442,8 @@ export class InputController {
 
         state.currentContentEl = null;
 
-        streamController.finalizeCurrentThinkingBlock(finalAssistantMsg);
-        streamController.finalizeCurrentTextBlock(finalAssistantMsg);
+        await streamController.finalizeCurrentThinkingBlock(finalAssistantMsg);
+        await streamController.finalizeCurrentTextBlock(finalAssistantMsg);
         this.deps.getSubagentManager().resetStreamingState();
 
         // Auto-hide completed todo panel on response end
@@ -878,22 +878,22 @@ export class InputController {
     this.awaitingProviderAssistantStart = false;
   }
 
-  private handleProviderMessageBoundaryChunk(chunk: StreamChunk): boolean {
+  private async handleProviderMessageBoundaryChunk(chunk: StreamChunk): Promise<boolean> {
     switch (chunk.type) {
       case 'user_message_start':
-        this.handleProviderUserMessageStart(chunk);
+        await this.handleProviderUserMessageStart(chunk);
         return true;
       case 'assistant_message_start':
-        this.handleProviderAssistantMessageStart();
+        await this.handleProviderAssistantMessageStart();
         return true;
       default:
         return false;
     }
   }
 
-  private handleProviderUserMessageStart(
+  private async handleProviderUserMessageStart(
     chunk: Extract<StreamChunk, { type: 'user_message_start' }>,
-  ): void {
+  ): Promise<void> {
     const expected = this.pendingProviderUserMessages.shift();
     if (!this.sawInitialProviderUserMessage) {
       this.sawInitialProviderUserMessage = true;
@@ -909,8 +909,8 @@ export class InputController {
       if (shouldDiscardPlaceholder) {
         this.discardStreamingAssistantMessage(previousAssistant.id);
       } else {
-        this.deps.streamController.finalizeCurrentThinkingBlock(previousAssistant);
-        this.deps.streamController.finalizeCurrentTextBlock(previousAssistant);
+        await this.deps.streamController.finalizeCurrentThinkingBlock(previousAssistant);
+        await this.deps.streamController.finalizeCurrentTextBlock(previousAssistant);
       }
     }
     this.deps.streamController.hideThinkingIndicator();
@@ -948,7 +948,7 @@ export class InputController {
     this.awaitingProviderAssistantStart = true;
   }
 
-  private handleProviderAssistantMessageStart(): void {
+  private async handleProviderAssistantMessageStart(): Promise<void> {
     if (this.awaitingProviderAssistantStart) {
       this.awaitingProviderAssistantStart = false;
       return;
@@ -956,8 +956,8 @@ export class InputController {
 
     const previousAssistant = this.activeStreamingAssistantMessage;
     if (previousAssistant) {
-      this.deps.streamController.finalizeCurrentThinkingBlock(previousAssistant);
-      this.deps.streamController.finalizeCurrentTextBlock(previousAssistant);
+      await this.deps.streamController.finalizeCurrentThinkingBlock(previousAssistant);
+      await this.deps.streamController.finalizeCurrentTextBlock(previousAssistant);
     }
 
     const assistantMessage: ChatMessage = {
