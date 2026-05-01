@@ -1,6 +1,25 @@
-# Claudian v2.0.8-wsl.1
+# Claudian v2.0.10-wsl.1
 
-基于原版 [YishenTu/claudian](https://github.com/YishenTu/claudian) v2.0.8 的 WSL 支持二开版本。
+基于原版 [YishenTu/claudian](https://github.com/YishenTu/claudian) v2.0.10 的 WSL 支持二开版本。
+
+## v2.0.10-wsl.1 合并上游 v2.0.10
+
+### 上游新功能融入
+
+- **resolveClaudeSettingSources**：支持 user/project/local 设置源配置
+- **ACP prompt timeout**：`ACP_PROMPT_TURN_TIMEOUT_MS=0` 用于长运行的 prompt RPC
+- **cliPathRequiresNode**：CLI 路径 Node.js 处理优化
+- **Claude Code cjs wrapper**：支持 CLI cjs wrapper 文件
+- **Local Claude settings**：加载本地 Claude settings 配置
+
+### WSL 功能保留
+
+- ✅ Claude WSL：Installation method、distro 检测、路径转换、历史记录、Rewind
+- ✅ OpenCode WSL：Installation method、数据库路径计算、sqlite3 历史加载
+- ✅ MCP server 路径映射
+- ✅ YOLO/bypassPermissions 重启检测
+
+---
 
 ## v2.0.8-wsl.1 合并上游 v2.0.8
 
