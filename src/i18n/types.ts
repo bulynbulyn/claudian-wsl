@@ -221,6 +221,8 @@ export type TranslationKey =
   | 'settings.tabBarPosition.header'
   | 'settings.enableAutoScroll.name'
   | 'settings.enableAutoScroll.desc'
+  | 'settings.deferMathRenderingDuringStreaming.name'
+  | 'settings.deferMathRenderingDuringStreaming.desc'
   | 'settings.chatViewPlacement.name'
   | 'settings.chatViewPlacement.desc'
   | 'settings.chatViewPlacement.rightSidebar'

@@ -94,6 +94,7 @@ describe('types.ts', () => {
         enableSonnet1M: false,
         tabBarPosition: 'input',
         enableAutoScroll: true,
+        deferMathRenderingDuringStreaming: true,
         chatViewPlacement: 'right-sidebar',
         hiddenProviderCommands: {
           claude: [],
@@ -145,6 +146,7 @@ describe('types.ts', () => {
         enableSonnet1M: false,
         tabBarPosition: 'input',
         enableAutoScroll: true,
+        deferMathRenderingDuringStreaming: true,
         chatViewPlacement: 'right-sidebar',
         hiddenProviderCommands: {
           claude: [],
@@ -197,6 +199,7 @@ describe('types.ts', () => {
         enableSonnet1M: false,
         tabBarPosition: 'header',
         enableAutoScroll: false,
+        deferMathRenderingDuringStreaming: true,
         chatViewPlacement: 'right-sidebar',
         hiddenProviderCommands: {
           claude: [],

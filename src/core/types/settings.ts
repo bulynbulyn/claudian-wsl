@@ -141,6 +141,7 @@ export interface ClaudianSettings {
   maxTabs: number;
   tabBarPosition: TabBarPosition;
   enableAutoScroll: boolean;
+  deferMathRenderingDuringStreaming: boolean;
   chatViewPlacement: ChatViewPlacement;
 
   // Provider command visibility
