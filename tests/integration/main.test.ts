@@ -56,6 +56,7 @@ describe('ClaudianPlugin', () => {
         getLeaf: jest.fn().mockReturnValue({
           setViewState: jest.fn().mockResolvedValue(undefined),
         }),
+        setActiveLeaf: jest.fn(),
         revealLeaf: jest.fn(),
       },
     };

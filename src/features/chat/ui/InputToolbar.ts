@@ -1,4 +1,5 @@
 import { Notice, setIcon } from 'obsidian';
+import * as os from 'os';
 import * as path from 'path';
 
 import type { McpServerManager } from '../../../core/mcp/McpServerManager';
@@ -15,9 +16,26 @@ import type {
   ManagedMcpServer,
   UsageInfo,
 } from '../../../core/types';
-import { CHECK_ICON_SVG, createProviderIconSvg, MCP_ICON_SVG } from '../../../shared/icons';
+import { appendCheckIcon, appendMcpIcon, createProviderIconSvg } from '../../../shared/icons';
 import { filterValidPaths, findConflictingPath, isDuplicatePath, isValidDirectoryPath, validateDirectoryPath } from '../../../utils/externalContext';
 import { expandHomePath, normalizePathForFilesystem } from '../../../utils/path';
+
+interface ElectronOpenDialogResult {
+  canceled: boolean;
+  filePaths: string[];
+}
+
+interface ElectronRemoteApi {
+  dialog: {
+    showOpenDialog(options: { properties: string[]; title: string }): Promise<ElectronOpenDialogResult>;
+  };
+}
+
+function runToolbarAction(action: () => Promise<void>, failureMessage: string): void {
+  void action().catch(() => {
+    new Notice(failureMessage);
+  });
+}
 
 export interface ToolbarSettings {
   model: string;
@@ -119,11 +137,13 @@ export class ModelSelector {
         option.setAttribute('title', model.description);
       }
 
-      option.addEventListener('click', async (e) => {
+      option.addEventListener('click', (e) => {
         e.stopPropagation();
-        await this.callbacks.onModelChange(model.value);
-        this.updateDisplay();
-        this.renderOptions();
+        runToolbarAction(async () => {
+          await this.callbacks.onModelChange(model.value);
+          this.updateDisplay();
+          this.renderOptions();
+        }, 'Failed to change model');
       });
     }
   }
@@ -151,7 +171,9 @@ export class ModeSelector {
     this.labelEl = this.container.createSpan({ cls: 'claudian-mode-label' });
     this.toggleEl = this.container.createDiv({ cls: 'claudian-toggle-switch' });
 
-    this.toggleEl.addEventListener('click', () => this.toggle());
+    this.toggleEl.addEventListener('click', () => {
+      runToolbarAction(() => this.toggle(), 'Failed to change mode');
+    });
 
     this.updateDisplay();
   }
@@ -175,11 +197,11 @@ export class ModeSelector {
 
     const selectorConfig = this.getSelectorConfig();
     if (!selectorConfig || selectorConfig.options.length !== 2) {
-      this.container.style.display = 'none';
+      this.container.addClass('claudian-hidden');
       return;
     }
 
-    this.container.style.display = '';
+    this.container.removeClass('claudian-hidden');
     const { active, inactive } = this.resolveOptionPair(selectorConfig);
     const currentOption = selectorConfig.options.find((option) => option.value === selectorConfig.value)
       ?? selectorConfig.options[0];
@@ -273,10 +295,12 @@ export class ThinkingBudgetSelector {
         gearEl.addClass('selected');
       }
 
-      gearEl.addEventListener('click', async (e) => {
+      gearEl.addEventListener('click', (e) => {
         e.stopPropagation();
-        await this.callbacks.onEffortLevelChange(effort.value);
-        this.updateDisplay();
+        runToolbarAction(async () => {
+          await this.callbacks.onEffortLevelChange(effort.value);
+          this.updateDisplay();
+        }, 'Failed to change effort level');
       });
     }
   }
@@ -307,10 +331,12 @@ export class ThinkingBudgetSelector {
         gearEl.addClass('selected');
       }
 
-      gearEl.addEventListener('click', async (e) => {
+      gearEl.addEventListener('click', (e) => {
         e.stopPropagation();
-        await this.callbacks.onThinkingBudgetChange(budget.value);
-        this.updateDisplay();
+        runToolbarAction(async () => {
+          await this.callbacks.onThinkingBudgetChange(budget.value);
+          this.updateDisplay();
+        }, 'Failed to change thinking budget');
       });
     }
   }
@@ -318,8 +344,8 @@ export class ThinkingBudgetSelector {
   updateDisplay() {
     const capabilities = this.callbacks.getCapabilities();
     if (capabilities.reasoningControl === 'none') {
-      if (this.effortEl) this.effortEl.style.display = 'none';
-      if (this.budgetEl) this.budgetEl.style.display = 'none';
+      this.effortEl?.addClass('claudian-hidden');
+      this.budgetEl?.addClass('claudian-hidden');
       return;
     }
 
@@ -332,18 +358,18 @@ export class ThinkingBudgetSelector {
       || (options.length === 1 && options[0]?.value === defaultValue);
 
     if (shouldHide) {
-      if (this.effortEl) this.effortEl.style.display = 'none';
-      if (this.budgetEl) this.budgetEl.style.display = 'none';
+      this.effortEl?.addClass('claudian-hidden');
+      this.budgetEl?.addClass('claudian-hidden');
       return;
     }
 
     const adaptive = uiConfig.isAdaptiveReasoningModel(model, settings);
 
     if (this.effortEl) {
-      this.effortEl.style.display = adaptive ? '' : 'none';
+      this.effortEl.toggleClass('claudian-hidden', !adaptive);
     }
     if (this.budgetEl) {
-      this.budgetEl.style.display = adaptive ? 'none' : '';
+      this.budgetEl.toggleClass('claudian-hidden', adaptive);
     }
 
     if (adaptive) {
@@ -380,7 +406,9 @@ export class PermissionToggle {
 
     this.updateDisplay();
 
-    this.toggleEl.addEventListener('click', () => this.toggle());
+    this.toggleEl.addEventListener('click', () => {
+      runToolbarAction(() => this.toggle(), 'Failed to change permission mode');
+    });
   }
 
   private getToggleConfig(): ProviderPermissionModeToggleConfig | null {
@@ -394,22 +422,22 @@ export class PermissionToggle {
     const toggleConfig = this.getToggleConfig();
     const capabilities = this.callbacks.getCapabilities();
     if (!this.visible || !toggleConfig) {
-      this.container.style.display = 'none';
+      this.container.addClass('claudian-hidden');
       return;
     }
 
-    this.container.style.display = '';
+    this.container.removeClass('claudian-hidden');
     const mode = this.callbacks.getSettings().permissionMode;
     const planValue = toggleConfig.planValue;
     const planLabel = toggleConfig.planLabel ?? 'PLAN';
     const canShowPlan = Boolean(planValue) && capabilities.supportsPlanMode;
 
     if (canShowPlan && planValue && mode === planValue) {
-      this.toggleEl.style.display = 'none';
+      this.toggleEl.addClass('claudian-hidden');
       this.labelEl.setText(planLabel);
       this.labelEl.addClass('plan-active');
     } else {
-      this.toggleEl.style.display = '';
+      this.toggleEl.removeClass('claudian-hidden');
       this.labelEl.removeClass('plan-active');
       if (mode === toggleConfig.activeValue) {
         this.toggleEl.addClass('active');
@@ -455,7 +483,9 @@ export class ServiceTierToggle {
 
     this.updateDisplay();
 
-    this.buttonEl.addEventListener('click', () => this.toggle());
+    this.buttonEl.addEventListener('click', () => {
+      runToolbarAction(() => this.toggle(), 'Failed to change service tier');
+    });
   }
 
   private getToggleConfig(): ProviderServiceTierToggleConfig | null {
@@ -468,11 +498,11 @@ export class ServiceTierToggle {
 
     const toggleConfig = this.getToggleConfig();
     if (!toggleConfig) {
-      this.container.style.display = 'none';
+      this.container.addClass('claudian-hidden');
       return;
     }
 
-    this.container.style.display = '';
+    this.container.removeClass('claudian-hidden');
     const current = this.callbacks.getSettings().serviceTier;
     const isActive = current === toggleConfig.activeValue;
     if (isActive) {
@@ -695,7 +725,7 @@ export class ExternalContextSelector {
     // Click to open native folder picker
     iconWrapper.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.openFolderPicker();
+      void this.openFolderPicker();
     });
 
     this.dropdownEl = this.container.createDiv({ cls: 'claudian-external-context-dropdown' });
@@ -705,8 +735,11 @@ export class ExternalContextSelector {
   private async openFolderPicker() {
     try {
       // Access Electron's dialog through remote
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { remote } = require('electron');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- Electron remote is exposed only at runtime in Obsidian's renderer.
+      const { remote } = require('electron') as { remote?: ElectronRemoteApi };
+      if (!remote) {
+        throw new Error('Electron remote API is unavailable');
+      }
       const result = await remote.dialog.showOpenDialog({
         properties: ['openDirectory'],
         title: 'Select External Context',
@@ -799,8 +832,6 @@ export class ExternalContextSelector {
   /** Shorten path for display (replace home dir with ~) */
   private shortenPath(fullPath: string): string {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const os = require('os');
       const homeDir = os.homedir();
       const normalize = (value: string) => value.replace(/\\/g, '/');
       const normalizedFull = normalize(fullPath);
@@ -864,7 +895,7 @@ export class McpServerSelector {
   setVisible(visible: boolean): void {
     this.visible = visible;
     if (!visible) {
-      this.container.style.display = 'none';
+      this.container.addClass('claudian-hidden');
     } else {
       this.updateDisplay();
     }
@@ -937,7 +968,7 @@ export class McpServerSelector {
     const iconWrapper = this.container.createDiv({ cls: 'claudian-mcp-selector-icon-wrapper' });
 
     this.iconEl = iconWrapper.createDiv({ cls: 'claudian-mcp-selector-icon' });
-    this.iconEl.innerHTML = MCP_ICON_SVG;
+    appendMcpIcon(this.iconEl);
 
     this.badgeEl = iconWrapper.createDiv({ cls: 'claudian-mcp-selector-badge' });
 
@@ -990,7 +1021,7 @@ export class McpServerSelector {
     // Checkbox
     const checkEl = itemEl.createDiv({ cls: 'claudian-mcp-selector-check' });
     if (isEnabled) {
-      checkEl.innerHTML = CHECK_ICON_SVG;
+      appendCheckIcon(checkEl);
     }
 
     // Info
@@ -1027,10 +1058,10 @@ export class McpServerSelector {
 
     if (isEnabled) {
       itemEl.addClass('enabled');
-      if (checkEl) checkEl.innerHTML = CHECK_ICON_SVG;
+      if (checkEl) appendCheckIcon(checkEl);
     } else {
       itemEl.removeClass('enabled');
-      if (checkEl) checkEl.innerHTML = '';
+      if (checkEl) checkEl.empty();
     }
 
     this.updateDisplay();
@@ -1046,10 +1077,10 @@ export class McpServerSelector {
 
     // Show/hide container based on whether there are servers and visibility
     if (!hasServers || !this.visible) {
-      this.container.style.display = 'none';
+      this.container.addClass('claudian-hidden');
       return;
     }
-    this.container.style.display = '';
+    this.container.removeClass('claudian-hidden');
 
     if (count > 0) {
       this.iconEl.addClass('active');
@@ -1080,11 +1111,11 @@ export class ContextUsageMeter {
     this.container = parentEl.createDiv({ cls: 'claudian-context-meter' });
     this.render();
     // Initially hidden
-    this.container.style.display = 'none';
+    this.container.addClass('claudian-hidden');
   }
 
   setVisible(visible: boolean): void {
-    this.container.style.display = visible ? '' : 'none';
+    this.container.toggleClass('claudian-hidden', !visible);
   }
 
   private render() {
@@ -1109,31 +1140,45 @@ export class ContextUsageMeter {
     const y2 = cy + radius * Math.sin(endRad);
 
     const gaugeEl = this.container.createDiv({ cls: 'claudian-context-meter-gauge' });
-    gaugeEl.innerHTML = `
-      <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-        <path class="claudian-meter-bg"
-          d="M ${x1} ${y1} A ${radius} ${radius} 0 1 1 ${x2} ${y2}"
-          fill="none" stroke-width="${strokeWidth}" stroke-linecap="round"/>
-        <path class="claudian-meter-fill"
-          d="M ${x1} ${y1} A ${radius} ${radius} 0 1 1 ${x2} ${y2}"
-          fill="none" stroke-width="${strokeWidth}" stroke-linecap="round"
-          stroke-dasharray="${this.circumference}" stroke-dashoffset="${this.circumference}"/>
-      </svg>
-    `;
-    this.fillPath = gaugeEl.querySelector('.claudian-meter-fill');
+    const svg = gaugeEl.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', String(size));
+    svg.setAttribute('height', String(size));
+    svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+
+    const pathData = `M ${x1} ${y1} A ${radius} ${radius} 0 1 1 ${x2} ${y2}`;
+    const backgroundPath = gaugeEl.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'path');
+    backgroundPath.classList.add('claudian-meter-bg');
+    backgroundPath.setAttribute('d', pathData);
+    backgroundPath.setAttribute('fill', 'none');
+    backgroundPath.setAttribute('stroke-width', String(strokeWidth));
+    backgroundPath.setAttribute('stroke-linecap', 'round');
+
+    const fillPath = gaugeEl.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'path');
+    fillPath.classList.add('claudian-meter-fill');
+    fillPath.setAttribute('d', pathData);
+    fillPath.setAttribute('fill', 'none');
+    fillPath.setAttribute('stroke-width', String(strokeWidth));
+    fillPath.setAttribute('stroke-linecap', 'round');
+    fillPath.setAttribute('stroke-dasharray', String(this.circumference));
+    fillPath.setAttribute('stroke-dashoffset', String(this.circumference));
+
+    svg.appendChild(backgroundPath);
+    svg.appendChild(fillPath);
+    gaugeEl.appendChild(svg);
+    this.fillPath = fillPath;
 
     this.percentEl = this.container.createSpan({ cls: 'claudian-context-meter-percent' });
   }
 
   update(usage: UsageInfo | null): void {
     if (!usage || usage.contextTokens <= 0) {
-      this.container.style.display = 'none';
+      this.container.addClass('claudian-hidden');
       return;
     }
-    this.container.style.display = 'flex';
+    this.container.removeClass('claudian-hidden');
     const fillLength = (usage.percentage / 100) * this.circumference;
     if (this.fillPath) {
-      this.fillPath.style.strokeDashoffset = String(this.circumference - fillLength);
+      this.fillPath.setAttribute('stroke-dashoffset', String(this.circumference - fillLength));
     }
 
     if (this.percentEl) {

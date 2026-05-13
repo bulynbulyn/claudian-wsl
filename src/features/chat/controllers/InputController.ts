@@ -62,6 +62,10 @@ const DEFAULT_APPROVAL_DECISION_OPTIONS: ApprovalDecisionOption[] =
     decision,
   }));
 
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
 export interface InputControllerDeps {
   plugin: ClaudianPlugin;
   state: ChatState;
@@ -257,7 +261,7 @@ export class InputController {
     // Hide welcome message when sending first message
     const welcomeEl = this.deps.getWelcomeEl();
     if (welcomeEl) {
-      welcomeEl.style.display = 'none';
+      welcomeEl.addClass('claudian-hidden');
     }
 
     fileContextManager?.startSession();
@@ -566,11 +570,13 @@ export class InputController {
         }
       }
 
-      indicatorEl.style.display = 'flex';
+      indicatorEl.addClass('claudian-visible-flex');
+      indicatorEl.removeClass('claudian-hidden');
       return;
     }
 
-    indicatorEl.style.display = 'none';
+    indicatorEl.removeClass('claudian-visible-flex');
+    indicatorEl.addClass('claudian-hidden');
   }
 
   clearQueuedMessage(): void {
@@ -1094,7 +1100,8 @@ export class InputController {
     if (!(plugin.settings.enableAutoScroll ?? true)) return;
     if (!state.autoScrollEnabled) return;
 
-    requestAnimationFrame(() => {
+    const activeWindow = this.deps.getMessagesEl().ownerDocument.defaultView ?? window;
+    activeWindow.requestAnimationFrame(() => {
       if (!(this.deps.plugin.settings.enableAutoScroll ?? true)) return;
       if (!this.deps.state.autoScrollEnabled) return;
 
@@ -1339,7 +1346,7 @@ export class InputController {
       } catch (err) {
         setPending(null);
         this.restoreInputContainer(inputContainerEl);
-        reject(err);
+        reject(toError(err));
       }
     });
   }
@@ -1386,7 +1393,7 @@ export class InputController {
       } catch (err) {
         this.pendingExitPlanModeInline = null;
         this.restoreInputContainer(inputContainerEl);
-        reject(err);
+        reject(toError(err));
       }
     });
   }
@@ -1440,7 +1447,7 @@ export class InputController {
         this.pendingPlanApproval = null;
         this.pendingPlanApprovalInvalidated = false;
         this.restoreInputContainer(inputContainerEl);
-        reject(err);
+        reject(toError(err));
       }
     });
   }
@@ -1459,21 +1466,21 @@ export class InputController {
 
   private hideInputContainer(inputContainerEl: HTMLElement): void {
     this.inputContainerHideDepth++;
-    inputContainerEl.style.display = 'none';
+    inputContainerEl.addClass('claudian-hidden');
   }
 
   private restoreInputContainer(inputContainerEl: HTMLElement): void {
     if (this.inputContainerHideDepth <= 0) return;
     this.inputContainerHideDepth--;
     if (this.inputContainerHideDepth === 0) {
-      inputContainerEl.style.display = '';
+      inputContainerEl.removeClass('claudian-hidden');
     }
   }
 
   private resetInputContainerVisibility(): void {
     if (this.inputContainerHideDepth > 0) {
       this.inputContainerHideDepth = 0;
-      this.deps.getInputContainerEl().style.display = '';
+      this.deps.getInputContainerEl().removeClass('claudian-hidden');
     }
   }
 
