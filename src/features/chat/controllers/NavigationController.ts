@@ -164,8 +164,8 @@ export class NavigationController {
   private stopScrolling(): void {
     this.scrollDirection = null;
     if (this.animationFrameId !== null) {
-      const ownerWindow = this.deps.getMessagesEl()?.ownerDocument.defaultView ?? window;
-      ownerWindow.cancelAnimationFrame(this.animationFrameId);
+      const activeWindow = this.deps.getMessagesEl()?.ownerDocument.defaultView ?? window;
+      activeWindow.cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
   }
@@ -183,8 +183,8 @@ export class NavigationController {
     const scrollAmount = this.scrollDirection === 'up' ? -SCROLL_SPEED : SCROLL_SPEED;
     messagesEl.scrollTop += scrollAmount;
 
-    const ownerWindow = messagesEl.ownerDocument.defaultView ?? window;
-    this.animationFrameId = ownerWindow.requestAnimationFrame(this.scrollLoop);
+    const activeWindow = messagesEl.ownerDocument.defaultView ?? window;
+    this.animationFrameId = activeWindow.requestAnimationFrame(this.scrollLoop);
   };
 
   // ============================================

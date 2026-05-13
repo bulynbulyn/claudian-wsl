@@ -988,18 +988,17 @@ describe('ConversationController', () => {
         (titleEl as any).replaceWith = jest.fn();
       }
 
-      const createElementSpy = jest
-        .spyOn(item.ownerDocument, 'createElement')
-        .mockReturnValue(mockInput as any);
+      const origDocument = global.document;
+      global.document = { createElement: jest.fn().mockReturnValue(mockInput) } as any;
 
       try {
         clickHandlers![0]({ stopPropagation: jest.fn() });
 
-        expect(createElementSpy).toHaveBeenCalledWith('input');
+        expect(global.document.createElement).toHaveBeenCalledWith('input');
         expect((mockInput as any).value).toBe('Test Title');
         expect(titleEl!.replaceWith).toHaveBeenCalledWith(mockInput);
       } finally {
-        createElementSpy.mockRestore();
+        global.document = origDocument;
       }
     });
 

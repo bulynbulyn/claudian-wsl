@@ -11,7 +11,6 @@ describe('createProviderIconSvg', () => {
     const svg = createProviderIconSvg(OPENAI_PROVIDER_ICON, {
       className: 'test-icon',
       height: 12,
-      ownerDocument: document,
       width: 12,
     });
 
@@ -30,7 +29,6 @@ describe('createProviderIconSvg', () => {
     const svg = createProviderIconSvg(OPENCODE_PROVIDER_ICON, {
       dataProvider: 'opencode',
       height: 18,
-      ownerDocument: document,
       width: 18,
     });
 

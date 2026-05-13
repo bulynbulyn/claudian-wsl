@@ -29,8 +29,6 @@ import type { CanvasSelectionContext } from '../../../utils/canvas';
 import { formatDurationMmSs } from '../../../utils/date';
 import type { EditorSelectionContext } from '../../../utils/editor';
 import { appendMarkdownSnippet } from '../../../utils/markdown';
-import { setNativeTimeout } from '../../../utils/nativeTimers';
-import { preserveUiText } from '../../../utils/uiCopy';
 import { COMPLETION_FLAVOR_WORDS } from '../constants';
 import { type InlineAskQuestionConfig, InlineAskUserQuestion } from '../rendering/InlineAskUserQuestion';
 import { InlineExitPlanMode } from '../rendering/InlineExitPlanMode';
@@ -624,7 +622,7 @@ export class InputController {
       this.deps.getImageContextManager()?.setImages(images);
     }
 
-    setNativeTimeout(
+    setTimeout(
       () => this.sendMessage({
         editorContextOverride: editorContext,
         browserContextOverride: browserContext ?? null,
@@ -835,7 +833,7 @@ export class InputController {
       });
     } catch {
       this.restoreQueuedMessageAfterSteerFailure(queuedMessage);
-      new Notice(preserveUiText('Failed to steer the queued Codex message. It is still available.'));
+      new Notice('Failed to steer the queued Codex message. It is still available.');
     }
   }
 
@@ -1102,8 +1100,8 @@ export class InputController {
     if (!(plugin.settings.enableAutoScroll ?? true)) return;
     if (!state.autoScrollEnabled) return;
 
-    const ownerWindow = this.deps.getMessagesEl().ownerDocument.defaultView ?? window;
-    ownerWindow.requestAnimationFrame(() => {
+    const activeWindow = this.deps.getMessagesEl().ownerDocument.defaultView ?? window;
+    activeWindow.requestAnimationFrame(() => {
       if (!(this.deps.plugin.settings.enableAutoScroll ?? true)) return;
       if (!this.deps.state.autoScrollEnabled) return;
 

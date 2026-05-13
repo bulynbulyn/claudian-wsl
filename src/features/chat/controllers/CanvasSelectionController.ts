@@ -41,14 +41,14 @@ export class CanvasSelectionController {
 
   start(): void {
     if (this.pollInterval) return;
-    const ownerWindow = this.inputEl.ownerDocument.defaultView ?? window;
-    this.pollInterval = ownerWindow.setInterval(() => this.poll(), CANVAS_POLL_INTERVAL);
+    const activeWindow = this.inputEl.ownerDocument.defaultView ?? window;
+    this.pollInterval = activeWindow.setInterval(() => this.poll(), CANVAS_POLL_INTERVAL);
   }
 
   stop(): void {
     if (this.pollInterval) {
-      const ownerWindow = this.inputEl.ownerDocument.defaultView ?? window;
-      ownerWindow.clearInterval(this.pollInterval);
+      const activeWindow = this.inputEl.ownerDocument.defaultView ?? window;
+      activeWindow.clearInterval(this.pollInterval);
       this.pollInterval = null;
     }
     this.clear();
@@ -88,7 +88,8 @@ export class CanvasSelectionController {
   }
 
   private getActiveElement(): Element | null {
-    return this.inputEl.ownerDocument.activeElement;
+    return this.inputEl.ownerDocument?.activeElement
+      ?? (typeof document === 'undefined' ? null : document.activeElement);
   }
 
   private getCanvasView(): CanvasViewLike | null {

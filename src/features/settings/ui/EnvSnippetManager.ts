@@ -10,7 +10,6 @@ import type { EnvironmentScope, EnvSnippet } from '../../../core/types';
 import { t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
 import { formatContextLimit, parseContextLimit, parseEnvironmentVariables } from '../../../utils/env';
-import { setNativeTimeout } from '../../../utils/nativeTimers';
 import type { ClaudianView } from '../../chat/ClaudianView';
 
 export class EnvSnippetModal extends Modal {
@@ -180,7 +179,7 @@ export class EnvSnippetModal extends Modal {
     saveBtn.addEventListener('click', () => saveSnippet());
 
     // Focus name input after modal is rendered (timeout for Windows compatibility)
-    setNativeTimeout(() => nameEl?.focus(), 50);
+    setTimeout(() => nameEl?.focus(), 50);
   }
 
   onClose() {
@@ -373,7 +372,7 @@ export class EnvSnippetManager {
 
   private syncTextareaValue(scope: EnvironmentScope, value: string): void {
     const selector = `.claudian-settings-env-textarea[data-env-scope="${scope}"]`;
-    const envTextarea = this.containerEl.ownerDocument.querySelector(selector) as HTMLTextAreaElement | null;
+    const envTextarea = document.querySelector(selector) as HTMLTextAreaElement | null;
     if (envTextarea) {
       envTextarea.value = value;
     }

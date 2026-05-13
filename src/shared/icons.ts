@@ -98,7 +98,6 @@ export const OPENCODE_PROVIDER_ICON: ProviderIconSvg = {
 
 export interface CreateProviderIconSvgOptions {
   className?: string;
-  ownerDocument?: Document;
   dataProvider?: string;
   height?: number | string;
   width?: number | string;
@@ -108,8 +107,7 @@ export function createProviderIconSvg(
   icon: ProviderIconSvg,
   options: CreateProviderIconSvgOptions = {},
 ): SVGElement {
-  const ownerDocument = options.ownerDocument ?? activeDocument;
-  const svg = ownerDocument.createElementNS(SVG_NS, 'svg');
+  const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', icon.viewBox);
   svg.setAttribute('fill', 'none');
   svg.setAttribute('aria-hidden', 'true');
@@ -130,27 +128,27 @@ export function createProviderIconSvg(
 
   if (icon.kind === 'composite') {
     for (const child of icon.children) {
-      svg.appendChild(createProviderSvgChild(child, ownerDocument));
+      svg.appendChild(createProviderSvgChild(child));
     }
     return svg;
   }
 
-  const path = ownerDocument.createElementNS(SVG_NS, 'path');
+  const path = document.createElementNS(SVG_NS, 'path');
   path.setAttribute('d', icon.path);
   path.setAttribute('fill', 'currentColor');
   svg.appendChild(path);
   return svg;
 }
 
-function createProviderSvgChild(child: ProviderSvgChild, ownerDocument: Document): SVGElement {
-  const element = ownerDocument.createElementNS(SVG_NS, child.tag);
+function createProviderSvgChild(child: ProviderSvgChild): SVGElement {
+  const element = document.createElementNS(SVG_NS, child.tag);
   for (const [name, value] of Object.entries(child.attributes)) {
     element.setAttribute(name, value);
   }
 
   if (child.tag === 'g') {
     for (const nestedChild of child.children) {
-      element.appendChild(createProviderSvgChild(nestedChild, ownerDocument));
+      element.appendChild(createProviderSvgChild(nestedChild));
     }
   }
 

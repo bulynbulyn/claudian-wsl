@@ -3,7 +3,6 @@ import { Modal, Notice, setIcon, Setting } from 'obsidian';
 import type { ProviderCommandCatalog } from '../../../core/providers/commands/ProviderCommandCatalog';
 import type { ProviderCommandEntry } from '../../../core/providers/commands/ProviderCommandEntry';
 import { validateCommandName } from '../../../utils/slashCommand';
-import { preserveUiText } from '../../../utils/uiCopy';
 import {
   CODEX_SKILL_ROOT_OPTIONS,
   type CodexSkillRootId,
@@ -66,7 +65,7 @@ export class CodexSkillModal extends Modal {
       .addText(text => {
         this._nameInput = text.inputEl;
         text.setValue(this.existing?.name || '')
-          .setPlaceholder(preserveUiText('analyze-code'));
+          .setPlaceholder('analyze-code');
       });
 
     new Setting(contentEl)
@@ -124,7 +123,7 @@ export class CodexSkillModal extends Modal {
       try {
         await this.onSave(entry);
       } catch {
-        new Notice(preserveUiText('Failed to save Codex skill'));
+        new Notice('Failed to save Codex skill');
         return;
       }
       this.close();
@@ -203,7 +202,7 @@ export class CodexSkillSettings {
 
     if (this.entries.length === 0) {
       const emptyEl = this.containerEl.createDiv({ cls: 'claudian-sp-empty-state' });
-      emptyEl.setText(preserveUiText('No Codex skills in vault. Click + to create one.'));
+      emptyEl.setText('No Codex skills in vault. Click + to create one.');
       return;
     }
 
@@ -249,7 +248,7 @@ export class CodexSkillSettings {
           await this.deleteEntry(entry);
           new Notice(`Codex skill "$${entry.name}" deleted`);
         } catch {
-          new Notice(preserveUiText('Failed to delete Codex skill'));
+          new Notice('Failed to delete Codex skill');
         }
       });
     }

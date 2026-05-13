@@ -268,7 +268,6 @@ describe('SelectionController', () => {
     beforeEach(() => {
       containerEl = {
         contains: jest.fn().mockReturnValue(true),
-        ownerDocument: inputEl.ownerDocument,
       };
       readingView = {
         editor,

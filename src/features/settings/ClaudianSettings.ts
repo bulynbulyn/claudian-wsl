@@ -13,8 +13,6 @@ import { getAvailableLocales, getLocaleDisplayName, setLocale, t } from '../../i
 import type { Locale, TranslationKey } from '../../i18n/types';
 import type ClaudianPlugin from '../../main';
 import { formatContextLimit, parseContextLimit, parseEnvironmentVariables } from '../../utils/env';
-import { setNativeTimeout } from '../../utils/nativeTimers';
-import { preserveUiText } from '../../utils/uiCopy';
 import { buildNavMappingText, parseNavMappings } from './keyboardNavigation';
 import { renderEnvironmentSettingsSection } from './ui/EnvironmentSettingsSection';
 
@@ -36,7 +34,7 @@ function openHotkeySettings(app: App): void {
   const setting = (app as any).setting;
   setting.open();
   setting.openTabById('hotkeys');
-  setNativeTimeout(() => {
+  setTimeout(() => {
     const tab = setting.activeTab;
     if (!tab) {
       return;
@@ -353,7 +351,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .setDesc(t('settings.excludedTags.desc'))
       .addTextArea((text) => {
         text
-          .setPlaceholder(preserveUiText('system\nprivate\ndraft'))
+          .setPlaceholder('system\nprivate\ndraft')
           .setValue(this.plugin.settings.excludedTags.join('\n'))
           .onChange(async (value) => {
             this.plugin.settings.excludedTags = value
@@ -371,7 +369,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .setDesc(t('settings.mediaFolder.desc'))
       .addText((text) => {
         text
-          .setPlaceholder(preserveUiText('attachments'))
+          .setPlaceholder('attachments')
           .setValue(this.plugin.settings.mediaFolder)
           .onChange(async (value) => {
             this.plugin.settings.mediaFolder = value.trim();
@@ -426,7 +424,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
         };
 
         text
-          .setPlaceholder(preserveUiText('map w scrollUp\nmap s scrollDown\nmap i focusInput'))
+          .setPlaceholder('map w scrollUp\nmap s scrollDown\nmap i focusInput')
           .setValue(pendingValue)
           .onChange((value) => {
             pendingValue = value;

@@ -47,14 +47,14 @@ export class SelectionController {
     if (this.focusScopeEl !== this.inputEl) {
       this.focusScopeEl.addEventListener('pointerdown', this.focusScopePointerDownHandler);
     }
-    const ownerWindow = this.inputEl.ownerDocument.defaultView ?? window;
-    this.pollInterval = ownerWindow.setInterval(() => this.poll(), SELECTION_POLL_INTERVAL);
+    const activeWindow = this.inputEl.ownerDocument.defaultView ?? window;
+    this.pollInterval = activeWindow.setInterval(() => this.poll(), SELECTION_POLL_INTERVAL);
   }
 
   stop(): void {
     if (this.pollInterval) {
-      const ownerWindow = this.inputEl.ownerDocument.defaultView ?? window;
-      ownerWindow.clearInterval(this.pollInterval);
+      const activeWindow = this.inputEl.ownerDocument.defaultView ?? window;
+      activeWindow.clearInterval(this.pollInterval);
       this.pollInterval = null;
     }
     this.inputEl.removeEventListener('pointerdown', this.focusScopePointerDownHandler);
@@ -214,11 +214,16 @@ export class SelectionController {
       return ownerDocument.getSelection();
     }
 
+    if (typeof document !== 'undefined' && typeof document.getSelection === 'function') {
+      return document.getSelection();
+    }
+
     return null;
   }
 
   private getActiveElement(ownerDocument?: Document | null): Element | null {
-    return ownerDocument?.activeElement ?? null;
+    return ownerDocument?.activeElement
+      ?? (typeof document === 'undefined' ? null : document.activeElement);
   }
 
   private isFocusWithinChatSidebar(): boolean {

@@ -5,7 +5,6 @@ import type { ProviderSettingsTabRenderer } from '../../../core/providers/types'
 import { renderEnvironmentSettingsSection } from '../../../features/settings/ui/EnvironmentSettingsSection';
 import { getHostnameKey } from '../../../utils/env';
 import { expandHomePath } from '../../../utils/path';
-import { preserveUiText } from '../../../utils/uiCopy';
 import { maybeGetOpencodeWorkspaceServices } from '../app/OpencodeWorkspaceServices';
 import { clearOpencodeDiscoveryState } from '../discoveryState';
 import { sameStringList } from '../internal/compareCollections';
@@ -43,7 +42,7 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     new Setting(container).setName('Setup').setHeading();
 
     new Setting(container)
-      .setName(preserveUiText('Enable OpenCode'))
+      .setName('Enable OpenCode')
       .setDesc('Launch `opencode acp` as a provider.')
       .addToggle((toggle) =>
         toggle
@@ -159,8 +158,8 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     new Setting(container).setName('Models').setHeading();
 
     new Setting(container)
-      .setName(preserveUiText('Visible Models'))
-      .setDesc(preserveUiText('Choose which OpenCode models appear in the chat selector. Filter by provider or type to search. The current session model stays pinned even if it is not selected here.'));
+      .setName('Visible Models')
+      .setDesc('Choose which OpenCode models appear in the chat selector. Filter by provider or type to search. The current session model stays pinned even if it is not selected here.');
 
     const pickerEl = container.createDiv({ cls: 'claudian-opencode-model-picker' });
 
@@ -192,7 +191,7 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
       cls: 'claudian-opencode-model-picker-search',
       type: 'search',
     });
-    searchInput.placeholder = preserveUiText('Filter by model, provider, or id…');
+    searchInput.placeholder = 'Filter by model, provider, or id…';
     searchInput.addEventListener('input', () => {
       searchQuery = searchInput.value.trim().toLowerCase();
       renderList();
@@ -339,7 +338,7 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
         if (enriched && !enriched.isAvailable) {
           infoEl.createEl('div', {
             cls: 'claudian-opencode-model-picker-selected-unavailable',
-            text: preserveUiText('Not currently reported by OpenCode'),
+            text: 'Not currently reported by OpenCode',
           });
         }
 
@@ -479,7 +478,7 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
         if (!model.isAvailable) {
           badgeEl.classList.add('claudian-opencode-model-picker-row-badge--unavailable');
           badgeEl.setText('Unavailable');
-          badgeEl.title = preserveUiText('Configured model not currently reported by OpenCode');
+          badgeEl.title = 'Configured model not currently reported by OpenCode';
         }
 
         textEl.createDiv({
@@ -506,12 +505,12 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     renderAll();
 
-    new Setting(container).setName(preserveUiText('Commands and Skills')).setHeading();
+    new Setting(container).setName('Commands and Skills').setHeading();
 
     const commandsDesc = container.createDiv({ cls: 'claudian-sp-settings-desc' });
     commandsDesc.createEl('p', {
       cls: 'setting-item-description',
-      text: preserveUiText('OpenCode can auto-detect vault-level Claude slash commands from .claude/commands/ and skills from .claude/skills/, .codex/skills/, and .agents/skills/. Manage those entries in the Claude or Codex settings tab. This setting only hides entries from the OpenCode dropdown.'),
+      text: 'OpenCode can auto-detect vault-level Claude slash commands from .claude/commands/ and skills from .claude/skills/, .codex/skills/, and .agents/skills/. Manage those entries in the Claude or Codex settings tab. This setting only hides entries from the OpenCode dropdown.',
     });
 
     context.renderHiddenProviderCommandSetting(container, 'opencode', {
@@ -526,7 +525,7 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
       const subagentsDesc = container.createDiv({ cls: 'claudian-sp-settings-desc' });
       subagentsDesc.createEl('p', {
         cls: 'setting-item-description',
-        text: preserveUiText('Manage vault-level OpenCode subagents from .opencode/agent/ and legacy .opencode/agents/. New entries are saved as subagent-only files and appear in the @mention menu.'),
+        text: 'Manage vault-level OpenCode subagents from .opencode/agent/ and legacy .opencode/agents/. New entries are saved as subagent-only files and appear in the @mention menu.',
       });
 
       const subagentsContainer = container.createDiv({ cls: 'claudian-slash-commands-container' });

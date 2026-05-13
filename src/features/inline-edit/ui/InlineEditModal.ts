@@ -25,9 +25,7 @@ import { type CursorContext, getEditorView } from '../../../utils/editor';
 import { buildExternalContextDisplayEntries } from '../../../utils/externalContext';
 import { externalContextScanner } from '../../../utils/externalContextScanner';
 import { normalizeInsertionText } from '../../../utils/inlineEdit';
-import { setNativeTimeout } from '../../../utils/nativeTimers';
 import { getVaultPath, normalizePathForVault as normalizePathForVaultUtil } from '../../../utils/path';
-import { preserveUiText } from '../../../utils/uiCopy';
 
 export type InlineEditContext =
   | { mode: 'selection'; selectedText: string }
@@ -60,24 +58,23 @@ class DiffWidget extends WidgetType {
     super();
   }
   toDOM(): HTMLElement {
-    const ownerDocument = this.controller.getOwnerDocument();
-    const span = ownerDocument.createElement('span');
+    const span = document.createElement('span');
     span.className = 'claudian-inline-diff-replace';
     appendDiffOps(span, this.diffOps);
 
-    const btns = ownerDocument.createElement('span');
+    const btns = document.createElement('span');
     btns.className = 'claudian-inline-diff-buttons';
 
-    const rejectBtn = ownerDocument.createElement('button');
+    const rejectBtn = document.createElement('button');
     rejectBtn.className = 'claudian-inline-diff-btn reject';
     rejectBtn.textContent = '✕';
-    rejectBtn.title = preserveUiText('Reject (Esc)');
+    rejectBtn.title = 'Reject (Esc)';
     rejectBtn.onclick = () => this.controller.reject();
 
-    const acceptBtn = ownerDocument.createElement('button');
+    const acceptBtn = document.createElement('button');
     acceptBtn.className = 'claudian-inline-diff-btn accept';
     acceptBtn.textContent = '✓';
-    acceptBtn.title = preserveUiText('Accept (Enter)');
+    acceptBtn.title = 'Accept (Enter)';
     acceptBtn.onclick = () => this.controller.accept();
 
     btns.appendChild(rejectBtn);
@@ -337,10 +334,6 @@ class InlineEditController {
     this.updatePositionsFromEditor();
   }
 
-  getOwnerDocument(): Document {
-    return this.editorView.dom.ownerDocument;
-  }
-
   private updatePositionsFromEditor() {
     const doc = this.editorView.state.doc;
 
@@ -381,7 +374,7 @@ class InlineEditController {
         this.reject();
       }
     };
-    this.getOwnerDocument().addEventListener('keydown', this.escHandler);
+    document.addEventListener('keydown', this.escHandler);
   }
 
   private updateHighlight() {
@@ -431,33 +424,32 @@ class InlineEditController {
   }
 
   createInputDOM(): HTMLElement {
-    const ownerDocument = this.getOwnerDocument();
-    const container = ownerDocument.createElement('div');
+    const container = document.createElement('div');
     container.className = 'claudian-inline-input-container';
     this.containerEl = container;
 
-    this.agentReplyEl = ownerDocument.createElement('div');
+    this.agentReplyEl = document.createElement('div');
     this.agentReplyEl.className = 'claudian-inline-agent-reply claudian-hidden';
     container.appendChild(this.agentReplyEl);
 
-    const inputWrap = ownerDocument.createElement('div');
+    const inputWrap = document.createElement('div');
     inputWrap.className = 'claudian-inline-input-wrap';
     container.appendChild(inputWrap);
 
-    this.inputEl = ownerDocument.createElement('input');
+    this.inputEl = document.createElement('input');
     this.inputEl.type = 'text';
     this.inputEl.className = 'claudian-inline-input';
     this.inputEl.placeholder = this.mode === 'cursor' ? 'Insert instructions...' : 'Edit instructions...';
     this.inputEl.spellcheck = false;
     inputWrap.appendChild(this.inputEl);
 
-    this.spinnerEl = ownerDocument.createElement('div');
+    this.spinnerEl = document.createElement('div');
     this.spinnerEl.className = 'claudian-inline-spinner claudian-hidden';
     inputWrap.appendChild(this.spinnerEl);
 
     const inlineCatalog = ProviderWorkspaceRegistry.getCommandCatalog(this.resolvedProviderId);
     this.slashCommandDropdown = new SlashCommandDropdown(
-      ownerDocument.body,
+      document.body,
       this.inputEl,
       {
         onSelect: () => {},
@@ -474,7 +466,7 @@ class InlineEditController {
     );
 
     this.mentionDropdown = new MentionDropdownController(
-      ownerDocument.body,
+      document.body,
       this.inputEl,
       {
         // Inline-edit resolves @mentions at send time from input text.
@@ -494,7 +486,7 @@ class InlineEditController {
     this.inputEl.addEventListener('keydown', (e) => this.handleKeydown(e));
     this.inputEl.addEventListener('input', () => this.mentionDropdown?.handleInputChange());
 
-    setNativeTimeout(() => this.inputEl?.focus(), 50);
+    setTimeout(() => this.inputEl?.focus(), 50);
     return container;
   }
 
@@ -621,7 +613,7 @@ class InlineEditController {
 
   private installAcceptRejectHandler() {
     if (this.escHandler) {
-      this.getOwnerDocument().removeEventListener('keydown', this.escHandler);
+      document.removeEventListener('keydown', this.escHandler);
     }
     this.escHandler = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !e.isComposing) {
@@ -630,7 +622,7 @@ class InlineEditController {
         this.accept();
       }
     };
-    this.getOwnerDocument().addEventListener('keydown', this.escHandler);
+    document.addEventListener('keydown', this.escHandler);
   }
 
   accept() {
@@ -672,7 +664,7 @@ class InlineEditController {
     this.isConversing = false;
     this.removeSelectionListeners();
     if (this.escHandler) {
-      this.getOwnerDocument().removeEventListener('keydown', this.escHandler);
+      document.removeEventListener('keydown', this.escHandler);
     }
     this.slashCommandDropdown?.destroy();
     this.slashCommandDropdown = null;

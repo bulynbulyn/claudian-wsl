@@ -27,7 +27,6 @@ import type {
 } from '../../../core/runtime/types';
 import type { ChatMessage, Conversation, ForkSource, SlashCommand, StreamChunk } from '../../../core/types';
 import type ClaudianPlugin from '../../../main';
-import { clearNativeInterval, setNativeInterval } from '../../../utils/nativeTimers';
 import { getVaultPath } from '../../../utils/path';
 import { buildContextFromHistory } from '../../../utils/session';
 import { CODEX_PROVIDER_CAPABILITIES } from '../capabilities';
@@ -280,7 +279,7 @@ export class CodexChatRuntime implements ChatRuntime {
 
       toolSourceMode = 'fallback';
       if (tailDrainInterval) {
-        clearNativeInterval(tailDrainInterval);
+        clearInterval(tailDrainInterval);
         tailDrainInterval = null;
       }
 
@@ -318,7 +317,7 @@ export class CodexChatRuntime implements ChatRuntime {
 
     const stopTailToolPolling = async (): Promise<void> => {
       if (tailDrainInterval) {
-        clearNativeInterval(tailDrainInterval);
+        clearInterval(tailDrainInterval);
         tailDrainInterval = null;
       }
       if (tailEngine) {
@@ -577,7 +576,7 @@ export class CodexChatRuntime implements ChatRuntime {
             transcriptSessionFilePath ?? undefined,
           );
           if (transcriptPollingStarted) {
-            tailDrainInterval = setNativeInterval(() => {
+            tailDrainInterval = setInterval(() => {
               drainTailToolChunks();
             }, 50);
           } else {

@@ -91,8 +91,8 @@ export class InlineAskUserQuestion {
     this.rootEl.addEventListener('keydown', this.boundKeyDown);
 
     // Defer focus to after the element is in the DOM and laid out
-    const ownerWindow = this.rootEl.ownerDocument.defaultView ?? window;
-    ownerWindow.requestAnimationFrame(() => {
+    const activeWindow = this.rootEl.ownerDocument.defaultView ?? window;
+    activeWindow.requestAnimationFrame(() => {
       this.rootEl.focus();
       this.rootEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });

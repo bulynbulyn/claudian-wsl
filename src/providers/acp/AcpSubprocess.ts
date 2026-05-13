@@ -1,8 +1,6 @@
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import type { Readable, Writable } from 'node:stream';
 
-import { clearNativeTimeout, setNativeTimeout } from '../../utils/nativeTimers';
-
 const SIGKILL_TIMEOUT_MS = 3_000;
 const STDERR_BUFFER_LIMIT = 8_000;
 
@@ -103,11 +101,11 @@ export class AcpSubprocess {
         cleanup();
         resolve();
       };
-      const killTimer = setNativeTimeout(() => {
+      const killTimer = setTimeout(() => {
         proc.kill('SIGKILL');
       }, SIGKILL_TIMEOUT_MS);
       const cleanup = () => {
-        clearNativeTimeout(killTimer);
+        clearTimeout(killTimer);
         proc.off('exit', onClose);
       };
 

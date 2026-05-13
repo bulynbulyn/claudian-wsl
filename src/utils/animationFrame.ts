@@ -12,35 +12,35 @@ export function scheduleAnimationFrame(
   callback: () => void,
   ownerWindow: Window | null = getRendererWindow(),
 ): ScheduledAnimationFrame {
-  const timerWindow = ownerWindow ?? getRendererWindow();
-  if (!timerWindow) {
+  const activeWindow = ownerWindow ?? getRendererWindow();
+  if (!activeWindow) {
     callback();
     return { kind: 'timeout', id: 0, ownerWindow: null };
   }
 
-  if (typeof timerWindow.requestAnimationFrame === 'function') {
+  if (typeof activeWindow.requestAnimationFrame === 'function') {
     return {
       kind: 'raf',
-      id: timerWindow.requestAnimationFrame(() => callback()),
-      ownerWindow: timerWindow,
+      id: activeWindow.requestAnimationFrame(() => callback()),
+      ownerWindow: activeWindow,
     };
   }
 
   return {
     kind: 'timeout',
-    id: timerWindow.setTimeout(callback, 16),
-    ownerWindow: timerWindow,
+    id: activeWindow.setTimeout(callback, 16),
+    ownerWindow: activeWindow,
   };
 }
 
 export function cancelScheduledAnimationFrame(frame: ScheduledAnimationFrame): void {
-  const ownerWindow = frame.ownerWindow ?? getRendererWindow();
-  if (!ownerWindow) return;
+  const activeWindow = frame.ownerWindow ?? getRendererWindow();
+  if (!activeWindow) return;
 
-  if (frame.kind === 'raf' && typeof ownerWindow.cancelAnimationFrame === 'function') {
-    ownerWindow.cancelAnimationFrame(frame.id);
+  if (frame.kind === 'raf' && typeof activeWindow.cancelAnimationFrame === 'function') {
+    activeWindow.cancelAnimationFrame(frame.id);
     return;
   }
 
-  ownerWindow.clearTimeout(frame.id);
+  activeWindow.clearTimeout(frame.id);
 }

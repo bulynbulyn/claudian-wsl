@@ -7,7 +7,6 @@ import * as https from 'https';
 
 import { getEnhancedPath } from '../../utils/env';
 import { parseCommand } from '../../utils/mcp';
-import { clearNativeTimeout, setNativeTimeout } from '../../utils/nativeTimers';
 import type { ManagedMcpServer } from '../types';
 import { getMcpServerType } from '../types';
 
@@ -247,7 +246,7 @@ export async function testMcpServer(server: ManagedMcpServer): Promise<McpTestRe
 
   const client = new Client({ name: 'claudian-tester', version: '1.0.0' });
   const controller = new AbortController();
-  const timeout = setNativeTimeout(() => controller.abort(), 10000);
+  const timeout = setTimeout(() => controller.abort(), 10000);
 
   try {
     await client.connect(transport, { signal: controller.signal });
@@ -281,7 +280,7 @@ export async function testMcpServer(server: ManagedMcpServer): Promise<McpTestRe
       error: error instanceof Error ? error.message : 'Unknown error',
     };
   } finally {
-    clearNativeTimeout(timeout);
+    clearTimeout(timeout);
     try {
       await client.close();
     } catch {

@@ -209,12 +209,11 @@ describe('ImageContextManager', () => {
 // Test private helper methods via their observable effects.
 // We access privates through any cast, matching the project's pattern.
 describe('ImageContextManager - Private Helpers', () => {
-  let container: any;
   let manager: any;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    ({ container } = createContainerWithInputWrapper());
+    const { container } = createContainerWithInputWrapper();
     const inputEl = createMockTextArea();
     const callbacks = createMockCallbacks();
     manager = new ImageContextManager(container, inputEl, callbacks);
@@ -720,9 +719,6 @@ describe('ImageContextManager - Private Helpers', () => {
         removeEventListener: removeEventSpy,
         createElementNS: jest.fn(() => mockSvgElement()),
       };
-      container.ownerDocument.body = mockBody;
-      container.ownerDocument.addEventListener = addEventSpy;
-      container.ownerDocument.removeEventListener = removeEventSpy;
     });
 
     afterEach(() => {

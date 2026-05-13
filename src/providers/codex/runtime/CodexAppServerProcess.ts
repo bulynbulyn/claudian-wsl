@@ -1,7 +1,6 @@
 import { type ChildProcess,spawn } from 'child_process';
 import type { Readable, Writable } from 'stream';
 
-import { clearNativeTimeout, setNativeTimeout } from '../../../utils/nativeTimers';
 import type { CodexLaunchSpec } from './codexLaunchTypes';
 
 const SIGKILL_TIMEOUT_MS = 3_000;
@@ -126,14 +125,14 @@ export class CodexAppServerProcess {
 
     return new Promise<void>((resolve) => {
       const onExit = () => {
-        clearNativeTimeout(killTimer);
+        clearTimeout(killTimer);
         resolve();
       };
 
       this.proc!.once('exit', onExit);
       this.proc!.kill('SIGTERM');
 
-      const killTimer = setNativeTimeout(() => {
+      const killTimer = setTimeout(() => {
         if (this.alive) {
           this.proc!.kill('SIGKILL');
         }

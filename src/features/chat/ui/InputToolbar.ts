@@ -19,7 +19,6 @@ import type {
 import { appendCheckIcon, appendMcpIcon, createProviderIconSvg } from '../../../shared/icons';
 import { filterValidPaths, findConflictingPath, isDuplicatePath, isValidDirectoryPath, validateDirectoryPath } from '../../../utils/externalContext';
 import { expandHomePath, normalizePathForFilesystem } from '../../../utils/path';
-import { preserveUiText } from '../../../utils/uiCopy';
 
 interface ElectronOpenDialogResult {
   canceled: boolean;
@@ -130,7 +129,6 @@ export class ModelSelector {
         option.appendChild(createProviderIconSvg(icon, {
           className: 'claudian-model-provider-icon',
           height: 12,
-          ownerDocument: option.ownerDocument,
           width: 12,
         }));
       }
@@ -789,7 +787,7 @@ export class ExternalContextSelector {
 
     // Header
     const headerEl = this.dropdownEl.createDiv({ cls: 'claudian-external-context-header' });
-    headerEl.setText(preserveUiText('External Contexts'));
+    headerEl.setText('External Contexts');
 
     // Path list
     const listEl = this.dropdownEl.createDiv({ cls: 'claudian-external-context-list' });
@@ -992,7 +990,7 @@ export class McpServerSelector {
 
     // Header
     const headerEl = this.dropdownEl.createDiv({ cls: 'claudian-mcp-selector-header' });
-    headerEl.setText(preserveUiText('MCP Servers'));
+    headerEl.setText('MCP Servers');
 
     // Server list
     const listEl = this.dropdownEl.createDiv({ cls: 'claudian-mcp-selector-list' });
@@ -1097,7 +1095,7 @@ export class McpServerSelector {
       }
     } else {
       this.iconEl.removeClass('active');
-      this.iconEl.setAttribute('title', preserveUiText('MCP servers (click to enable)'));
+      this.iconEl.setAttribute('title', 'MCP servers (click to enable)');
       this.badgeEl.removeClass('visible');
     }
   }

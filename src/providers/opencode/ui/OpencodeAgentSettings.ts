@@ -2,7 +2,6 @@ import type { App } from 'obsidian';
 import { Modal, Notice, setIcon, Setting } from 'obsidian';
 
 import { confirmDelete } from '../../../shared/modals/ConfirmModal';
-import { preserveUiText } from '../../../utils/uiCopy';
 import type { OpencodeAgentStorage } from '../storage/OpencodeAgentStorage';
 import type { OpencodeAgentDefinition } from '../types/agent';
 
@@ -88,16 +87,16 @@ class OpencodeAgentModal extends Modal {
 
     new Setting(contentEl)
       .setName('Name')
-      .setDesc(preserveUiText('OpenCode agent name. Use slash-separated segments for nested agents.'))
+      .setDesc('OpenCode agent name. Use slash-separated segments for nested agents.')
       .addText((text) => {
         nameInput = text.inputEl;
         text.setValue(this.existing?.name ?? '')
-          .setPlaceholder(preserveUiText('review'));
+          .setPlaceholder('review');
       });
 
     new Setting(contentEl)
       .setName('Description')
-      .setDesc(preserveUiText('When OpenCode should use this subagent'))
+      .setDesc('When OpenCode should use this subagent')
       .addText((text) => {
         descriptionInput = text.inputEl;
         text.setValue(this.existing?.description ?? '')
@@ -131,7 +130,7 @@ class OpencodeAgentModal extends Modal {
       .addText((text) => {
         modelInput = text.inputEl;
         text.setValue(this.existing?.model ?? '')
-          .setPlaceholder(preserveUiText('anthropic/claude-sonnet-4-20250514'));
+          .setPlaceholder('anthropic/claude-sonnet-4-20250514');
       });
 
     new Setting(details)
@@ -140,7 +139,7 @@ class OpencodeAgentModal extends Modal {
       .addText((text) => {
         variantInput = text.inputEl;
         text.setValue(this.existing?.variant ?? '')
-          .setPlaceholder(preserveUiText('high'));
+          .setPlaceholder('high');
       });
 
     new Setting(details)
@@ -153,7 +152,7 @@ class OpencodeAgentModal extends Modal {
       });
 
     new Setting(details)
-      .setName(preserveUiText('Top P'))
+      .setName('Top P')
       .setDesc('Optional nucleus sampling value')
       .addText((text) => {
         topPInput = text.inputEl;
@@ -167,7 +166,7 @@ class OpencodeAgentModal extends Modal {
       .addText((text) => {
         colorInput = text.inputEl;
         text.setValue(this.existing?.color ?? '')
-          .setPlaceholder(preserveUiText('#FF5733'));
+          .setPlaceholder('#FF5733');
       });
 
     new Setting(details)
@@ -180,7 +179,7 @@ class OpencodeAgentModal extends Modal {
       });
 
     new Setting(details)
-      .setName(preserveUiText('Hide From @mention'))
+      .setName('Hide From @mention')
       .setDesc('Hide this subagent from the @ autocomplete menu')
       .addToggle((toggle) => {
         toggle.setValue(hiddenValue).onChange((value) => {
@@ -189,7 +188,7 @@ class OpencodeAgentModal extends Modal {
       });
 
     new Setting(details)
-      .setName(preserveUiText('Disable Agent'))
+      .setName('Disable Agent')
       .setDesc('Disable the agent without deleting the file')
       .addToggle((toggle) => {
         toggle.setValue(disableValue).onChange((value) => {
@@ -198,7 +197,7 @@ class OpencodeAgentModal extends Modal {
       });
 
     new Setting(details)
-      .setName(preserveUiText('Enabled Tools (JSON)'))
+      .setName('Enabled Tools (JSON)')
       .setDesc('Optional deprecated tools map, e.g. {"write":false,"edit":false}')
       .addTextArea((text) => {
         toolsInput = text.inputEl;
@@ -403,7 +402,7 @@ export class OpencodeAgentSettings {
 
     if (visibleAgents.length === 0) {
       const emptyEl = this.containerEl.createDiv({ cls: 'claudian-sp-empty-state' });
-      emptyEl.setText(preserveUiText('No OpenCode subagents in vault. Click + to create one.'));
+      emptyEl.setText('No OpenCode subagents in vault. Click + to create one.');
       return;
     }
 
