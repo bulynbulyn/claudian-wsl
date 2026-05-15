@@ -23,3 +23,6 @@ export {
   windowsToWslPath,
   wslPathToWindowsUNC,
 } from './WslPathMapper';
+export {
+  isWslUserRoot,
+} from './wslUserCheck';
