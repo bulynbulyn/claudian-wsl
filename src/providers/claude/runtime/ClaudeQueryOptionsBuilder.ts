@@ -12,6 +12,7 @@ import {
 } from '../../../core/prompt/mainAgent';
 import type { AppPluginManager } from '../../../core/providers/types';
 import type { ClaudianSettings, PermissionMode } from '../../../core/types/settings';
+import { isWslUserRoot } from '../../../core/wsl';
 import {
   type ClaudeSafeMode,
   getClaudeProviderSettings,
@@ -148,7 +149,7 @@ export class QueryOptionsBuilder {
   }
 
   static buildPersistentQueryOptions(ctx: PersistentQueryContext): Options {
-    const { options, claudeSettings } = QueryOptionsBuilder.buildBaseOptions(
+    const { options, claudeSettings, isWslRootUser } = QueryOptionsBuilder.buildBaseOptions(
       ctx,
       ctx.settings.model,
       ctx.abortController,
@@ -165,6 +166,7 @@ export class QueryOptionsBuilder {
       ctx.settings.permissionMode,
       claudeSettings.safeMode,
       ctx.canUseTool,
+      isWslRootUser,
     );
     QueryOptionsBuilder.applyThinking(options, ctx.settings, ctx.settings.model);
     options.hooks = ctx.hooks;
@@ -190,7 +192,7 @@ export class QueryOptionsBuilder {
 
   static buildColdStartQueryOptions(ctx: ColdStartQueryContext): Options {
     const selectedModel = ctx.modelOverride ?? ctx.settings.model;
-    const { options, claudeSettings, pathMapper } = QueryOptionsBuilder.buildBaseOptions(
+    const { options, claudeSettings, pathMapper, isWslRootUser } = QueryOptionsBuilder.buildBaseOptions(
       ctx,
       selectedModel,
       ctx.abortController,
@@ -221,6 +223,7 @@ export class QueryOptionsBuilder {
       ctx.settings.permissionMode,
       claudeSettings.safeMode,
       ctx.canUseTool,
+      isWslRootUser,
     );
     options.hooks = ctx.hooks;
     QueryOptionsBuilder.applyThinking(options, ctx.settings, ctx.modelOverride ?? ctx.settings.model);
@@ -253,16 +256,23 @@ export class QueryOptionsBuilder {
     options: Options,
     permissionMode: PermissionMode,
     claudeSafeMode: ClaudeSafeMode,
-    canUseTool?: CanUseTool
+    canUseTool?: CanUseTool,
+    isWslRootUser = false,
   ): void {
-    options.allowDangerouslySkipPermissions = true;
+    // Claude CLI rejects --dangerously-skip-permissions when run as root in WSL
+    // Use 'normal' mode (which resolves to claudeSafeMode) instead for root users
+    const effectivePermissionMode = isWslRootUser && permissionMode === 'yolo'
+      ? 'normal'
+      : permissionMode;
+
+    options.allowDangerouslySkipPermissions = !isWslRootUser;
 
     if (canUseTool) {
       options.canUseTool = canUseTool;
     }
 
     options.permissionMode = QueryOptionsBuilder.resolveClaudeSdkPermissionMode(
-      permissionMode,
+      effectivePermissionMode,
       claudeSafeMode,
     );
   }
@@ -288,6 +298,7 @@ export class QueryOptionsBuilder {
     options: Options;
     claudeSettings: ReturnType<typeof getClaudeProviderSettings>;
     pathMapper: ReturnType<typeof createClaudePathMapper> | null;
+    isWslRootUser: boolean;
   } {
     const claudeSettings = getClaudeProviderSettings(ctx.settings as unknown as Record<string, unknown>);
     const systemPromptSettings: SystemPromptSettings = {
@@ -301,6 +312,7 @@ export class QueryOptionsBuilder {
     const isWslMode = claudeSettings.installationMethod === 'wsl' && process.platform === 'win32';
     let launchSpec: ReturnType<typeof buildClaudeLaunchSpec> | undefined;
     let pathMapper: ReturnType<typeof createClaudePathMapper> | null = null;
+    let isWslRootUser = false;
 
     if (isWslMode && ctx.vaultPath) {
       const filteredEnv: Record<string, string> = {};
@@ -321,6 +333,10 @@ export class QueryOptionsBuilder {
         },
       });
       pathMapper = launchSpec.pathMapper;
+
+      // Check if WSL user is root - Claude CLI rejects --dangerously-skip-permissions for root
+      const distroName = launchSpec.target.distroName;
+      isWslRootUser = isWslUserRoot(distroName);
     }
 
     const options: Options = {
@@ -344,7 +360,7 @@ export class QueryOptionsBuilder {
     QueryOptionsBuilder.applyExtraArgs(options, claudeSettings);
     options.spawnClaudeCodeProcess = createCustomSpawnFunction(ctx.enhancedPath, launchSpec);
 
-    return { options, claudeSettings, pathMapper };
+    return { options, claudeSettings, pathMapper, isWslRootUser };
   }
 
   private static applyThinking(
