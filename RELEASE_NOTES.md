@@ -1,3 +1,22 @@
+## v2.0.10-wsl.2
+
+修复 WSL root 用户运行 Claude CLI 时的安全限制问题。
+
+### Bug 修复
+
+- **WSL root 用户支持**：检测 WSL root 用户并自动降级权限模式
+  - 辅助服务（标题生成、inline edit）：使用 `acceptEdits` 模式
+  - 主聊天 YOLO 模式：自动降级为 `normal` 模式（使用 safeMode 设置）
+  - 避免 Claude CLI 拒绝 `--dangerously-skip-permissions` 参数
+
+### 技术细节
+
+Claude Code CLI 出于安全原因拒绝在 root/sudo 用户下使用 `--dangerously-skip-permissions` 参数。
+新增 `isWslUserRoot()` 函数通过 `wsl.exe whoami` 检测当前用户身份，
+在 root 用户场景下自动调整权限模式以绕过此限制。
+
+---
+
 ## v2.0.10-wsl.1
 
 基于 [YishenTu/claudian](https://github.com/YishenTu/claudian) v2.0.10，合并上游新功能并保留 WSL 支持。
