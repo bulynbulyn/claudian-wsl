@@ -2,6 +2,7 @@ import type { Options } from '@anthropic-ai/claude-agent-sdk';
 import { query as agentQuery } from '@anthropic-ai/claude-agent-sdk';
 
 import { ProviderSettingsCoordinator } from '../../../core/providers/ProviderSettingsCoordinator';
+import { isWslUserRoot } from '../../../core/wsl';
 import type ClaudianPlugin from '../../../main';
 import { getEnhancedPath, getMissingNodeError, parseEnvironmentVariables } from '../../../utils/env';
 import { getVaultPath } from '../../../utils/path';
@@ -85,6 +86,7 @@ export async function runColdStartQuery(
 
   // Build WSL launch spec if needed
   let launchSpec = null;
+  let isWslRootUser = false;
   if (isWslMode) {
     const filteredEnv: Record<string, string> = {};
     for (const [key, value] of Object.entries(process.env)) {
@@ -101,7 +103,15 @@ export async function runColdStartQuery(
         ...customEnv,
       },
     });
+
+    // Check if WSL user is root - Claude CLI rejects --dangerously-skip-permissions for root
+    const distroName = launchSpec?.target.distroName;
+    isWslRootUser = isWslUserRoot(distroName);
   }
+
+  // Use acceptEdits mode if WSL user is root (CLI rejects bypassPermissions for root)
+  const permissionMode = isWslRootUser ? 'acceptEdits' : 'bypassPermissions';
+  const allowDangerouslySkipPermissions = !isWslRootUser;
 
   const options: Options = {
     cwd: vaultPath,
@@ -114,8 +124,8 @@ export async function runColdStartQuery(
       ...customEnv,
       PATH: enhancedPath,
     },
-    permissionMode: 'bypassPermissions',
-    allowDangerouslySkipPermissions: true,
+    permissionMode,
+    allowDangerouslySkipPermissions,
     settingSources: resolveClaudeSettingSources(claudeSettings.loadUserSettings),
     spawnClaudeCodeProcess: createCustomSpawnFunction(enhancedPath, launchSpec ?? undefined),
   };
