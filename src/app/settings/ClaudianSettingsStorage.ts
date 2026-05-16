@@ -29,6 +29,10 @@ import {
   getCodexProviderSettings,
   updateCodexProviderSettings,
 } from '../../providers/codex/settings';
+import {
+  getOpencodeProviderSettings,
+  updateOpencodeProviderSettings,
+} from '../../providers/opencode/settings';
 import { DEFAULT_CLAUDIAN_SETTINGS } from './defaultSettings';
 
 export {
@@ -122,6 +126,41 @@ function normalizeProviderConfigs(value: unknown): ProviderConfigMap {
     }
   }
   return result;
+}
+
+const HOST_SCOPED_PROVIDER_CONFIG_FIELDS: Record<string, string[]> = {
+  claude: ['cliPathsByHost'],
+  codex: ['cliPathsByHost', 'installationMethodsByHost', 'wslDistroOverridesByHost'],
+  opencode: ['cliPathsByHost'],
+};
+
+function hasHostScopedProviderConfigNormalization(
+  original: ProviderConfigMap,
+  normalized: unknown,
+): boolean {
+  if (!normalized || typeof normalized !== 'object' || Array.isArray(normalized)) {
+    return false;
+  }
+
+  const normalizedConfigs = normalized as ProviderConfigMap;
+  for (const [providerId, fields] of Object.entries(HOST_SCOPED_PROVIDER_CONFIG_FIELDS)) {
+    const originalConfig = original[providerId];
+    const normalizedConfig = normalizedConfigs[providerId];
+    if (!originalConfig || !normalizedConfig) {
+      continue;
+    }
+
+    for (const field of fields) {
+      if (
+        field in originalConfig
+        && JSON.stringify(originalConfig[field]) !== JSON.stringify(normalizedConfig[field])
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 function isEnvironmentScope(value: unknown): value is EnvironmentScope {
@@ -253,6 +292,14 @@ export class ClaudianSettingsStorage {
       merged,
       getCodexProviderSettings(legacyProviderSettings),
     );
+    updateOpencodeProviderSettings(
+      merged,
+      getOpencodeProviderSettings(legacyProviderSettings),
+    );
+    const didNormalizeHostScopedProviderConfigs = hasHostScopedProviderConfigNormalization(
+      providerConfigs,
+      merged.providerConfigs,
+    );
 
     if (
       settingsPath !== CLAUDIAN_SETTINGS_PATH
@@ -268,6 +315,7 @@ export class ClaudianSettingsStorage {
       || 'blockedCommands' in stored
       || shouldPersistChatViewPlacementMigration(stored, chatViewPlacement)
       || JSON.stringify(envSnippets) !== JSON.stringify(stored.envSnippets ?? [])
+      || didNormalizeHostScopedProviderConfigs
       )
     ) {
       await this.save(merged);
