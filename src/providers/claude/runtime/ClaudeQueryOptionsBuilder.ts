@@ -90,6 +90,10 @@ export class QueryOptionsBuilder {
       }
     }
 
+    // Fixed thinking budgets are startup query options. Adaptive effort remains
+    // dynamic via applyFlagSettings(), but fixed budgets require query rebuilds.
+    if (currentConfig.thinkingTokens !== newConfig.thinkingTokens) return true;
+
     if (currentConfig.enableChrome !== newConfig.enableChrome) return true;
     if (currentConfig.enableAutoMode !== newConfig.enableAutoMode) return true;
 
@@ -109,7 +113,7 @@ export class QueryOptionsBuilder {
     ctx: QueryOptionsContext,
     externalContextPaths?: string[]
   ): PersistentQueryConfig {
-    const claudeSettings = getClaudeProviderSettings(ctx.settings as unknown as Record<string, unknown>);
+    const claudeSettings = getClaudeProviderSettings(ctx.settings);
     const systemPromptSettings: SystemPromptSettings = {
       mediaFolder: ctx.settings.mediaFolder,
       customPrompt: ctx.settings.systemPrompt,
@@ -300,7 +304,7 @@ export class QueryOptionsBuilder {
     pathMapper: ReturnType<typeof createClaudePathMapper> | null;
     isWslRootUser: boolean;
   } {
-    const claudeSettings = getClaudeProviderSettings(ctx.settings as unknown as Record<string, unknown>);
+    const claudeSettings = getClaudeProviderSettings(ctx.settings);
     const systemPromptSettings: SystemPromptSettings = {
       mediaFolder: ctx.settings.mediaFolder,
       customPrompt: ctx.settings.systemPrompt,
@@ -373,13 +377,13 @@ export class QueryOptionsBuilder {
       options.thinking = { type: 'adaptive' };
       // SDK runtime accepts `xhigh` on Opus 4.7+ and silently falls back to
       // `high` elsewhere, but its type definition lags our local EffortLevel.
-      options.effort = effortLevel as Options['effort'];
+      options.effort = effortLevel;
       return;
     }
 
     const thinkingTokens = resolveThinkingTokens(model, settings.thinkingBudget);
     if (thinkingTokens !== null) {
-      options.maxThinkingTokens = thinkingTokens;
+      options.thinking = { type: 'enabled', budgetTokens: thinkingTokens };
     }
   }
 

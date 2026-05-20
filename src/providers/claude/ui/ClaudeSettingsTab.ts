@@ -138,15 +138,12 @@ export const claudeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     const cliPathDescription = `${t('settings.cliPath.desc')} ${platformDesc}`;
 
     const cliPathSetting = new Setting(container)
-      .setName(`${t('settings.cliPath.name')} (${hostnameKey})`)
+      .setName(t('settings.cliPath.name'))
       .setDesc(cliPathDescription);
 
-    const validationEl = container.createDiv({ cls: 'claudian-cli-path-validation' });
-    validationEl.style.color = 'var(--text-error)';
-    validationEl.style.fontSize = '0.85em';
-    validationEl.style.marginTop = '-0.5em';
-    validationEl.style.marginBottom = '0.5em';
-    validationEl.style.display = 'none';
+    const validationEl = container.createDiv({
+      cls: 'claudian-cli-path-validation claudian-setting-validation claudian-setting-validation-error claudian-hidden',
+    });
 
     const validatePath = (value: string): string | null => {
       const trimmed = value.trim();
@@ -176,16 +173,16 @@ export const claudeSettingsTabRenderer: ProviderSettingsTabRenderer = {
       const error = validatePath(value);
       if (error) {
         validationEl.setText(error);
-        validationEl.style.display = 'block';
+        validationEl.toggleClass('claudian-hidden', false);
         if (inputEl) {
-          inputEl.style.borderColor = 'var(--text-error)';
+          inputEl.toggleClass('claudian-input-error', true);
         }
         return false;
       }
 
-      validationEl.style.display = 'none';
+      validationEl.toggleClass('claudian-hidden', true);
       if (inputEl) {
-        inputEl.style.borderColor = '';
+        inputEl.toggleClass('claudian-input-error', false);
       }
       return true;
     };
@@ -229,7 +226,6 @@ export const claudeSettingsTabRenderer: ProviderSettingsTabRenderer = {
           await persistCliPath(value);
         });
       text.inputEl.addClass('claudian-settings-cli-path-input');
-      text.inputEl.style.width = '100%';
       cliPathInputEl = text.inputEl;
 
       updateCliPathValidation(currentValue, text.inputEl);
@@ -480,13 +476,13 @@ export const claudeSettingsTabRenderer: ProviderSettingsTabRenderer = {
         toggle
           .setValue(claudeSettings.enableBangBash)
           .onChange(async (value) => {
-            bangBashValidationEl.style.display = 'none';
+            bangBashValidationEl.toggleClass('claudian-hidden', true);
             if (value) {
               const { findNodeExecutable, getEnhancedPath } = await import('../../../utils/env');
               const nodePath = findNodeExecutable(getEnhancedPath());
               if (!nodePath) {
                 bangBashValidationEl.setText(t('settings.enableBangBash.validation.noNode'));
-                bangBashValidationEl.style.display = 'block';
+                bangBashValidationEl.toggleClass('claudian-hidden', false);
                 toggle.setValue(false);
                 return;
               }
@@ -496,11 +492,8 @@ export const claudeSettingsTabRenderer: ProviderSettingsTabRenderer = {
           })
       );
 
-    const bangBashValidationEl = container.createDiv({ cls: 'claudian-bang-bash-validation' });
-    bangBashValidationEl.style.color = 'var(--text-error)';
-    bangBashValidationEl.style.fontSize = '0.85em';
-    bangBashValidationEl.style.marginTop = '-0.5em';
-    bangBashValidationEl.style.marginBottom = '0.5em';
-    bangBashValidationEl.style.display = 'none';
+    const bangBashValidationEl = container.createDiv({
+      cls: 'claudian-bang-bash-validation claudian-setting-validation claudian-setting-validation-error claudian-hidden',
+    });
   },
 };

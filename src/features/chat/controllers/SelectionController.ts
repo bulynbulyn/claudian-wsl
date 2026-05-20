@@ -10,6 +10,12 @@ const SELECTION_POLL_INTERVAL = 250;
 const INPUT_HANDOFF_GRACE_MS = 1500;
 const HIGHLIGHT_KEY = 'claudian-selection';
 
+type CustomHighlightRegistry = {
+  delete: (name: string) => boolean;
+  set: (name: string, highlight: unknown) => void;
+};
+type CustomHighlightConstructor = new (...ranges: Range[]) => unknown;
+
 export class SelectionController {
   private app: App;
   private indicatorEl: HTMLElement;
@@ -19,7 +25,7 @@ export class SelectionController {
   private onVisibilityChange: (() => void) | null;
   private storedSelection: StoredSelection | null = null;
   private inputHandoffGraceUntil: number | null = null;
-  private pollInterval: ReturnType<typeof setInterval> | null = null;
+  private pollInterval: number | null = null;
   private readonly focusScopePointerDownHandler = () => {
     if (!this.storedSelection) return;
     this.inputHandoffGraceUntil = Date.now() + INPUT_HANDOFF_GRACE_MS;
@@ -47,12 +53,12 @@ export class SelectionController {
     if (this.focusScopeEl !== this.inputEl) {
       this.focusScopeEl.addEventListener('pointerdown', this.focusScopePointerDownHandler);
     }
-    this.pollInterval = setInterval(() => this.poll(), SELECTION_POLL_INTERVAL);
+    this.pollInterval = window.setInterval(() => this.poll(), SELECTION_POLL_INTERVAL);
   }
 
   stop(): void {
     if (this.pollInterval) {
-      clearInterval(this.pollInterval);
+      window.clearInterval(this.pollInterval);
       this.pollInterval = null;
     }
     this.inputEl.removeEventListener('pointerdown', this.focusScopePointerDownHandler);
@@ -135,7 +141,7 @@ export class SelectionController {
       return;
     }
 
-    const selection = document.getSelection();
+    const selection = this.getDocumentSelection(containerEl.ownerDocument);
     const selectedText = selection?.toString() ?? '';
 
     if (selectedText.trim()) {
@@ -171,8 +177,21 @@ export class SelectionController {
     }
   }
 
-  private get cssHighlights(): HighlightRegistry | null {
-    return typeof CSS !== 'undefined' && CSS.highlights ? CSS.highlights : null;
+  private get cssHighlights(): CustomHighlightRegistry | null {
+    const css = typeof CSS === 'undefined'
+      ? null
+      : CSS as unknown as { highlights?: CustomHighlightRegistry };
+    return css?.highlights ?? null;
+  }
+
+  private get highlightConstructor(): CustomHighlightConstructor | null {
+    const ownerWindow = this.inputEl.ownerDocument.defaultView as unknown as {
+      Highlight?: CustomHighlightConstructor;
+    } | null;
+    const rendererWindow = typeof window === 'undefined'
+      ? null
+      : window as unknown as { Highlight?: CustomHighlightConstructor };
+    return ownerWindow?.Highlight ?? rendererWindow?.Highlight ?? null;
   }
 
   private rangesMatch(a: Range, b: Range): boolean {
@@ -207,8 +226,25 @@ export class SelectionController {
     return ranges;
   }
 
+  private getDocumentSelection(ownerDocument?: Document | null): Selection | null {
+    if (ownerDocument && typeof ownerDocument.getSelection === 'function') {
+      return ownerDocument.getSelection();
+    }
+
+    const fallbackDocument = this.inputEl.ownerDocument;
+    if (fallbackDocument && typeof fallbackDocument.getSelection === 'function') {
+      return fallbackDocument.getSelection();
+    }
+
+    return null;
+  }
+
+  private getActiveElement(ownerDocument?: Document | null): Element | null {
+    return ownerDocument?.activeElement ?? this.inputEl.ownerDocument?.activeElement ?? null;
+  }
+
   private isFocusWithinChatSidebar(): boolean {
-    const activeElement = document.activeElement as Node | null;
+    const activeElement = this.getActiveElement(this.focusScopeEl.ownerDocument) as Node | null;
     return activeElement !== null
       && (activeElement === this.focusScopeEl || this.focusScopeEl.contains(activeElement));
   }
@@ -218,7 +254,7 @@ export class SelectionController {
       return false;
     }
 
-    const activeElement = document.activeElement as Node | null;
+    const activeElement = this.getActiveElement(sel.editorView.dom.ownerDocument) as Node | null;
     if (activeElement === null || !sel.editorView.dom.contains(activeElement)) {
       return false;
     }
@@ -232,7 +268,7 @@ export class SelectionController {
       return false;
     }
 
-    return this.selectionMatchesRanges(document.getSelection(), ranges);
+    return this.selectionMatchesRanges(this.getDocumentSelection(this.focusScopeEl.ownerDocument), ranges);
   }
 
   private clearWhenMarkdownContextIsUnavailable(): void {
@@ -297,8 +333,9 @@ export class SelectionController {
       }
       // Native selection not visible (e.g., input has focus) — show mock
       const validRanges = sel.domRanges.filter(r => r.startContainer.isConnected);
-      if (validRanges.length) {
-        this.cssHighlights?.set(HIGHLIGHT_KEY, new Highlight(...validRanges));
+      const HighlightCtor = this.highlightConstructor;
+      if (validRanges.length && HighlightCtor) {
+        this.cssHighlights?.set(HIGHLIGHT_KEY, new HighlightCtor(...validRanges));
       }
     }
   }
@@ -320,9 +357,9 @@ export class SelectionController {
     if (this.storedSelection) {
       const lineText = this.storedSelection.lineCount === 1 ? 'line' : 'lines';
       this.indicatorEl.textContent = `${this.storedSelection.lineCount} ${lineText} selected`;
-      this.indicatorEl.style.display = 'block';
+      this.indicatorEl.removeClass('claudian-hidden');
     } else {
-      this.indicatorEl.style.display = 'none';
+      this.indicatorEl.addClass('claudian-hidden');
     }
     this.updateContextRowVisibility();
   }

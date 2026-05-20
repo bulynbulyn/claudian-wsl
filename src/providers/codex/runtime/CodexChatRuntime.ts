@@ -13,7 +13,8 @@ import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
 import type {
   ApprovalCallback,
   AskUserQuestionCallback,
-  AutoTurnResult,
+  AutoTurnCallback,
+  ChatRewindMode,
   ChatRewindResult,
   ChatRuntimeConversationState,
   ChatRuntimeEnsureReadyOptions,
@@ -72,7 +73,6 @@ import { CodexNotificationRouter } from './CodexNotificationRouter';
 import { CodexRpcTransport } from './CodexRpcTransport';
 import { type CodexRuntimeContext, createCodexRuntimeContext } from './CodexRuntimeContext';
 import { CodexServerRequestRouter } from './CodexServerRequestRouter';
-import { CodexFileTailEngine } from './CodexSessionFileTail';
 import { CodexSessionManager } from './CodexSessionManager';
 
 function resolveCodexSandboxConfig(
@@ -133,7 +133,7 @@ export class CodexChatRuntime implements ChatRuntime {
   private exitPlanModeCallback: ExitPlanModeCallback | null = null;
   private permissionModeSyncCallback: ((sdkMode: string) => void) | null = null;
   private subagentHookProvider: (() => SubagentRuntimeState) | null = null;
-  private autoTurnCallback: ((result: AutoTurnResult) => void) | null = null;
+  private autoTurnCallback: AutoTurnCallback | null = null;
   private resumeCheckpoint: string | undefined;
   private activeInputBundles = new Set<CodexInputBundle>();
 
@@ -254,11 +254,6 @@ export class CodexChatRuntime implements ChatRuntime {
     this.chunkResolve = null;
     this.currentQueryThreadId = null;
     this.pendingTurnNotifications = [];
-    let tailEngine: CodexFileTailEngine | null = null;
-    let tailDrainInterval: ReturnType<typeof setInterval> | null = null;
-    let toolSourceMode: 'transcript' | 'fallback' = 'fallback';
-    let tailDonePromise: Promise<void> | null = null;
-    let transcriptSessionFilePath: string | null | undefined;
 
     const model = this.resolveModel(queryOptions);
     const promptSettings = this.getSystemPromptSettings();
@@ -272,99 +267,9 @@ export class CodexChatRuntime implements ChatRuntime {
       }
     };
 
-    const switchToLiveToolFallback = (): void => {
-      if (toolSourceMode === 'fallback') {
-        return;
-      }
-
-      toolSourceMode = 'fallback';
-      if (tailDrainInterval) {
-        clearInterval(tailDrainInterval);
-        tailDrainInterval = null;
-      }
-
-      if (tailEngine) {
-        void tailEngine.stopPolling().catch(() => {});
-      }
-    };
-
-    const syncTailPollingState = (): Error | null => {
-      if (!tailEngine) return null;
-
-      const tailError = tailEngine.consumePollingError();
-      if (tailError) {
-        switchToLiveToolFallback();
-        return tailError;
-      }
-
-      return null;
-    };
-
-    const drainTailToolChunks = (): void => {
-      if (!tailEngine) return;
-      if (toolSourceMode !== 'transcript') return;
-      if (syncTailPollingState()) return;
-
-      const toolChunks = tailEngine.collectPendingEvents().filter(
-        (chunk): chunk is Extract<StreamChunk, { type: 'tool_use' | 'tool_result' }> =>
-          chunk.type === 'tool_use' || chunk.type === 'tool_result',
-      );
-
-      for (const chunk of toolChunks) {
-        enqueueChunk(chunk);
-      }
-    };
-
-    const stopTailToolPolling = async (): Promise<void> => {
-      if (tailDrainInterval) {
-        clearInterval(tailDrainInterval);
-        tailDrainInterval = null;
-      }
-      if (tailEngine) {
-        await tailEngine.stopPolling();
-      }
-    };
-
-    const flushTailToolsBeforeDone = (): void => {
-      if (toolSourceMode !== 'transcript' || !tailEngine) {
-        enqueueChunk({ type: 'done' });
-        return;
-      }
-      if (tailDonePromise) {
-        return;
-      }
-
-      tailDonePromise = (async () => {
-        try {
-          await tailEngine!.waitForSettle();
-          if (syncTailPollingState()) {
-            return;
-          }
-          drainTailToolChunks();
-        } finally {
-          await stopTailToolPolling();
-          enqueueChunk({ type: 'done' });
-        }
-      })();
-    };
-
     // Set up notification router to push chunks
     this.notificationRouter = new CodexNotificationRouter(
-      (chunk) => {
-        syncTailPollingState();
-
-        if (toolSourceMode === 'transcript') {
-          if (chunk.type === 'tool_use' || chunk.type === 'tool_result') {
-            return;
-          }
-          if (chunk.type === 'done') {
-            flushTailToolsBeforeDone();
-            return;
-          }
-        }
-
-        enqueueChunk(chunk);
-      },
+      (chunk) => enqueueChunk(chunk),
       (update) => this.recordTurnMetadata(update),
     );
 
@@ -413,6 +318,7 @@ export class CodexChatRuntime implements ChatRuntime {
           sandbox: permissionMode.sandbox,
           serviceTier: resolveCodexServiceTier(this.getProviderSettings().serviceTier, model ?? DEFAULT_CODEX_PRIMARY_MODEL),
           baseInstructions: promptText,
+          experimentalRawEvents: true,
           persistExtendedHistory: true,
         });
 
@@ -452,6 +358,7 @@ export class CodexChatRuntime implements ChatRuntime {
           sandbox: permissionMode.sandbox,
           serviceTier: resolveCodexServiceTier(this.getProviderSettings().serviceTier, model ?? DEFAULT_CODEX_PRIMARY_MODEL),
           baseInstructions: promptText,
+          experimentalRawEvents: true,
           persistExtendedHistory: true,
         });
         threadId = resumeResult.thread.id;
@@ -471,7 +378,7 @@ export class CodexChatRuntime implements ChatRuntime {
           sandbox: permissionMode.sandbox,
           serviceTier: resolveCodexServiceTier(this.getProviderSettings().serviceTier, model ?? DEFAULT_CODEX_PRIMARY_MODEL),
           baseInstructions: promptText,
-          experimentalRawEvents: false,
+          experimentalRawEvents: true,
           persistExtendedHistory: true,
         });
         threadId = startResult.thread.id;
@@ -500,19 +407,7 @@ export class CodexChatRuntime implements ChatRuntime {
         // currentTurnId will be set by turn/started notification
       } else {
         // --- Normal turn path ---
-        tailEngine = new CodexFileTailEngine(
-          this.resolveTranscriptRootHost(threadPath) ?? path.join(os.homedir(), '.codex', 'sessions'),
-          200_000,
-        );
-        tailEngine.resetForNewTurn();
-        transcriptSessionFilePath = threadPath ?? this.session.getSessionFilePath() ?? null;
-        const transcriptReady = await tailEngine.primeCursor(
-          threadId,
-          transcriptSessionFilePath ?? undefined,
-        );
-        if (transcriptReady) {
-          toolSourceMode = 'transcript';
-        }
+        const sessionFilePathHint = threadPath ?? this.session.getSessionFilePath() ?? null;
 
         // Build input
         const skillInputs = await this.resolveSkillInputs(turn.request.text);
@@ -528,24 +423,22 @@ export class CodexChatRuntime implements ChatRuntime {
         const permissionMode = this.resolveSandboxConfig();
         const transcriptRootTarget = this.runtimeContext?.sessionsDirTarget
           ?? deriveCodexSessionsRootFromSessionPath(threadTargetPath)
-          ?? this.resolveTranscriptRootTarget(threadPath ?? transcriptSessionFilePath);
+          ?? this.resolveTranscriptRootTarget(sessionFilePathHint);
         const sandboxPolicy = this.buildTurnSandboxPolicy(
           externalContextPaths,
           permissionMode.sandbox,
           transcriptRootTarget,
-          threadPath ?? transcriptSessionFilePath,
+          sessionFilePathHint,
         );
 
-        const collaborationMode = isPlanMode
-          ? {
-              mode: 'plan' as const,
-              settings: {
-                model: resolvedModel,
-                reasoning_effort: effort,
-                developer_instructions: null,
-              },
-            }
-          : undefined;
+        const collaborationMode = {
+          mode: isPlanMode ? 'plan' as const : 'default' as const,
+          settings: {
+            model: resolvedModel,
+            reasoning_effort: effort,
+            developer_instructions: null,
+          },
+        };
 
         const summary = getEffectiveCodexReasoningSummary(providerSettings, resolvedModel);
         const serviceTier = resolveCodexServiceTier(providerSettings.serviceTier, resolvedModel);
@@ -563,7 +456,7 @@ export class CodexChatRuntime implements ChatRuntime {
           effort,
           summary,
           sandboxPolicy,
-          ...(collaborationMode ? { collaborationMode } : {}),
+          collaborationMode,
         });
         this.currentTurnId = turnResult.turn.id;
         this.recordTurnMetadata({
@@ -571,20 +464,6 @@ export class CodexChatRuntime implements ChatRuntime {
           wasSent: true,
         });
         this.flushPendingTurnNotifications();
-
-        if (toolSourceMode === 'transcript' && tailEngine) {
-          const transcriptPollingStarted = tailEngine.startPolling(
-            threadId,
-            transcriptSessionFilePath ?? undefined,
-          );
-          if (transcriptPollingStarted) {
-            tailDrainInterval = setInterval(() => {
-              drainTailToolChunks();
-            }, 50);
-          } else {
-            switchToLiveToolFallback();
-          }
-        }
       }
 
       // Yield chunks until done or canceled
@@ -629,10 +508,6 @@ export class CodexChatRuntime implements ChatRuntime {
       return;
     } finally {
       this.notificationRouter?.endTurn();
-
-      if (!tailDonePromise) {
-        await stopTailToolPolling().catch(() => {});
-      }
 
       this.cleanupActiveInputBundles();
       this.currentTurnId = null;
@@ -751,6 +626,7 @@ export class CodexChatRuntime implements ChatRuntime {
   async rewind(
     _userMessageId: string,
     _assistantMessageId: string,
+    _mode?: ChatRewindMode,
   ): Promise<ChatRewindResult> {
     return { canRewind: false, error: 'Codex does not support rewind' };
   }
@@ -781,7 +657,7 @@ export class CodexChatRuntime implements ChatRuntime {
     this.subagentHookProvider = getState;
   }
 
-  setAutoTurnCallback(callback: ((result: AutoTurnResult) => void) | null): void {
+  setAutoTurnCallback(callback: AutoTurnCallback | null): void {
     this.autoTurnCallback = callback;
   }
 
@@ -911,7 +787,7 @@ export class CodexChatRuntime implements ChatRuntime {
 
   private getProviderSettings(): Record<string, unknown> {
     return ProviderSettingsCoordinator.getProviderSettingsSnapshot(
-      this.plugin.settings as unknown as Record<string, unknown>,
+      this.plugin.settings,
       this.providerId,
     );
   }
@@ -968,6 +844,9 @@ export class CodexChatRuntime implements ChatRuntime {
       'serverRequest/resolved',
       'item/commandExecution/outputDelta',
       'item/fileChange/outputDelta',
+      'item/fileChange/patchUpdated',
+      'rawResponseItem/completed',
+      'event_msg',
     ];
 
     for (const method of methods) {
@@ -1194,7 +1073,11 @@ export class CodexChatRuntime implements ChatRuntime {
       return threadId && turnId ? { threadId, turnId } : null;
     }
 
-    const turnId = typeof notification.turnId === 'string' ? notification.turnId : null;
+    const turnId = typeof notification.turnId === 'string'
+      ? notification.turnId
+      : typeof notification.turn_id === 'string'
+        ? notification.turn_id
+        : null;
     return threadId && turnId ? { threadId, turnId } : null;
   }
 

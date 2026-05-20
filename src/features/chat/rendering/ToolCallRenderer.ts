@@ -25,19 +25,36 @@ import {
 } from '../../../core/tools/toolNames';
 import { extractToolResultContent } from '../../../core/tools/toolResultContent';
 import type { AskUserQuestionItem, AskUserQuestionOption, ToolCallInfo } from '../../../core/types';
-import { MCP_ICON_SVG } from '../../../shared/icons';
-import { parseApplyPatchDiffs } from '../../../utils/diff';
+import type { DiffStats } from '../../../core/types/diff';
+import { appendMcpIcon } from '../../../shared/icons';
+import { parseApplyPatchDiffs, parseFileUpdateChangeDiffs } from '../../../utils/diff';
 import { setupCollapsible } from './collapsible';
-import { renderDiffContent } from './DiffRenderer';
+import { renderDiffContent, renderDiffStats } from './DiffRenderer';
 import { renderTodoItems } from './todoUtils';
 
 export function setToolIcon(el: HTMLElement, name: string): void {
   const icon = getToolIcon(name);
   if (icon === MCP_ICON_MARKER) {
-    el.innerHTML = MCP_ICON_SVG;
+    appendMcpIcon(el);
   } else {
     setIcon(el, icon);
   }
+}
+
+function stringifyToolValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value === null || value === undefined) return '';
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '';
+  }
+}
+
+function getInputText(input: Record<string, unknown>, key: string, fallback = ''): string {
+  return stringifyToolValue(input[key]) || fallback;
 }
 
 export function getToolName(name: string, input: Record<string, unknown>): string {
@@ -64,26 +81,26 @@ export function getToolSummary(name: string, input: Record<string, unknown>): st
     case TOOL_READ:
     case TOOL_WRITE:
     case TOOL_EDIT: {
-      const filePath = (input.file_path as string) || '';
+      const filePath = getInputText(input, 'file_path');
       return fileNameOnly(filePath);
     }
     case TOOL_BASH: {
-      const cmd = (input.command as string) || '';
+      const cmd = getInputText(input, 'command');
       return truncateText(cmd, 60);
     }
     case TOOL_GLOB:
     case TOOL_GREP:
-      return (input.pattern as string) || '';
+      return getInputText(input, 'pattern');
     case TOOL_WEB_SEARCH:
       return getWebSearchSummary(input, 60);
     case TOOL_WEB_FETCH:
-      return truncateText((input.url as string) || '', 60);
+      return truncateText(getInputText(input, 'url'), 60);
     case TOOL_LS:
-      return fileNameOnly((input.path as string) || '.');
+      return fileNameOnly(getInputText(input, 'path', '.'));
     case TOOL_SKILL:
-      return (input.skill as string) || '';
+      return getInputText(input, 'skill');
     case TOOL_TOOL_SEARCH:
-      return truncateText(parseToolSearchQuery(input.query as string | undefined), 60);
+      return truncateText(parseToolSearchQuery(getInputText(input, 'query')), 60);
     case TOOL_TODO_WRITE:
       return '';
     case TOOL_APPLY_PATCH:
@@ -102,28 +119,28 @@ export function getToolSummary(name: string, input: Record<string, unknown>): st
 export function getToolLabel(name: string, input: Record<string, unknown>): string {
   switch (name) {
     case TOOL_READ:
-      return `Read: ${shortenPath(input.file_path as string) || 'file'}`;
+      return `Read: ${shortenPath(getInputText(input, 'file_path')) || 'file'}`;
     case TOOL_WRITE:
-      return `Write: ${shortenPath(input.file_path as string) || 'file'}`;
+      return `Write: ${shortenPath(getInputText(input, 'file_path')) || 'file'}`;
     case TOOL_EDIT:
-      return `Edit: ${shortenPath(input.file_path as string) || 'file'}`;
+      return `Edit: ${shortenPath(getInputText(input, 'file_path')) || 'file'}`;
     case TOOL_BASH: {
-      const cmd = (input.command as string) || 'command';
+      const cmd = getInputText(input, 'command', 'command');
       return `Bash: ${cmd.length > 40 ? cmd.substring(0, 40) + '...' : cmd}`;
     }
     case TOOL_GLOB:
-      return `Glob: ${input.pattern || 'files'}`;
+      return `Glob: ${getInputText(input, 'pattern', 'files')}`;
     case TOOL_GREP:
-      return `Grep: ${input.pattern || 'pattern'}`;
+      return `Grep: ${getInputText(input, 'pattern', 'pattern')}`;
     case TOOL_WEB_SEARCH: {
       return getWebSearchLabel(input, 40);
     }
     case TOOL_WEB_FETCH: {
-      const url = (input.url as string) || 'url';
+      const url = getInputText(input, 'url', 'url');
       return `WebFetch: ${url.length > 40 ? url.substring(0, 40) + '...' : url}`;
     }
     case TOOL_LS:
-      return `LS: ${shortenPath(input.path as string) || '.'}`;
+      return `LS: ${shortenPath(getInputText(input, 'path')) || '.'}`;
     case TOOL_TODO_WRITE: {
       const todos = input.todos as Array<{ status: string }> | undefined;
       if (todos && Array.isArray(todos)) {
@@ -133,11 +150,11 @@ export function getToolLabel(name: string, input: Record<string, unknown>): stri
       return 'Tasks';
     }
     case TOOL_SKILL: {
-      const skillName = (input.skill as string) || 'skill';
+      const skillName = getInputText(input, 'skill', 'skill');
       return `Skill: ${skillName}`;
     }
     case TOOL_TOOL_SEARCH: {
-      const tools = parseToolSearchQuery(input.query as string | undefined);
+      const tools = parseToolSearchQuery(getInputText(input, 'query'));
       return `ToolSearch: ${tools || 'tools'}`;
     }
     case TOOL_ENTER_PLAN_MODE:
@@ -188,13 +205,13 @@ function getApplyPatchSummary(input: Record<string, unknown>): string {
 }
 
 function getWriteStdinSummary(input: Record<string, unknown>): string {
-  const sessionId = input.session_id ?? input.sessionId;
+  const sessionId = stringifyToolValue(input.session_id ?? input.sessionId);
   const chars = typeof input.chars === 'string' ? input.chars.replace(/\n/g, '\\n') : '';
   if (chars) {
     const preview = chars.length > 24 ? `${chars.slice(0, 24)}...` : chars;
-    return sessionId ? `#${String(sessionId)} ${preview}` : preview;
+    return sessionId ? `#${sessionId} ${preview}` : preview;
   }
-  return sessionId ? `#${String(sessionId)}` : '';
+  return sessionId ? `#${sessionId}` : '';
 }
 
 function getAgentLifecycleSummary(name: string, input: Record<string, unknown>): string {
@@ -498,9 +515,7 @@ function renderToolSearchExpanded(container: HTMLElement, result: string): void 
 function renderWebFetchExpanded(container: HTMLElement, result: string): void {
   const maxChars = 500;
   const linesEl = container.createDiv({ cls: 'claudian-tool-lines' });
-  const lineEl = linesEl.createDiv({ cls: 'claudian-tool-line' });
-  lineEl.style.whiteSpace = 'pre-wrap';
-  lineEl.style.wordBreak = 'break-word';
+  const lineEl = linesEl.createDiv({ cls: 'claudian-tool-line claudian-tool-line-wrap' });
 
   if (result.length > maxChars) {
     lineEl.setText(result.slice(0, maxChars));
@@ -519,52 +534,28 @@ function renderApplyPatchExpanded(
   result: string | undefined,
 ): void {
   const patchText = typeof input.patch === 'string' ? input.patch : '';
-  const parsedDiffs = patchText ? parseApplyPatchDiffs(patchText) : [];
+  const parsedDiffs = getApplyPatchFileDiffs(input);
 
   if (result && /verification failed|^[Ee]rror:/.test(result.trim())) {
     renderLinesExpanded(container, result, 20);
   }
 
   if (parsedDiffs.length > 0) {
-    for (const fileDiff of parsedDiffs) {
-      const sectionEl = container.createDiv({ cls: 'claudian-tool-patch-section' });
-      const statsSuffix = fileDiff.stats.added || fileDiff.stats.removed
-        ? ` (+${fileDiff.stats.added} -${fileDiff.stats.removed})`
-        : '';
-      const pathText = fileDiff.movedTo
-        ? `${fileDiff.filePath} -> ${fileDiff.movedTo}`
-        : fileDiff.filePath;
-      sectionEl.createDiv({
-        cls: 'claudian-tool-patch-header',
-        text: `${fileDiff.operation}: ${pathText}${statsSuffix}`,
-      });
-
-      if (fileDiff.operation === 'delete' && fileDiff.diffLines.length === 0) {
-        sectionEl.createDiv({ cls: 'claudian-tool-empty', text: 'File deleted' });
-        continue;
-      }
-
-      if (fileDiff.diffLines.length === 0) {
-        sectionEl.createDiv({ cls: 'claudian-tool-empty', text: 'No textual diff available' });
-        continue;
-      }
-
-      const diffRow = sectionEl.createDiv({ cls: 'claudian-write-edit-diff-row' });
-      const diffEl = diffRow.createDiv({ cls: 'claudian-write-edit-diff' });
-      renderDiffContent(diffEl, fileDiff.diffLines);
-    }
+    renderApplyPatchDiffSections(container, parsedDiffs);
     return;
   }
 
   const changes = Array.isArray(input.changes) ? input.changes : [];
   if (changes.length > 0) {
     const linesEl = container.createDiv({ cls: 'claudian-tool-lines' });
-    for (const change of changes) {
-      if (!change || typeof change !== 'object') continue;
-      const path = typeof change.path === 'string' ? change.path : '';
-      const kind = typeof change.kind === 'string' ? change.kind : 'change';
+    for (const change of changes as unknown[]) {
+      if (!change || typeof change !== 'object' || Array.isArray(change)) continue;
+      const changeRecord = change as Record<string, unknown>;
+      const path = typeof changeRecord.path === 'string' ? changeRecord.path : '';
       if (!path) continue;
-      linesEl.createDiv({ cls: 'claudian-tool-line', text: `${kind}: ${path}` });
+      const movedTo = readMoveTarget(changeRecord.kind);
+      const pathText = movedTo ? `${path} -> ${movedTo}` : path;
+      linesEl.createDiv({ cls: 'claudian-tool-line', text: pathText });
     }
     return;
   }
@@ -594,6 +585,62 @@ function renderApplyPatchExpanded(
   container.createDiv({ cls: 'claudian-tool-empty', text: 'No result' });
 }
 
+function renderApplyPatchDiffSections(
+  container: HTMLElement,
+  fileDiffs: ReturnType<typeof parseApplyPatchDiffs>,
+): void {
+  for (const fileDiff of fileDiffs) {
+    const sectionEl = container.createDiv({ cls: 'claudian-tool-patch-section' });
+
+    if (fileDiff.operation === 'delete' && fileDiff.diffLines.length === 0) {
+      sectionEl.createDiv({ cls: 'claudian-tool-empty', text: 'File deleted' });
+      continue;
+    }
+
+    if (fileDiff.diffLines.length === 0) {
+      sectionEl.createDiv({ cls: 'claudian-tool-empty', text: 'No textual diff available' });
+      continue;
+    }
+
+    const diffRow = sectionEl.createDiv({ cls: 'claudian-write-edit-diff-row' });
+    const diffEl = diffRow.createDiv({ cls: 'claudian-write-edit-diff' });
+    renderDiffContent(diffEl, fileDiff.diffLines);
+  }
+}
+
+function readMoveTarget(kind: unknown): string | undefined {
+  if (!kind || typeof kind !== 'object' || Array.isArray(kind)) {
+    return undefined;
+  }
+  const record = kind as Record<string, unknown>;
+  return typeof record.move_path === 'string' ? record.move_path : undefined;
+}
+
+function getApplyPatchFileDiffs(input: Record<string, unknown>): ReturnType<typeof parseApplyPatchDiffs> {
+  const patchText = typeof input.patch === 'string' ? input.patch : '';
+  const parsedDiffs = patchText ? parseApplyPatchDiffs(patchText) : [];
+  return parsedDiffs.length > 0 ? parsedDiffs : parseFileUpdateChangeDiffs(input.changes);
+}
+
+function getApplyPatchDiffStats(input: Record<string, unknown>): DiffStats | undefined {
+  const fileDiffs = getApplyPatchFileDiffs(input);
+  if (fileDiffs.length === 0) return undefined;
+
+  const stats = fileDiffs.reduce<DiffStats>(
+    (acc, fileDiff) => ({
+      added: acc.added + fileDiff.stats.added,
+      removed: acc.removed + fileDiff.stats.removed,
+    }),
+    { added: 0, removed: 0 }
+  );
+
+  return stats.added > 0 || stats.removed > 0 ? stats : undefined;
+}
+
+function getDiffStatsAriaLabel(stats: DiffStats): string {
+  return `Changes: +${stats.added} -${stats.removed}`;
+}
+
 function renderAgentLifecycleExpanded(container: HTMLElement, result: string): void {
   // Try to parse as JSON for structured display
   const trimmed = result.trim();
@@ -603,7 +650,7 @@ function renderAgentLifecycleExpanded(container: HTMLElement, result: string): v
       const linesEl = container.createDiv({ cls: 'claudian-tool-lines' });
       for (const [key, value] of Object.entries(parsed)) {
         const lineEl = linesEl.createDiv({ cls: 'claudian-tool-line' });
-        const displayValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+        const displayValue = formatToolDisplayValue(value);
         lineEl.setText(`${key}: ${displayValue}`);
       }
       return;
@@ -612,13 +659,24 @@ function renderAgentLifecycleExpanded(container: HTMLElement, result: string): v
   renderLinesExpanded(container, result, 20);
 }
 
+function formatToolDisplayValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return `${value}`;
+  }
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return JSON.stringify(value);
+}
+
 export function renderExpandedContent(
   container: HTMLElement,
   toolName: string,
   result: string | undefined,
   input: Record<string, unknown> = {},
 ): void {
-  if (!result && toolName !== TOOL_WEB_SEARCH && toolName !== TOOL_BASH) {
+  if (!result && toolName !== TOOL_WEB_SEARCH && toolName !== TOOL_BASH && toolName !== TOOL_APPLY_PATCH) {
     container.createDiv({ cls: 'claudian-tool-empty', text: 'No result' });
     return;
   }
@@ -708,6 +766,29 @@ function setToolStatus(statusEl: HTMLElement, status: ToolCallInfo['status']): v
   if (icon) setIcon(statusEl, icon);
 }
 
+function setApplyPatchHeaderRight(statusEl: HTMLElement, toolCall: ToolCallInfo): void {
+  const isError = toolCall.status === 'error' || toolCall.status === 'blocked';
+  const stats = isError ? undefined : getApplyPatchDiffStats(toolCall.input);
+  if (!stats) {
+    setToolStatus(statusEl, toolCall.status);
+    return;
+  }
+
+  statusEl.className = 'claudian-tool-status claudian-write-edit-stats';
+  statusEl.empty();
+  statusEl.setAttribute('aria-label', getDiffStatsAriaLabel(stats));
+  renderDiffStats(statusEl, stats);
+}
+
+function setGenericToolHeaderRight(statusEl: HTMLElement, toolCall: ToolCallInfo): void {
+  if (toolCall.name === TOOL_APPLY_PATCH) {
+    setApplyPatchHeaderRight(statusEl, toolCall);
+    return;
+  }
+
+  setToolStatus(statusEl, toolCall.status);
+}
+
 export function renderTodoWriteResult(
   container: HTMLElement,
   input: Record<string, unknown>
@@ -788,7 +869,7 @@ function formatAnswer(raw: unknown): string {
 }
 
 function resolveAskUserAnswers(toolCall: ToolCallInfo): Record<string, unknown> | undefined {
-  if (toolCall.resolvedAnswers) return toolCall.resolvedAnswers as Record<string, unknown>;
+  if (toolCall.resolvedAnswers) return toolCall.resolvedAnswers;
 
   const parsed = extractResolvedAnswersFromResultText(toolCall.result);
   if (parsed) {
@@ -932,10 +1013,10 @@ function createTodoToggleHandler(
   return (expanded: boolean) => {
     if (onExpandChange) onExpandChange(expanded);
     if (currentTaskEl) {
-      currentTaskEl.style.display = expanded ? 'none' : '';
+      currentTaskEl.toggleClass('claudian-hidden', expanded);
     }
     if (statusEl) {
-      statusEl.style.display = expanded ? 'none' : '';
+      statusEl.toggleClass('claudian-hidden', expanded);
     }
   };
 }
@@ -975,8 +1056,7 @@ export function renderToolCall(
   toolEl.dataset.toolId = toolCall.id;
   toolCallElements.set(toolCall.id, toolEl);
 
-  statusEl.addClass(`status-${toolCall.status}`);
-  statusEl.setAttribute('aria-label', `Status: ${toolCall.status}`);
+  setGenericToolHeaderRight(statusEl, toolCall);
 
   renderToolContent(content, toolCall, 'Running...');
 
@@ -1025,7 +1105,7 @@ export function updateToolCallResult(
 
   const statusEl = toolEl.querySelector('.claudian-tool-status') as HTMLElement;
   if (statusEl) {
-    setToolStatus(statusEl, toolCall.status);
+    setGenericToolHeaderRight(statusEl, toolCall);
   }
 
   if (toolCall.name === TOOL_ASK_USER_QUESTION) {
@@ -1057,7 +1137,7 @@ export function renderStoredToolCall(
   if (toolCall.name === TOOL_TODO_WRITE) {
     setTodoWriteStatus(statusEl, toolCall.input);
   } else {
-    setToolStatus(statusEl, toolCall.status);
+    setGenericToolHeaderRight(statusEl, toolCall);
   }
 
   renderToolContent(content, toolCall);

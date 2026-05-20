@@ -1,5 +1,5 @@
 import type { App } from 'obsidian';
-import { Notice, PluginSettingTab, Setting } from 'obsidian';
+import { Notice, Platform, PluginSettingTab, Setting } from 'obsidian';
 
 import {
   getHiddenProviderCommands,
@@ -8,6 +8,7 @@ import {
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
 import { ProviderWorkspaceRegistry } from '../../core/providers/ProviderWorkspaceRegistry';
 import type { ProviderId } from '../../core/providers/types';
+import type { ChatViewPlacement } from '../../core/types/settings';
 import { getAvailableLocales, getLocaleDisplayName, setLocale, t } from '../../i18n/i18n';
 import type { Locale, TranslationKey } from '../../i18n/types';
 import type ClaudianPlugin from '../../main';
@@ -15,10 +16,29 @@ import { formatContextLimit, parseContextLimit, parseEnvironmentVariables } from
 import { buildNavMappingText, parseNavMappings } from './keyboardNavigation';
 import { renderEnvironmentSettingsSection } from './ui/EnvironmentSettingsSection';
 
-type SettingsTabId = 'general' | ProviderId;
+type SettingsTabId = string;
+type ObsidianHotkey = { modifiers: string[]; key: string };
+type ObsidianHotkeyManager = {
+  customKeys?: Record<string, ObsidianHotkey[] | undefined>;
+  defaultKeys?: Record<string, ObsidianHotkey[] | undefined>;
+};
+type ObsidianHotkeyTab = {
+  searchInputEl?: HTMLInputElement;
+  searchComponent?: { inputEl?: HTMLInputElement };
+  updateHotkeyVisibility?: () => void;
+};
+type ObsidianSettingsController = {
+  activeTab?: ObsidianHotkeyTab;
+  open: () => void;
+  openTabById: (id: string) => void;
+};
+type AppWithHotkeyInternals = App & {
+  hotkeyManager?: ObsidianHotkeyManager;
+  setting?: ObsidianSettingsController;
+};
 
-function formatHotkey(hotkey: { modifiers: string[]; key: string }): string {
-  const isMac = navigator.platform.includes('Mac');
+function formatHotkey(hotkey: ObsidianHotkey): string {
+  const isMac = Platform.isMacOS;
   const modMap: Record<string, string> = isMac
     ? { Mod: '⌘', Ctrl: '⌃', Alt: '⌥', Shift: '⇧', Meta: '⌘' }
     : { Mod: 'Ctrl', Ctrl: 'Ctrl', Alt: 'Alt', Shift: 'Shift', Meta: 'Win' };
@@ -30,10 +50,14 @@ function formatHotkey(hotkey: { modifiers: string[]; key: string }): string {
 }
 
 function openHotkeySettings(app: App): void {
-  const setting = (app as any).setting;
+  const setting = (app as AppWithHotkeyInternals).setting;
+  if (!setting) {
+    return;
+  }
+
   setting.open();
   setting.openTabById('hotkeys');
-  setTimeout(() => {
+  window.setTimeout(() => {
     const tab = setting.activeTab;
     if (!tab) {
       return;
@@ -50,12 +74,12 @@ function openHotkeySettings(app: App): void {
 }
 
 function getHotkeyForCommand(app: App, commandId: string): string | null {
-  const hotkeyManager = (app as any).hotkeyManager;
+  const hotkeyManager = (app as AppWithHotkeyInternals).hotkeyManager;
   if (!hotkeyManager) return null;
 
   const customHotkeys = hotkeyManager.customKeys?.[commandId];
   const defaultHotkeys = hotkeyManager.defaultKeys?.[commandId];
-  const hotkeys = customHotkeys?.length > 0 ? customHotkeys : defaultHotkeys;
+  const hotkeys = customHotkeys && customHotkeys.length > 0 ? customHotkeys : defaultHotkeys;
 
   if (!hotkeys || hotkeys.length === 0) return null;
 
@@ -205,16 +229,13 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .setName(t('settings.maxTabs.name'))
       .setDesc(t('settings.maxTabs.desc'));
 
-    const maxTabsWarningEl = container.createDiv({ cls: 'claudian-max-tabs-warning' });
-    maxTabsWarningEl.style.color = 'var(--text-warning)';
-    maxTabsWarningEl.style.fontSize = '0.85em';
-    maxTabsWarningEl.style.marginTop = '-0.5em';
-    maxTabsWarningEl.style.marginBottom = '0.5em';
-    maxTabsWarningEl.style.display = 'none';
+    const maxTabsWarningEl = container.createDiv({
+      cls: 'claudian-max-tabs-warning claudian-setting-validation claudian-setting-validation-warning claudian-hidden',
+    });
     maxTabsWarningEl.setText(t('settings.maxTabs.warning'));
 
     const updateMaxTabsWarning = (value: number): void => {
-      maxTabsWarningEl.style.display = value > 5 ? 'block' : 'none';
+      maxTabsWarningEl.toggleClass('claudian-hidden', value <= 5);
     };
 
     maxTabsSetting.addSlider((slider) => {
@@ -226,21 +247,27 @@ export class ClaudianSettingTab extends PluginSettingTab {
           this.plugin.settings.maxTabs = value;
           await this.plugin.saveSettings();
           updateMaxTabsWarning(value);
+          for (const view of this.plugin.getAllViews()) {
+            view.refreshTabControls();
+          }
         });
       updateMaxTabsWarning(this.plugin.settings.maxTabs ?? 3);
     });
 
     new Setting(container)
-      .setName(t('settings.openInMainTab.name'))
-      .setDesc(t('settings.openInMainTab.desc'))
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.openInMainTab)
+      .setName(t('settings.chatViewPlacement.name'))
+      .setDesc(t('settings.chatViewPlacement.desc'))
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption('right-sidebar', t('settings.chatViewPlacement.rightSidebar'))
+          .addOption('left-sidebar', t('settings.chatViewPlacement.leftSidebar'))
+          .addOption('main-tab', t('settings.chatViewPlacement.mainTab'))
+          .setValue(this.plugin.settings.chatViewPlacement)
           .onChange(async (value) => {
-            this.plugin.settings.openInMainTab = value;
+            this.plugin.settings.chatViewPlacement = value as ChatViewPlacement;
             await this.plugin.saveSettings();
-          })
-      );
+          });
+      });
 
     new Setting(container)
       .setName(t('settings.enableAutoScroll.name'))
@@ -250,6 +277,18 @@ export class ClaudianSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.enableAutoScroll ?? true)
           .onChange(async (value) => {
             this.plugin.settings.enableAutoScroll = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(container)
+      .setName(t('settings.deferMathRenderingDuringStreaming.name'))
+      .setDesc(t('settings.deferMathRenderingDuringStreaming.desc'))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.deferMathRenderingDuringStreaming ?? true)
+          .onChange(async (value) => {
+            this.plugin.settings.deferMathRenderingDuringStreaming = value;
             await this.plugin.saveSettings();
           })
       );
@@ -314,7 +353,9 @@ export class ClaudianSettingTab extends PluginSettingTab {
             this.plugin.settings.userName = value;
             await this.plugin.saveSettings();
           });
-        text.inputEl.addEventListener('blur', () => this.restartServiceForPromptChange());
+        text.inputEl.addEventListener('blur', () => {
+          void this.restartServiceForPromptChange();
+        });
       });
 
     new Setting(container)
@@ -330,7 +371,9 @@ export class ClaudianSettingTab extends PluginSettingTab {
           });
         text.inputEl.rows = 6;
         text.inputEl.cols = 50;
-        text.inputEl.addEventListener('blur', () => this.restartServiceForPromptChange());
+        text.inputEl.addEventListener('blur', () => {
+          void this.restartServiceForPromptChange();
+        });
       });
 
     new Setting(container)
@@ -338,7 +381,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .setDesc(t('settings.excludedTags.desc'))
       .addTextArea((text) => {
         text
-          .setPlaceholder('system\nprivate\ndraft')
+          .setPlaceholder('System\nprivate\ndraft')
           .setValue(this.plugin.settings.excludedTags.join('\n'))
           .onChange(async (value) => {
             this.plugin.settings.excludedTags = value
@@ -356,19 +399,33 @@ export class ClaudianSettingTab extends PluginSettingTab {
       .setDesc(t('settings.mediaFolder.desc'))
       .addText((text) => {
         text
-          .setPlaceholder('attachments')
+          .setPlaceholder('Attachments')
           .setValue(this.plugin.settings.mediaFolder)
           .onChange(async (value) => {
             this.plugin.settings.mediaFolder = value.trim();
             await this.plugin.saveSettings();
           });
         text.inputEl.addClass('claudian-settings-media-input');
-        text.inputEl.addEventListener('blur', () => this.restartServiceForPromptChange());
+        text.inputEl.addEventListener('blur', () => {
+          void this.restartServiceForPromptChange();
+        });
       });
 
     // --- Input ---
 
     new Setting(container).setName(t('settings.input')).setHeading();
+
+    new Setting(container)
+      .setName(t('settings.requireCommandOrControlEnterToSend.name'))
+      .setDesc(t('settings.requireCommandOrControlEnterToSend.desc'))
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.requireCommandOrControlEnterToSend ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.requireCommandOrControlEnterToSend = value;
+            await this.plugin.saveSettings();
+          });
+      });
 
     new Setting(container)
       .setName(t('settings.navMappings.name'))
@@ -411,7 +468,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
         };
 
         text
-          .setPlaceholder('map w scrollUp\nmap s scrollDown\nmap i focusInput')
+          .setPlaceholder('Map w scrollup\nmap s scrolldown\nmap i focusinput')
           .setValue(pendingValue)
           .onChange((value) => {
             pendingValue = value;
@@ -419,8 +476,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
           });
 
         text.inputEl.rows = 3;
-        text.inputEl.addEventListener('blur', async () => {
-          await commitValue(true);
+        text.inputEl.addEventListener('blur', () => {
+          void commitValue(true);
         });
       });
 
@@ -521,9 +578,9 @@ export class ClaudianSettingTab extends PluginSettingTab {
         value: currentValue ? formatContextLimit(currentValue) : '',
       });
 
-      const validationEl = inputWrapper.createDiv({ cls: 'claudian-context-limit-validation' });
+      const validationEl = inputWrapper.createDiv({ cls: 'claudian-context-limit-validation claudian-hidden' });
 
-      inputEl.addEventListener('input', async () => {
+      const saveContextLimit = async (): Promise<void> => {
         const trimmed = inputEl.value.trim();
 
         if (!this.plugin.settings.customContextLimits) {
@@ -532,23 +589,27 @@ export class ClaudianSettingTab extends PluginSettingTab {
 
         if (!trimmed) {
           delete this.plugin.settings.customContextLimits[modelId];
-          validationEl.style.display = 'none';
+          validationEl.toggleClass('claudian-hidden', true);
           inputEl.classList.remove('claudian-input-error');
         } else {
           const parsed = parseContextLimit(trimmed);
           if (parsed === null) {
             validationEl.setText(t('settings.customContextLimits.invalid'));
-            validationEl.style.display = 'block';
+            validationEl.toggleClass('claudian-hidden', false);
             inputEl.classList.add('claudian-input-error');
             return;
           }
 
           this.plugin.settings.customContextLimits[modelId] = parsed;
-          validationEl.style.display = 'none';
+          validationEl.toggleClass('claudian-hidden', true);
           inputEl.classList.remove('claudian-input-error');
         }
 
         await this.plugin.saveSettings();
+      };
+
+      inputEl.addEventListener('input', () => {
+        void saveContextLimit();
       });
     }
   }

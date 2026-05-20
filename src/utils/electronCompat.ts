@@ -7,6 +7,14 @@ function isAbortSignalLike(target: unknown): boolean {
     typeof t.removeEventListener === 'function';
 }
 
+type PatchableSetMaxListeners = ((...args: unknown[]) => unknown) & {
+  __electronPatched?: boolean;
+};
+
+type EventsModule = {
+  setMaxListeners: PatchableSetMaxListeners;
+};
+
 /**
  * In Obsidian's Electron renderer, `new AbortController()` creates a browser-realm
  * AbortSignal that lacks Node.js's internal `kIsEventTarget` symbol. The SDK calls
@@ -19,16 +27,16 @@ function isAbortSignalLike(target: unknown): boolean {
  * See: #143, #239, #284, #339, #342, #370, #374, #387
  */
 export function patchSetMaxListenersForElectron(): void {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const events = require('events');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- Patch the shared CommonJS events module before SDK imports run.
+  const events = require('events') as EventsModule;
 
   if (events.setMaxListeners.__electronPatched) return;
 
   const original = events.setMaxListeners;
 
-  const patched = function patchedSetMaxListeners(this: unknown, ...args: unknown[]) {
+  const patched: PatchableSetMaxListeners = function patchedSetMaxListeners(this: unknown, ...args: unknown[]): unknown {
     try {
-      return original.apply(this, args);
+      return Reflect.apply(original, this, args);
     } catch (error) {
       // Only swallow the Electron cross-realm AbortSignal error.
       // Duck-type check avoids depending on Node.js internal error message text.

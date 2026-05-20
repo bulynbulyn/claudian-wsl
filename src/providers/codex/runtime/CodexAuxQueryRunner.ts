@@ -49,7 +49,7 @@ export class CodexAuxQueryRunner {
         approvalPolicy: 'never',
         sandbox: 'read-only',
         baseInstructions: config.systemPrompt,
-        experimentalRawEvents: false,
+        experimentalRawEvents: true,
         persistExtendedHistory: false,
       });
       this.threadId = result.thread.id;
@@ -153,10 +153,10 @@ export class CodexAuxQueryRunner {
 
   private resolveProviderModel(): string {
     const providerSettings = ProviderSettingsCoordinator.getProviderSettingsSnapshot(
-      this.plugin.settings as unknown as Record<string, unknown>,
+      this.plugin.settings,
       'codex',
     );
-    return (providerSettings.model as string) ?? DEFAULT_CODEX_PRIMARY_MODEL;
+    return (providerSettings.model) ?? DEFAULT_CODEX_PRIMARY_MODEL;
   }
 
   private async startProcess(): Promise<void> {

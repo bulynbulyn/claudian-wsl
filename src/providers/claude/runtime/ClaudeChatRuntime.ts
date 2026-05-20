@@ -34,7 +34,8 @@ import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
 import type {
   ApprovalCallback,
   AskUserQuestionCallback,
-  AutoTurnResult,
+  AutoTurnCallback,
+  ChatRewindMode,
   ChatRewindResult,
   ChatRuntimeConversationState,
   ChatRuntimeQueryOptions,
@@ -179,7 +180,7 @@ export class ClaudianService implements ChatRuntime {
   private _autoTurnBuffer: StreamChunk[] = [];
   private _autoTurnSawStreamText = false;
   private _autoTurnSawStreamThinking = false;
-  private _autoTurnCallback: ((result: AutoTurnResult) => void) | null = null;
+  private _autoTurnCallback: AutoTurnCallback | null = null;
   private turnMetadata: ChatTurnMetadata = {};
   private bufferedUsageChunk: StreamChunk & { type: 'usage' } | null = null;
   private streamTransformState = createTransformStreamState();
@@ -189,10 +190,7 @@ export class ClaudianService implements ChatRuntime {
     agentManager?: Pick<AppAgentManager, 'setBuiltinAgentNames'>;
     pluginManager?: AppPluginManager;
   } {
-    return this.plugin as ClaudianPlugin & {
-      agentManager?: Pick<AppAgentManager, 'setBuiltinAgentNames'>;
-      pluginManager?: AppPluginManager;
-    };
+    return this.plugin;
   }
 
   constructor(plugin: ClaudianPlugin, services: ClaudeRuntimeServices | McpServerManager) {
@@ -499,10 +497,8 @@ export class ClaudianService implements ChatRuntime {
     const config = this.buildPersistentQueryConfig(vaultPath, cliPath, externalContextPaths);
     this.currentConfig = config;
 
-    // await is intentional: yields to microtask queue so fire-and-forget callers
-    // (e.g. setSessionId → ensureReady) don't synchronously set persistentQuery
     const resumeAtMessageId = this.pendingResumeAt;
-    const options = await this.buildPersistentQueryOptions(
+    const options = this.buildPersistentQueryOptions(
       vaultPath,
       cliPath,
       resumeSessionId,
@@ -637,9 +633,9 @@ export class ClaudianService implements ChatRuntime {
    */
   private getScopedSettings(): ClaudianSettings {
     return ProviderSettingsCoordinator.getProviderSettingsSnapshot(
-      this.plugin.settings as unknown as Record<string, unknown>,
+      this.plugin.settings,
       this.providerId,
-    ) as unknown as ClaudianSettings;
+    );
   }
 
   private buildQueryOptionsContext(vaultPath: string, cliPath: string): QueryOptionsContext {
@@ -831,6 +827,7 @@ export class ClaudianService implements ChatRuntime {
 
     // Safe to use last handler - design guarantees single handler at a time
     const handler = this.responseHandlers[this.responseHandlers.length - 1];
+    const autoTurnBufferStartLength = this._autoTurnBuffer.length;
 
     // Transform SDK message to StreamChunks
     for (const event of transformSDKMessage(message, this.getTransformOptions())) {
@@ -920,6 +917,15 @@ export class ClaudianService implements ChatRuntime {
       }
     }
 
+    if (
+      !handler
+      && message.type === 'system'
+      && message.subtype === 'task_notification'
+      && this._autoTurnBuffer.length > autoTurnBufferStartLength
+    ) {
+      await this.flushAutoTurnBuffer();
+    }
+
     if (message.type === 'assistant' && message.uuid) {
       this.recordTurnMetadata({ assistantMessageId: message.uuid });
     }
@@ -935,22 +941,26 @@ export class ClaudianService implements ChatRuntime {
         handler.resetStreamThinking();
         handler.onDone();
       } else {
-        this._autoTurnSawStreamText = false;
-        this._autoTurnSawStreamThinking = false;
-        if (this._autoTurnBuffer.length === 0) {
-          return;
-        }
-
-        // Flush buffered chunks from auto-triggered turn (no handler was registered)
-        const chunks = [...this._autoTurnBuffer];
-        const metadata = this.consumeTurnMetadata();
-        this._autoTurnBuffer = [];
-        try {
-          this._autoTurnCallback?.({ chunks, metadata });
-        } catch {
-          new Notice('Background task completed, but the result could not be rendered.');
-        }
+        await this.flushAutoTurnBuffer();
       }
+    }
+  }
+
+  private async flushAutoTurnBuffer(): Promise<void> {
+    this._autoTurnSawStreamText = false;
+    this._autoTurnSawStreamThinking = false;
+    if (this._autoTurnBuffer.length === 0) {
+      return;
+    }
+
+    // Flush buffered chunks from auto-triggered turn (no handler was registered)
+    const chunks = [...this._autoTurnBuffer];
+    const metadata = this.consumeTurnMetadata();
+    this._autoTurnBuffer = [];
+    try {
+      await this._autoTurnCallback?.({ chunks, metadata });
+    } catch {
+      new Notice('Background task completed, but the result could not be rendered.');
     }
   }
 
@@ -1028,7 +1038,7 @@ export class ClaudianService implements ChatRuntime {
         : undefined;
       const explicitQueryOptions = isChatMessageArray(conversationHistoryOrQueryOptions)
         ? undefined
-        : conversationHistoryOrQueryOptions as QueryOptions | undefined;
+        : conversationHistoryOrQueryOptions;
       return {
         request: turn.request,
         encodedTurn: turn,
@@ -1137,9 +1147,9 @@ export class ClaudianService implements ChatRuntime {
       conversationHistory && conversationHistory.length > 0;
 
     if (noSessionButHasHistory) {
-      const historyContext = buildContextFromHistory(conversationHistory!);
+      const historyContext = buildContextFromHistory(conversationHistory);
       const actualPrompt = stripCurrentNoteContext(prompt);
-      promptToSend = buildPromptWithHistoryContext(historyContext, prompt, actualPrompt, conversationHistory!);
+      promptToSend = buildPromptWithHistoryContext(historyContext, prompt, actualPrompt, conversationHistory);
 
       // Note: Do NOT call invalidateSession() here. The cold-start will capture
       // a new session ID anyway, and invalidating would break any persistent query
@@ -1477,7 +1487,7 @@ export class ClaudianService implements ChatRuntime {
     }
   }
 
-  private buildPromptWithImages(prompt: string, images?: ImageAttachment[]): string | AsyncGenerator<any> {
+  private buildPromptWithImages(prompt: string, images?: ImageAttachment[]): ReturnType<typeof buildClaudePromptWithImages> {
     return buildClaudePromptWithImages(prompt, images);
   }
 
@@ -1730,10 +1740,15 @@ export class ClaudianService implements ChatRuntime {
     return this.persistentQuery.rewindFiles(userMessageId, { dryRun });
   }
 
-  async rewind(userMessageId: string, assistantMessageId: string): Promise<ChatRewindResult> {
+  async rewind(
+    userMessageId: string,
+    assistantMessageId: string,
+    mode: ChatRewindMode = 'code-and-conversation',
+  ): Promise<ChatRewindResult> {
     return executeClaudeRewind(userMessageId, {
       assistantMessageId,
-      rewindFiles: this.rewindFiles.bind(this),
+      mode,
+      rewindFiles: (id, dryRun) => this.rewindFiles(id, dryRun),
       closePersistentQuery: (reason) => this.closePersistentQuery(reason),
       setPendingResumeAt: (resumeAt) => {
         this.pendingResumeAt = resumeAt;
@@ -1766,7 +1781,7 @@ export class ClaudianService implements ChatRuntime {
     this._subagentStateProvider = getState;
   }
 
-  setAutoTurnCallback(callback: ((result: AutoTurnResult) => void) | null): void {
+  setAutoTurnCallback(callback: AutoTurnCallback | null): void {
     this._autoTurnCallback = callback;
   }
 
@@ -1790,7 +1805,7 @@ export class ClaudianService implements ChatRuntime {
   private resolveSDKPermissionMode(mode: PermissionMode): SDKPermissionMode {
     return QueryOptionsBuilder.resolveClaudeSdkPermissionMode(
       mode,
-      getClaudeProviderSettings(this.plugin.settings as unknown as Record<string, unknown>).safeMode,
-    ) as SDKPermissionMode;
+      getClaudeProviderSettings(this.plugin.settings).safeMode,
+    );
   }
 }

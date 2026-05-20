@@ -855,8 +855,8 @@ describe('ConversationController', () => {
 
         const menu = (Menu as typeof Menu & { instances: Array<{ items: Array<{ title: string }> }> }).instances[0];
         expect(menu.items.map(item => item.title)).toEqual([
-          'Open in New Tab',
-          'Open in Background Tab',
+          'Open in new tab',
+          'Open in background tab',
           'Rename',
           'Delete',
         ]);
@@ -887,7 +887,7 @@ describe('ConversationController', () => {
 
         const menu = (Menu as typeof Menu & { instances: Array<{ items: Array<{ title: string }> }> }).instances[0];
         expect(menu.items.map(item => item.title)).toEqual([
-          'Switch to Open Session',
+          'Switch to open session',
           'Rename',
           'Delete',
         ]);
@@ -920,6 +920,7 @@ describe('ConversationController', () => {
       expect(clickHandlers).toBeDefined();
 
       await clickHandlers![0]({ stopPropagation: jest.fn() });
+      await Promise.resolve();
 
       expect(deps.plugin.switchConversation).toHaveBeenCalledWith('conv-2');
     });
@@ -2281,7 +2282,7 @@ describe('ConversationController - Rewind', () => {
 
     await controller.rewind('m3');
 
-    expect(mockAgentService.rewind).toHaveBeenCalledWith('user-uuid', 'prev-a');
+    expect(mockAgentService.rewind).toHaveBeenCalledWith('user-uuid', 'prev-a', 'code-and-conversation');
   });
 
   it('should show Notice when message ID not found', async () => {
@@ -2392,7 +2393,7 @@ describe('ConversationController - Rewind', () => {
 
     await controller.rewind('m2');
 
-    expect(mockAgentService.rewind).toHaveBeenCalledWith('user-uuid', 'prev-a');
+    expect(mockAgentService.rewind).toHaveBeenCalledWith('user-uuid', 'prev-a', 'code-and-conversation');
     expect(truncateSpy).toHaveBeenCalledWith('m2');
     expect(deps.renderer.renderMessages).toHaveBeenCalledWith(
       expect.any(Array),
@@ -2413,6 +2414,30 @@ describe('ConversationController - Rewind', () => {
     expect(noticeMsg).toContain('1');
 
     truncateSpy.mockRestore();
+  });
+
+  it('should pass conversation-only mode and keep file changes', async () => {
+    deps.state.currentConversationId = 'conv-1';
+    deps.state.messages = [
+      { id: 'm1', role: 'assistant', content: '', timestamp: 1, assistantMessageId: 'prev-a' },
+      { id: 'm2', role: 'user', content: 'test', timestamp: 2, userMessageId: 'user-uuid' },
+      { id: 'm3', role: 'assistant', content: 'resp', timestamp: 3, assistantMessageId: 'resp-a' },
+    ];
+
+    await controller.rewind('m2', 'conversation');
+
+    expect(confirm).toHaveBeenCalledWith(
+      deps.plugin.app,
+      'Rewind conversation to this point? File changes will be kept.',
+      'Rewind',
+    );
+    expect(mockAgentService.rewind).toHaveBeenCalledWith('user-uuid', 'prev-a', 'conversation');
+    expect(deps.plugin.updateConversation).toHaveBeenCalledWith(
+      'conv-1',
+      expect.objectContaining({ resumeAtMessageId: 'prev-a' })
+    );
+    const noticeMsg = mockNotice.mock.calls[0][0] as string;
+    expect(noticeMsg).toBe('Rewound conversation; file changes kept');
   });
 
   it('should abort when confirmation is declined', async () => {
@@ -2460,7 +2485,7 @@ describe('ConversationController - Rewind', () => {
 
     await controller.rewind('m2');
 
-    expect(mockAgentService.rewind).toHaveBeenCalledWith('user-uuid', 'prev-a');
+    expect(mockAgentService.rewind).toHaveBeenCalledWith('user-uuid', 'prev-a', 'code-and-conversation');
     const msg = mockNotice.mock.calls[0][0] as string;
     expect(msg).toContain('Save failed');
   });

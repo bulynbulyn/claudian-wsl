@@ -63,6 +63,40 @@ export class ItemView {
 
 export class WorkspaceLeaf {}
 
+export class Scope {
+  static instances: Scope[] = [];
+
+  parent?: Scope;
+  handlers: Array<{
+    modifiers: string[] | null;
+    key: string | null;
+    func: (evt: KeyboardEvent, ctx?: unknown) => false | unknown;
+  }> = [];
+
+  constructor(parent?: Scope) {
+    this.parent = parent;
+    Scope.instances.push(this);
+  }
+
+  register = jest.fn((
+    modifiers: string[] | null,
+    key: string | null,
+    func: (evt: KeyboardEvent, ctx?: unknown) => false | unknown
+  ) => {
+    const handler = { modifiers, key, func };
+    this.handlers.push(handler);
+    return handler;
+  });
+
+  unregister = jest.fn((handler: unknown) => {
+    this.handlers = this.handlers.filter((entry) => entry !== handler);
+  });
+}
+
+export const Platform = {
+  isMacOS: true,
+};
+
 export class App {
   vault: any = {
     adapter: {
@@ -74,6 +108,13 @@ export class App {
     getRightLeaf: jest.fn().mockReturnValue({
       setViewState: jest.fn().mockResolvedValue(undefined),
     }),
+    getLeftLeaf: jest.fn().mockReturnValue({
+      setViewState: jest.fn().mockResolvedValue(undefined),
+    }),
+    getLeaf: jest.fn().mockReturnValue({
+      setViewState: jest.fn().mockResolvedValue(undefined),
+    }),
+    setActiveLeaf: jest.fn(),
     revealLeaf: jest.fn(),
   };
 }
@@ -211,8 +252,13 @@ export class Menu {
   }
 }
 
+const renderMarkdownMock = jest.fn<Promise<void>, [string, unknown, string, unknown]>().mockResolvedValue(undefined);
+
 export const MarkdownRenderer = {
-  renderMarkdown: jest.fn().mockResolvedValue(undefined),
+  render: jest.fn<Promise<void>, [unknown, string, unknown, string, unknown]>(
+    (_app, markdown, el, sourcePath, component) => renderMarkdownMock(markdown, el, sourcePath, component),
+  ),
+  renderMarkdown: renderMarkdownMock,
 };
 
 export const setIcon = jest.fn();

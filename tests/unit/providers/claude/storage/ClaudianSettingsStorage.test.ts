@@ -9,10 +9,15 @@ import {
 } from '@/providers/claude/storage/ClaudianSettingsStorage';
 import { DEFAULT_SETTINGS } from '@/providers/claude/types/settings';
 import { getCodexProviderSettings } from '@/providers/codex/settings';
+import { getOpencodeProviderSettings } from '@/providers/opencode/settings';
+
+const mockGetHostnameKey = jest.fn(() => 'host-a');
+const mockGetLegacyHostnameKey = jest.fn(() => 'legacy-host');
 
 jest.mock('@/utils/env', () => ({
   ...jest.requireActual('@/utils/env'),
-  getHostnameKey: () => 'host-a',
+  getHostnameKey: () => mockGetHostnameKey(),
+  getLegacyHostnameKey: () => mockGetLegacyHostnameKey(),
 }));
 
 const mockAdapter = {
@@ -32,6 +37,8 @@ describe('ClaudianSettingsStorage', () => {
     mockAdapter.read.mockResolvedValue('{}');
     mockAdapter.write.mockResolvedValue(undefined);
     mockAdapter.delete.mockResolvedValue(undefined);
+    mockGetHostnameKey.mockReturnValue('host-a');
+    mockGetLegacyHostnameKey.mockReturnValue('legacy-host');
     storage = new ClaudianSettingsStorage(mockAdapter);
   });
 
@@ -44,6 +51,7 @@ describe('ClaudianSettingsStorage', () => {
       expect(result.model).toBe(DEFAULT_SETTINGS.model);
       expect(result.thinkingBudget).toBe(DEFAULT_SETTINGS.thinkingBudget);
       expect(result.permissionMode).toBe(DEFAULT_SETTINGS.permissionMode);
+      expect(result.requireCommandOrControlEnterToSend).toBe(false);
       expect(mockAdapter.read).not.toHaveBeenCalled();
     });
 
@@ -85,6 +93,47 @@ describe('ClaudianSettingsStorage', () => {
       expect(result.userName).toBe('TestUser');
       // Defaults should still be present for unspecified fields
       expect(result.thinkingBudget).toBe(DEFAULT_SETTINGS.thinkingBudget);
+    });
+
+    it('migrates legacy openInMainTab true to main-tab placement', async () => {
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({
+        openInMainTab: true,
+      }));
+
+      const result = await storage.load();
+      const writtenContent = JSON.parse(mockAdapter.write.mock.calls[0][1]);
+
+      expect(result.chatViewPlacement).toBe('main-tab');
+      expect(writtenContent.chatViewPlacement).toBe('main-tab');
+      expect(writtenContent).not.toHaveProperty('openInMainTab');
+    });
+
+    it('migrates legacy openInMainTab false to right-sidebar placement', async () => {
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({
+        openInMainTab: false,
+      }));
+
+      const result = await storage.load();
+      const writtenContent = JSON.parse(mockAdapter.write.mock.calls[0][1]);
+
+      expect(result.chatViewPlacement).toBe('right-sidebar');
+      expect(writtenContent.chatViewPlacement).toBe('right-sidebar');
+      expect(writtenContent).not.toHaveProperty('openInMainTab');
+    });
+
+    it('normalizes invalid chatViewPlacement values', async () => {
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({
+        chatViewPlacement: 'floating-window',
+      }));
+
+      const result = await storage.load();
+      const writtenContent = JSON.parse(mockAdapter.write.mock.calls[0][1]);
+
+      expect(result.chatViewPlacement).toBe('right-sidebar');
+      expect(writtenContent.chatViewPlacement).toBe('right-sidebar');
     });
 
     it('should strip legacy blocklist fields from loaded data', async () => {
@@ -145,6 +194,88 @@ describe('ClaudianSettingsStorage', () => {
 
       expect(getCodexProviderSettings(result).cliPathsByHost['host-a']).toBe('/custom/codex-a');
       expect(getCodexProviderSettings(result).cliPathsByHost['host-b']).toBe('/custom/codex-b');
+    });
+
+    it('migrates current legacy hostname-scoped provider settings to the opaque device key', async () => {
+      mockGetHostnameKey.mockReturnValue('device:current');
+      mockGetLegacyHostnameKey.mockReturnValue('host-a');
+      mockAdapter.exists.mockResolvedValue(true);
+      mockAdapter.read.mockResolvedValue(JSON.stringify({
+        providerConfigs: {
+          claude: {
+            cliPathsByHost: {
+              'host-a': '/custom/claude-a',
+              'host-b': '/custom/claude-b',
+            },
+          },
+          codex: {
+            cliPathsByHost: {
+              'host-a': '/custom/codex-a',
+              'host-b': '/custom/codex-b',
+            },
+            installationMethodsByHost: {
+              'host-a': 'wsl',
+              'host-b': 'native-windows',
+            },
+            wslDistroOverridesByHost: {
+              'host-a': 'Ubuntu',
+              'host-b': 'Debian',
+            },
+          },
+          opencode: {
+            cliPathsByHost: {
+              'host-a': '/custom/opencode-a',
+              'host-b': '/custom/opencode-b',
+            },
+          },
+        },
+      }));
+
+      const result = await storage.load();
+      const claudeSettings = getClaudeProviderSettings(result);
+      const codexSettings = getCodexProviderSettings(result);
+      const opencodeSettings = getOpencodeProviderSettings(result);
+      const persistedOpencodeConfig = result.providerConfigs.opencode as Record<string, unknown>;
+      const writtenContent = JSON.parse(mockAdapter.write.mock.calls[0][1]);
+
+      expect(claudeSettings.cliPathsByHost).toEqual({
+        'device:current': '/custom/claude-a',
+        'host-b': '/custom/claude-b',
+      });
+      expect(codexSettings.cliPathsByHost).toEqual({
+        'device:current': '/custom/codex-a',
+        'host-b': '/custom/codex-b',
+      });
+      expect(codexSettings.installationMethod).toBe('wsl');
+      expect(codexSettings.installationMethodsByHost).toEqual({
+        'device:current': 'wsl',
+        'host-b': 'native-windows',
+      });
+      expect(codexSettings.wslDistroOverride).toBe('Ubuntu');
+      expect(codexSettings.wslDistroOverridesByHost).toEqual({
+        'device:current': 'Ubuntu',
+        'host-b': 'Debian',
+      });
+      expect(opencodeSettings.cliPathsByHost).toEqual({
+        'device:current': '/custom/opencode-a',
+        'host-b': '/custom/opencode-b',
+      });
+      expect(persistedOpencodeConfig.cliPathsByHost).toEqual({
+        'device:current': '/custom/opencode-a',
+        'host-b': '/custom/opencode-b',
+      });
+      expect(writtenContent.providerConfigs.claude.cliPathsByHost).toEqual({
+        'device:current': '/custom/claude-a',
+        'host-b': '/custom/claude-b',
+      });
+      expect(writtenContent.providerConfigs.codex.cliPathsByHost).toEqual({
+        'device:current': '/custom/codex-a',
+        'host-b': '/custom/codex-b',
+      });
+      expect(writtenContent.providerConfigs.opencode.cliPathsByHost).toEqual({
+        'device:current': '/custom/opencode-a',
+        'host-b': '/custom/opencode-b',
+      });
     });
 
     it('should preserve legacy codexCliPath field', async () => {

@@ -139,15 +139,12 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     }
 
     const cliPathSetting = new Setting(container)
-      .setName(`CLI Path (${hostnameKey})`)
+      .setName('CLI path')
       .setDesc('Optional absolute path to the OpenCode CLI for this computer. Leave empty to use `opencode` from PATH.');
 
-    const validationEl = container.createDiv({ cls: 'claudian-cli-path-validation' });
-    validationEl.style.color = 'var(--text-error)';
-    validationEl.style.fontSize = '0.85em';
-    validationEl.style.marginTop = '-0.5em';
-    validationEl.style.marginBottom = '0.5em';
-    validationEl.style.display = 'none';
+    const validationEl = container.createDiv({
+      cls: 'claudian-cli-path-validation claudian-setting-validation claudian-setting-validation-error claudian-hidden',
+    });
 
     const validatePath = (value: string, isWsl: boolean): string | null => {
       const trimmed = value.trim();
@@ -186,16 +183,16 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
       const error = validatePath(value, installationMethod === 'wsl');
       if (error) {
         validationEl.setText(error);
-        validationEl.style.display = 'block';
+        validationEl.toggleClass('claudian-hidden', false);
         if (inputEl) {
-          inputEl.style.borderColor = 'var(--text-error)';
+          inputEl.toggleClass('claudian-input-error', true);
         }
         return false;
       }
 
-      validationEl.style.display = 'none';
+      validationEl.toggleClass('claudian-hidden', true);
       if (inputEl) {
-        inputEl.style.borderColor = '';
+        inputEl.toggleClass('claudian-input-error', false);
       }
       return true;
     };
@@ -251,7 +248,6 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
         });
 
       text.inputEl.addClass('claudian-settings-cli-path-input');
-      text.inputEl.style.width = '100%';
       cliPathInputEl = text.inputEl;
 
       updateCliPathValidation(currentValue, text.inputEl);
@@ -260,7 +256,7 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
     new Setting(container).setName('Models').setHeading();
 
     new Setting(container)
-      .setName('Visible Models')
+      .setName('Visible models')
       .setDesc('Choose which OpenCode models appear in the chat selector. Filter by provider or type to search. The current session model stays pinned even if it is not selected here.');
 
     const pickerEl = container.createDiv({ cls: 'claudian-opencode-model-picker' });
@@ -293,7 +289,7 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
       cls: 'claudian-opencode-model-picker-search',
       type: 'search',
     });
-    searchInput.placeholder = 'Filter by model, provider, or id…';
+    searchInput.placeholder = 'Filter by model, provider, or ID…';
     searchInput.addEventListener('input', () => {
       searchQuery = searchInput.value.trim().toLowerCase();
       renderList();
@@ -383,11 +379,11 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
       selectedEl.empty();
       const current = getOpencodeProviderSettings(settingsBag);
       if (current.visibleModels.length === 0) {
-        selectedEl.style.display = 'none';
+        selectedEl.toggleClass('claudian-hidden', true);
         return;
       }
 
-      selectedEl.style.display = '';
+      selectedEl.toggleClass('claudian-hidden', false);
       const enrichedByRawId = new Map(
         getEnrichedModels().map((model) => [model.rawId, model] as const),
       );
@@ -607,7 +603,7 @@ export const opencodeSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     renderAll();
 
-    new Setting(container).setName('Commands and Skills').setHeading();
+    new Setting(container).setName('Commands and skills').setHeading();
 
     const commandsDesc = container.createDiv({ cls: 'claudian-sp-settings-desc' });
     commandsDesc.createEl('p', {

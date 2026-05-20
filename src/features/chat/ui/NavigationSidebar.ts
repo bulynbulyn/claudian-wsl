@@ -70,7 +70,7 @@ export class NavigationSidebar {
     this.pendingVisibilityFrame = scheduleAnimationFrame(() => {
       this.pendingVisibilityFrame = null;
       this.applyVisibility();
-    });
+    }, this.messagesEl.ownerDocument.defaultView ?? null);
   }
 
   private applyVisibility(): void {
@@ -85,7 +85,7 @@ export class NavigationSidebar {
    * Scrolls to previous or next user message, skipping assistant messages.
    */
   private scrollToMessage(direction: 'prev' | 'next'): void {
-    const messages = Array.from(this.messagesEl.querySelectorAll('.claudian-message-user')) as HTMLElement[];
+    const messages = Array.from(this.messagesEl.querySelectorAll<HTMLElement>('.claudian-message-user'));
 
     if (messages.length === 0) return;
 

@@ -1,4 +1,4 @@
-import { RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
+import { RangeSetBuilder, StateEffect, StateField, type Text } from '@codemirror/state';
 import type { DecorationSet } from '@codemirror/view';
 import { Decoration, EditorView, WidgetType } from '@codemirror/view';
 import type { App, Editor, MarkdownView } from 'obsidian';
@@ -24,7 +24,7 @@ import {
 import { type CursorContext, getEditorView } from '../../../utils/editor';
 import { buildExternalContextDisplayEntries } from '../../../utils/externalContext';
 import { externalContextScanner } from '../../../utils/externalContextScanner';
-import { escapeHtml, normalizeInsertionText } from '../../../utils/inlineEdit';
+import { normalizeInsertionText } from '../../../utils/inlineEdit';
 import { getVaultPath, normalizePathForVault as normalizePathForVaultUtil } from '../../../utils/path';
 
 export type InlineEditContext =
@@ -41,12 +41,12 @@ const showInlineEdit = StateEffect.define<{
 const showDiff = StateEffect.define<{
   from: number;
   to: number;
-  diffHtml: string;
+  diffOps: DiffOp[];
   widget: InlineEditController;
 }>();
 const showInsertion = StateEffect.define<{
   pos: number;
-  diffHtml: string;
+  diffOps: DiffOp[];
   widget: InlineEditController;
 }>();
 const hideInlineEdit = StateEffect.define<null>();
@@ -54,27 +54,28 @@ const hideInlineEdit = StateEffect.define<null>();
 let activeController: InlineEditController | null = null;
 
 class DiffWidget extends WidgetType {
-  constructor(private diffHtml: string, private controller: InlineEditController) {
+  constructor(private diffOps: DiffOp[], private controller: InlineEditController) {
     super();
   }
   toDOM(): HTMLElement {
-    const span = document.createElement('span');
+    const ownerDocument = this.controller.getOwnerDocument();
+    const span = ownerDocument.createElement('span');
     span.className = 'claudian-inline-diff-replace';
-    span.innerHTML = this.diffHtml;
+    appendDiffOps(span, this.diffOps);
 
-    const btns = document.createElement('span');
+    const btns = ownerDocument.createElement('span');
     btns.className = 'claudian-inline-diff-buttons';
 
-    const rejectBtn = document.createElement('button');
+    const rejectBtn = ownerDocument.createElement('button');
     rejectBtn.className = 'claudian-inline-diff-btn reject';
     rejectBtn.textContent = '✕';
-    rejectBtn.title = 'Reject (Esc)';
+    rejectBtn.title = 'Reject (esc)';
     rejectBtn.onclick = () => this.controller.reject();
 
-    const acceptBtn = document.createElement('button');
+    const acceptBtn = ownerDocument.createElement('button');
     acceptBtn.className = 'claudian-inline-diff-btn accept';
     acceptBtn.textContent = '✓';
-    acceptBtn.title = 'Accept (Enter)';
+    acceptBtn.title = 'Accept (enter)';
     acceptBtn.onclick = () => this.controller.accept();
 
     btns.appendChild(rejectBtn);
@@ -84,7 +85,7 @@ class DiffWidget extends WidgetType {
     return span;
   }
   eq(other: DiffWidget): boolean {
-    return this.diffHtml === other.diffHtml;
+    return diffOpsEqual(this.diffOps, other.diffOps);
   }
   ignoreEvent(): boolean {
     return true;
@@ -106,31 +107,51 @@ class InputWidget extends WidgetType {
   }
 }
 
+export function buildInlineEditInputDecorations(options: {
+  doc: Text;
+  inputPos: number;
+  isInbetween?: boolean;
+  widget: WidgetType;
+}): DecorationSet {
+  // Decoration.set(..., true) sorts line and widget decorations by CodeMirror's
+  // internal range ordering, including equal-position block widgets at line start.
+  const isInbetween = options.isInbetween ?? false;
+  const lineStart = options.doc.lineAt(options.inputPos).from;
+  return Decoration.set([
+    Decoration.line({
+      class: 'claudian-inline-input-line',
+    }).range(lineStart),
+    Decoration.widget({
+      widget: options.widget,
+      block: !isInbetween,
+      side: isInbetween ? 1 : -1,
+    }).range(options.inputPos),
+  ], true);
+}
+
 const inlineEditField = StateField.define<DecorationSet>({
   create: () => Decoration.none,
   update: (deco, tr) => {
     deco = deco.map(tr.changes);
     for (const e of tr.effects) {
       if (e.is(showInlineEdit)) {
-        const builder = new RangeSetBuilder<Decoration>();
         // Block above line for selection/inline mode, inline widget for inbetween mode
-        const isInbetween = e.value.isInbetween ?? false;
-        builder.add(e.value.inputPos, e.value.inputPos, Decoration.widget({
+        deco = buildInlineEditInputDecorations({
+          doc: tr.state.doc,
+          inputPos: e.value.inputPos,
+          isInbetween: e.value.isInbetween,
           widget: new InputWidget(e.value.widget),
-          block: !isInbetween,
-          side: isInbetween ? 1 : -1,
-        }));
-        deco = builder.finish();
+        });
       } else if (e.is(showDiff)) {
         const builder = new RangeSetBuilder<Decoration>();
         builder.add(e.value.from, e.value.to, Decoration.replace({
-          widget: new DiffWidget(e.value.diffHtml, e.value.widget),
+          widget: new DiffWidget(e.value.diffOps, e.value.widget),
         }));
         deco = builder.finish();
       } else if (e.is(showInsertion)) {
         const builder = new RangeSetBuilder<Decoration>();
         builder.add(e.value.pos, e.value.pos, Decoration.widget({
-          widget: new DiffWidget(e.value.diffHtml, e.value.widget),
+          widget: new DiffWidget(e.value.diffOps, e.value.widget),
           side: 1, // After the position
         }));
         deco = builder.finish();
@@ -151,7 +172,7 @@ function computeDiff(oldText: string, newText: string): DiffOp[] {
   const oldWords = oldText.split(/(\s+)/);
   const newWords = newText.split(/(\s+)/);
   const m = oldWords.length, n = newWords.length;
-  const dp: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array<number>(n + 1).fill(0));
 
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
@@ -189,15 +210,27 @@ function computeDiff(oldText: string, newText: string): DiffOp[] {
   return ops;
 }
 
-function diffToHtml(ops: DiffOp[]): string {
-  return ops.map(op => {
-    const escaped = escapeHtml(op.text);
+function appendDiffOps(container: HTMLElement, ops: DiffOp[]): void {
+  for (const op of ops) {
     switch (op.type) {
-      case 'delete': return `<span class="claudian-diff-del">${escaped}</span>`;
-      case 'insert': return `<span class="claudian-diff-ins">${escaped}</span>`;
-      default: return escaped;
+      case 'delete':
+        container.createSpan({ cls: 'claudian-diff-del', text: op.text });
+        break;
+      case 'insert':
+        container.createSpan({ cls: 'claudian-diff-ins', text: op.text });
+        break;
+      default:
+        container.appendText(op.text);
     }
-  }).join('');
+  }
+}
+
+function diffOpsEqual(left: DiffOp[], right: DiffOp[]): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((op, index) => {
+    const other = right[index];
+    return op.type === other.type && op.text === other.text;
+  });
 }
 
 export type InlineEditDecision = 'accept' | 'edit' | 'reject';
@@ -322,6 +355,10 @@ class InlineEditController {
     this.updatePositionsFromEditor();
   }
 
+  getOwnerDocument(): Document {
+    return this.editorView.dom.ownerDocument ?? window.document;
+  }
+
   private updatePositionsFromEditor() {
     const doc = this.editorView.state.doc;
 
@@ -362,7 +399,7 @@ class InlineEditController {
         this.reject();
       }
     };
-    document.addEventListener('keydown', this.escHandler);
+    this.getOwnerDocument().addEventListener('keydown', this.escHandler);
   }
 
   private updateHighlight() {
@@ -412,34 +449,33 @@ class InlineEditController {
   }
 
   createInputDOM(): HTMLElement {
-    const container = document.createElement('div');
+    const ownerDocument = this.getOwnerDocument();
+    const container = ownerDocument.createElement('div');
     container.className = 'claudian-inline-input-container';
     this.containerEl = container;
 
-    this.agentReplyEl = document.createElement('div');
-    this.agentReplyEl.className = 'claudian-inline-agent-reply';
-    this.agentReplyEl.style.display = 'none';
+    this.agentReplyEl = ownerDocument.createElement('div');
+    this.agentReplyEl.className = 'claudian-inline-agent-reply claudian-hidden';
     container.appendChild(this.agentReplyEl);
 
-    const inputWrap = document.createElement('div');
+    const inputWrap = ownerDocument.createElement('div');
     inputWrap.className = 'claudian-inline-input-wrap';
     container.appendChild(inputWrap);
 
-    this.inputEl = document.createElement('input');
+    this.inputEl = ownerDocument.createElement('input');
     this.inputEl.type = 'text';
     this.inputEl.className = 'claudian-inline-input';
     this.inputEl.placeholder = this.mode === 'cursor' ? 'Insert instructions...' : 'Edit instructions...';
     this.inputEl.spellcheck = false;
     inputWrap.appendChild(this.inputEl);
 
-    this.spinnerEl = document.createElement('div');
-    this.spinnerEl.className = 'claudian-inline-spinner';
-    this.spinnerEl.style.display = 'none';
+    this.spinnerEl = ownerDocument.createElement('div');
+    this.spinnerEl.className = 'claudian-inline-spinner claudian-hidden';
     inputWrap.appendChild(this.spinnerEl);
 
     const inlineCatalog = ProviderWorkspaceRegistry.getCommandCatalog(this.resolvedProviderId);
     this.slashCommandDropdown = new SlashCommandDropdown(
-      document.body,
+      ownerDocument.body,
       this.inputEl,
       {
         onSelect: () => {},
@@ -456,7 +492,7 @@ class InlineEditController {
     );
 
     this.mentionDropdown = new MentionDropdownController(
-      document.body,
+      ownerDocument.body,
       this.inputEl,
       {
         // Inline-edit resolves @mentions at send time from input text.
@@ -476,7 +512,7 @@ class InlineEditController {
     this.inputEl.addEventListener('keydown', (e) => this.handleKeydown(e));
     this.inputEl.addEventListener('input', () => this.mentionDropdown?.handleInputChange());
 
-    setTimeout(() => this.inputEl?.focus(), 50);
+    window.setTimeout(() => this.inputEl?.focus(), 50);
     return container;
   }
 
@@ -490,7 +526,7 @@ class InlineEditController {
     this.removeSelectionListeners();
 
     this.inputEl.disabled = true;
-    this.spinnerEl.style.display = 'block';
+    this.spinnerEl.removeClass('claudian-hidden');
 
     const contextFiles = this.resolveContextFilesFromMessage(userMessage);
 
@@ -520,7 +556,7 @@ class InlineEditController {
       }
     }
 
-    this.spinnerEl.style.display = 'none';
+    this.spinnerEl.addClass('claudian-hidden');
 
     if (result.success) {
       if (result.editedText !== undefined) {
@@ -546,7 +582,7 @@ class InlineEditController {
 
   private showAgentReply(message: string) {
     if (!this.agentReplyEl || !this.containerEl) return;
-    this.agentReplyEl.style.display = 'block';
+    this.agentReplyEl.removeClass('claudian-hidden');
     this.agentReplyEl.textContent = message;
     this.containerEl.classList.add('has-agent-reply');
   }
@@ -567,13 +603,12 @@ class InlineEditController {
     hideSelectionHighlight(this.editorView);
 
     const diffOps = computeDiff(this.selectedText, this.editedText);
-    const diffHtml = diffToHtml(diffOps);
 
     this.editorView.dispatch({
       effects: showDiff.of({
         from: this.selFrom,
         to: this.selTo,
-        diffHtml,
+        diffOps,
         widget: this,
       }),
     });
@@ -589,13 +624,12 @@ class InlineEditController {
     const trimmedText = normalizeInsertionText(this.insertedText);
     this.insertedText = trimmedText;
 
-    const escaped = escapeHtml(trimmedText);
-    const diffHtml = `<span class="claudian-diff-ins">${escaped}</span>`;
+    const diffOps: DiffOp[] = [{ type: 'insert', text: trimmedText }];
 
     this.editorView.dispatch({
       effects: showInsertion.of({
         pos: this.selFrom,
-        diffHtml,
+        diffOps,
         widget: this,
       }),
     });
@@ -605,7 +639,7 @@ class InlineEditController {
 
   private installAcceptRejectHandler() {
     if (this.escHandler) {
-      document.removeEventListener('keydown', this.escHandler);
+      this.getOwnerDocument().removeEventListener('keydown', this.escHandler);
     }
     this.escHandler = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !e.isComposing) {
@@ -614,7 +648,7 @@ class InlineEditController {
         this.accept();
       }
     };
-    document.addEventListener('keydown', this.escHandler);
+    this.getOwnerDocument().addEventListener('keydown', this.escHandler);
   }
 
   accept() {
@@ -656,7 +690,7 @@ class InlineEditController {
     this.isConversing = false;
     this.removeSelectionListeners();
     if (this.escHandler) {
-      document.removeEventListener('keydown', this.escHandler);
+      this.getOwnerDocument().removeEventListener('keydown', this.escHandler);
     }
     this.slashCommandDropdown?.destroy();
     this.slashCommandDropdown = null;
@@ -693,7 +727,7 @@ class InlineEditController {
 
     if (e.key === 'Enter' && !e.isComposing) {
       e.preventDefault();
-      this.generate();
+      void this.generate();
     }
   }
 

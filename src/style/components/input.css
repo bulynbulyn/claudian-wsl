@@ -41,6 +41,14 @@
   min-height: 0;
 }
 
+.claudian-input-nav-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+}
+
 /* Header mode: hide nav row above input (content moved to header) */
 .claudian-container--header-mode .claudian-input-nav-row {
   display: none;
@@ -72,8 +80,8 @@
 .claudian-input {
   width: 100%;
   flex: 1 1 0;
-  min-height: 60px;
-  /* max-height dynamically set by JS: max(150px, 55% of view height) */
+  min-height: var(--claudian-textarea-min-height, 60px);
+  max-height: var(--claudian-textarea-max-height, none);
   resize: none;
   padding: 8px 10px 10px 10px;
   border: none !important;
@@ -191,6 +199,13 @@
   text-overflow: ellipsis;
 }
 
+.claudian-queue-indicator-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .claudian-queue-indicator-action {
   flex: 0 0 auto;
   padding: 1px 8px;
@@ -209,6 +224,31 @@
   color: var(--text-faint);
   cursor: default;
   text-decoration: none;
+}
+
+.claudian-queue-indicator-icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.claudian-queue-indicator-icon-action:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.claudian-queue-indicator-icon-action svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* Light blue border when instruction mode is active */

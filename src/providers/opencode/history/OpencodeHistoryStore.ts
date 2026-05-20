@@ -391,7 +391,7 @@ function getNestedNumber(
 
 async function loadSqliteModule(): Promise<SqliteModule | null> {
   try {
-    return await import('node:sqlite') as SqliteModule;
+    return await import('node:sqlite');
   } catch {
     return null;
   }
