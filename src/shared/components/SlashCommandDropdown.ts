@@ -129,7 +129,7 @@ export class SlashCommandDropdown {
     this.triggerStartIndex = triggerIndex;
     this.activeTriggerChar = triggerChar;
     const isAtPosition0 = triggerIndex === 0;
-    this.showDropdown(searchText, isAtPosition0);
+    void this.showDropdown(searchText, isAtPosition0);
   }
 
   handleKeydown(e: KeyboardEvent): boolean {
@@ -265,7 +265,7 @@ export class SlashCommandDropdown {
             displayPrefix: '/',
             insertPrefix: '/',
             isBuiltIn: true,
-            slashCommand: cmd as SlashCommand,
+            slashCommand: cmd,
           });
         }
       }
@@ -373,12 +373,11 @@ export class SlashCommandDropdown {
     if (!this.dropdownEl || !this.isFixed) return;
 
     const inputRect = this.inputEl.getBoundingClientRect();
-    this.dropdownEl.style.position = 'fixed';
-    this.dropdownEl.style.bottom = `${window.innerHeight - inputRect.top + 4}px`;
-    this.dropdownEl.style.left = `${inputRect.left}px`;
-    this.dropdownEl.style.right = 'auto';
-    this.dropdownEl.style.width = `${Math.max(inputRect.width, 280)}px`;
-    this.dropdownEl.style.zIndex = '10001';
+    this.dropdownEl.setCssProps({
+      '--claudian-fixed-dropdown-bottom': `${window.innerHeight - inputRect.top + 4}px`,
+      '--claudian-fixed-dropdown-left': `${inputRect.left}px`,
+      '--claudian-fixed-dropdown-width': `${Math.max(inputRect.width, 280)}px`,
+    });
   }
 
   private navigate(direction: number): void {

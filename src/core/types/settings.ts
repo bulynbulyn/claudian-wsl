@@ -55,6 +55,15 @@ export interface KeyboardNavigationSettings {
 /** Tab bar position setting. */
 export type TabBarPosition = 'input' | 'header';
 
+export const CHAT_VIEW_PLACEMENTS = [
+  'right-sidebar',
+  'left-sidebar',
+  'main-tab',
+] as const;
+
+/** Workspace location used when opening the Claudian chat view. */
+export type ChatViewPlacement = typeof CHAT_VIEW_PLACEMENTS[number];
+
 /** Result from instruction refinement agent query. */
 export interface InstructionRefineResult {
   success: boolean;
@@ -69,7 +78,7 @@ export type PermissionMode = 'yolo' | 'plan' | 'normal';
 /** Scope for environment variable storage and snippets. */
 export type EnvironmentScope = 'shared' | `provider:${string}`;
 
-/** Hostname-keyed CLI paths for per-device configuration. */
+/** Opaque device-keyed CLI paths for per-device configuration. */
 export type HostnameCliPaths = Record<string, string>;
 
 /** Opaque provider-owned settings bags keyed by provider id. */
@@ -110,6 +119,7 @@ export interface ClaudianSettings {
 
   // UI settings
   keyboardNavigation: KeyboardNavigationSettings;
+  requireCommandOrControlEnterToSend: boolean;
 
   // Internationalization
   locale: string;
@@ -132,7 +142,8 @@ export interface ClaudianSettings {
   maxTabs: number;
   tabBarPosition: TabBarPosition;
   enableAutoScroll: boolean;
-  openInMainTab: boolean;
+  deferMathRenderingDuringStreaming: boolean;
+  chatViewPlacement: ChatViewPlacement;
 
   // Provider command visibility
   hiddenProviderCommands: HiddenProviderCommands;

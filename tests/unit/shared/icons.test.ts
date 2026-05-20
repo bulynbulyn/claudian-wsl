@@ -11,6 +11,7 @@ describe('createProviderIconSvg', () => {
     const svg = createProviderIconSvg(OPENAI_PROVIDER_ICON, {
       className: 'test-icon',
       height: 12,
+      ownerDocument: document,
       width: 12,
     });
 
@@ -25,10 +26,11 @@ describe('createProviderIconSvg', () => {
     expect(path?.getAttribute('fill')).toBe('currentColor');
   });
 
-  it('renders markup-based provider icons with theme variants', () => {
+  it('renders composite provider icons with theme variants', () => {
     const svg = createProviderIconSvg(OPENCODE_PROVIDER_ICON, {
       dataProvider: 'opencode',
       height: 18,
+      ownerDocument: document,
       width: 18,
     });
 

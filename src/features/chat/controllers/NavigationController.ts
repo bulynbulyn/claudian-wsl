@@ -1,4 +1,9 @@
 import type { KeyboardNavigationSettings } from '../../../core/types';
+import {
+  cancelScheduledAnimationFrame,
+  scheduleAnimationFrame,
+  type ScheduledAnimationFrame,
+} from '../../../utils/animationFrame';
 
 /** Scroll speed in pixels per frame (~60fps = 480px/sec). */
 const SCROLL_SPEED = 8;
@@ -15,7 +20,8 @@ export interface NavigationControllerDeps {
 export class NavigationController {
   private deps: NavigationControllerDeps;
   private scrollDirection: 'up' | 'down' | null = null;
-  private animationFrameId: number | null = null;
+  private animationFrame: ScheduledAnimationFrame | null = null;
+  private keyboardDocument: Document | null = null;
   private initialized = false;
   private disposed = false;
 
@@ -26,9 +32,9 @@ export class NavigationController {
 
   constructor(deps: NavigationControllerDeps) {
     this.deps = deps;
-    this.boundMessagesKeydown = this.handleMessagesKeydown.bind(this);
-    this.boundKeyup = this.handleKeyup.bind(this);
-    this.boundInputKeydown = this.handleInputKeydown.bind(this);
+    this.boundMessagesKeydown = (e) => this.handleMessagesKeydown(e);
+    this.boundKeyup = (e) => this.handleKeyup(e);
+    this.boundInputKeydown = (e) => this.handleInputKeydown(e);
   }
 
   initialize(): void {
@@ -46,7 +52,8 @@ export class NavigationController {
 
     // Attach event listeners
     messagesEl.addEventListener('keydown', this.boundMessagesKeydown);
-    document.addEventListener('keyup', this.boundKeyup);
+    this.keyboardDocument = messagesEl.ownerDocument;
+    this.keyboardDocument.addEventListener('keyup', this.boundKeyup);
 
     // Use capture phase to run before other handlers
     inputEl.addEventListener('keydown', this.boundInputKeydown, { capture: true });
@@ -62,7 +69,8 @@ export class NavigationController {
     this.stopScrolling();
 
     // Always clean up document listener first (most important for preventing leaks)
-    document.removeEventListener('keyup', this.boundKeyup);
+    this.keyboardDocument?.removeEventListener('keyup', this.boundKeyup);
+    this.keyboardDocument = null;
 
     // Element cleanup - may already be destroyed during view teardown
     const messagesEl = this.deps.getMessagesEl();
@@ -160,9 +168,9 @@ export class NavigationController {
 
   private stopScrolling(): void {
     this.scrollDirection = null;
-    if (this.animationFrameId !== null) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
+    if (this.animationFrame !== null) {
+      cancelScheduledAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
     }
   }
 
@@ -179,7 +187,10 @@ export class NavigationController {
     const scrollAmount = this.scrollDirection === 'up' ? -SCROLL_SPEED : SCROLL_SPEED;
     messagesEl.scrollTop += scrollAmount;
 
-    this.animationFrameId = requestAnimationFrame(this.scrollLoop);
+    this.animationFrame = scheduleAnimationFrame(
+      this.scrollLoop,
+      messagesEl.ownerDocument.defaultView ?? null,
+    );
   };
 
   // ============================================

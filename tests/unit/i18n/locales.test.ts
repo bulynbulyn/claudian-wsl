@@ -26,6 +26,11 @@ const locales = {
 } as const;
 
 const localizedKeys = [
+  'chat.rewind.confirmMessageConversationOnly',
+  'chat.rewind.menuConversationOnly',
+  'chat.rewind.menuCodeAndConversation',
+  'chat.rewind.noticeConversationOnly',
+  'chat.rewind.noticeConversationOnlySaveFailed',
   'chat.fork.errorMessageNotFound',
   'chat.fork.errorNoSession',
   'chat.fork.errorNoActiveTab',
@@ -69,6 +74,8 @@ const localizedKeys = [
   'settings.enableBangBash.name',
   'settings.enableBangBash.desc',
   'settings.enableBangBash.validation.noNode',
+  'settings.requireCommandOrControlEnterToSend.name',
+  'settings.requireCommandOrControlEnterToSend.desc',
 ] as const;
 
 const staleBangBashDesc =

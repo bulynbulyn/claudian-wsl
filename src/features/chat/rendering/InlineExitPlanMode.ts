@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as nodePath from 'path';
 
 import type { ExitPlanModeDecision } from '../../../core/types/tools';
@@ -38,7 +39,7 @@ export class InlineExitPlanMode {
     this.signal = signal;
     this.renderContent = renderContent;
     this.planPathPrefix = planPathPrefix;
-    this.boundKeyDown = this.handleKeyDown.bind(this);
+    this.boundKeyDown = (event) => this.handleKeyDown(event);
   }
 
   render(): void {
@@ -121,7 +122,7 @@ export class InlineExitPlanMode {
     this.rootEl.setAttribute('tabindex', '0');
     this.rootEl.addEventListener('keydown', this.boundKeyDown);
 
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       this.rootEl.focus();
       this.rootEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
@@ -147,9 +148,7 @@ export class InlineExitPlanMode {
     }
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const fs = require('fs');
-      const content = fs.readFileSync(planFilePath, 'utf-8') as string;
+      const content = fs.readFileSync(planFilePath, 'utf-8');
       return content.trim() || null;
     } catch (err) {
       this.planReadError = err instanceof Error ? err.message : 'unknown error';
@@ -240,7 +239,7 @@ export class InlineExitPlanMode {
 
         if (item.hasClass('claudian-ask-custom-item')) {
           const input = item.querySelector('.claudian-ask-custom-text') as HTMLInputElement;
-          if (input && document.activeElement === input) {
+          if (input && this.rootEl.ownerDocument.activeElement === input) {
             input.blur();
             this.isInputFocused = false;
           }

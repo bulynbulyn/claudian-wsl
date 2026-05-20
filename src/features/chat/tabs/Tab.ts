@@ -1,5 +1,5 @@
 import type { Component } from 'obsidian';
-import { Notice } from 'obsidian';
+import { Notice, Platform } from 'obsidian';
 
 import { getHiddenProviderCommandSet } from '../../../core/providers/commands/hiddenCommands';
 import type { ProviderCommandDropdownConfig } from '../../../core/providers/commands/ProviderCommandCatalog';
@@ -19,7 +19,8 @@ import {
 } from '../../../core/providers/types';
 import type { ChatRuntime } from '../../../core/runtime/ChatRuntime';
 import type { AutoTurnResult } from '../../../core/runtime/types';
-import type { ChatMessage, Conversation } from '../../../core/types';
+import { TOOL_AGENT_OUTPUT } from '../../../core/tools/toolNames';
+import type { ChatMessage, ClaudianSettings, Conversation, StreamChunk } from '../../../core/types';
 import { t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
 import { SlashCommandDropdown } from '../../../shared/components/SlashCommandDropdown';
@@ -45,10 +46,11 @@ import { createInputToolbar } from '../ui/InputToolbar';
 import { InstructionModeManager as InstructionModeManagerClass } from '../ui/InstructionModeManager';
 import { NavigationSidebar } from '../ui/NavigationSidebar';
 import { StatusPanel } from '../ui/StatusPanel';
+import { autoResizeTextarea } from '../ui/textareaResize';
 import { recalculateUsageForModel } from '../utils/usageInfo';
 import { getTabProviderId } from './providerResolution';
 import type { TabData, TabDOMElements, TabId, TabProviderContext } from './types';
-import { generateTabId, TEXTAREA_MAX_HEIGHT_PERCENT, TEXTAREA_MIN_MAX_HEIGHT } from './types';
+import { generateTabId } from './types';
 
 type TabProviderSettings = Record<string, unknown> & {
   model: string;
@@ -142,9 +144,9 @@ function getTabSettingsSnapshot(
   plugin: ClaudianPlugin,
 ): TabProviderSettings {
   return ProviderSettingsCoordinator.getProviderSettingsSnapshot(
-    plugin.settings as unknown as Record<string, unknown>,
+    plugin.settings,
     getTabProviderId(tab, plugin),
-  ) as TabProviderSettings;
+  );
 }
 
 function getTabPermissionMode(
@@ -166,6 +168,25 @@ function getTabHiddenCommands(
     plugin.settings,
     getTabProviderId(tab, plugin, conversation),
   );
+}
+
+function shouldSendMessageFromEnterKey(
+  e: KeyboardEvent,
+  settings: Pick<ClaudianSettings, 'requireCommandOrControlEnterToSend'>,
+): boolean {
+  if (e.key !== 'Enter' || e.shiftKey || e.isComposing) {
+    return false;
+  }
+
+  if (settings.requireCommandOrControlEnterToSend !== true) {
+    return true;
+  }
+
+  if (Platform.isMacOS) {
+    return e.metaKey === true && !e.ctrlKey && !e.altKey;
+  }
+
+  return e.ctrlKey === true && !e.metaKey && !e.altKey;
 }
 
 type ProviderCatalogInfo = {
@@ -221,7 +242,7 @@ async function updateTabProviderSettings(
   const snapshot = getTabSettingsSnapshot(tab, plugin);
   update(snapshot);
   ProviderSettingsCoordinator.commitProviderSettingsSnapshot(
-    plugin.settings as unknown as Record<string, unknown>,
+    plugin.settings,
     providerId,
     snapshot,
   );
@@ -278,12 +299,16 @@ function syncTabProviderServices(
 ): void {
   tab.services.instructionRefineService?.cancel();
   tab.services.instructionRefineService?.resetConversation();
-  tab.services.titleGenerationService?.cancel();
   tab.services.instructionRefineService = ProviderRegistry.createInstructionRefineService(plugin, tab.providerId);
-  tab.services.titleGenerationService = ProviderRegistry.createTitleGenerationService(plugin, tab.providerId);
   tab.services.subagentManager.setTaskResultInterpreter?.(
     ProviderRegistry.getTaskResultInterpreter(tab.providerId)
   );
+}
+
+function ensureTitleGenerationService(tab: TabData, plugin: ClaudianPlugin): void {
+  if (!tab.services.titleGenerationService) {
+    tab.services.titleGenerationService = ProviderRegistry.createTitleGenerationService(plugin);
+  }
 }
 
 function cleanupTabRuntime(tab: TabData): void {
@@ -357,8 +382,7 @@ export function createTab(options: TabCreateOptions): TabData {
 
   const id = tabId ?? generateTabId();
 
-  const contentEl = containerEl.createDiv({ cls: 'claudian-tab-content' });
-  contentEl.style.display = 'none';
+  const contentEl = containerEl.createDiv({ cls: 'claudian-tab-content claudian-hidden' });
 
   const state = new ChatState({
     onStreamingStateChanged: onStreamingChanged,
@@ -384,7 +408,7 @@ export function createTab(options: TabCreateOptions): TabData {
     : (restoredDraftModel || resolveBlankTabModel(plugin, options.defaultProviderId));
   const initialProviderId = conversation?.providerId
     ?? (draftModel
-      ? getEnabledProviderForModel(draftModel, plugin.settings as unknown as Record<string, unknown>)
+      ? getEnabledProviderForModel(draftModel, plugin.settings)
       : DEFAULT_CHAT_PROVIDER_ID);
 
   const tab: TabData = {
@@ -435,39 +459,6 @@ export function createTab(options: TabCreateOptions): TabData {
 }
 
 /**
- * Auto-resizes a textarea based on its content.
- *
- * Logic:
- * - At minimum wrapper height: let flexbox allocate space (textarea fills available)
- * - When content exceeds flex allocation: set min-height to force wrapper growth
- * - When content shrinks: remove min-height override to let wrapper shrink
- * - Max height is capped at 55% of view height (minimum 150px)
- */
-function autoResizeTextarea(textarea: HTMLTextAreaElement): void {
-  // Clear inline min-height to let flexbox compute natural allocation
-  textarea.style.minHeight = '';
-
-  // Calculate max height: 55% of view height, minimum 150px
-  const viewHeight = textarea.closest('.claudian-container')?.clientHeight ?? window.innerHeight;
-  const maxHeight = Math.max(TEXTAREA_MIN_MAX_HEIGHT, viewHeight * TEXTAREA_MAX_HEIGHT_PERCENT);
-
-  // Get flex-allocated height (what flexbox gives the textarea)
-  const flexAllocatedHeight = textarea.offsetHeight;
-
-  // Get content height (what the content actually needs), capped at max
-  const contentHeight = Math.min(textarea.scrollHeight, maxHeight);
-
-  // Only set min-height if content exceeds flex allocation
-  // This forces the wrapper to grow while letting it shrink when content reduces
-  if (contentHeight > flexAllocatedHeight) {
-    textarea.style.minHeight = `${contentHeight}px`;
-  }
-
-  // Always set max-height to enforce the cap
-  textarea.style.maxHeight = `${maxHeight}px`;
-}
-
-/**
  * Builds the DOM structure for a tab.
  */
 function buildTabDOM(contentEl: HTMLElement): TabDOMElements {
@@ -483,7 +474,7 @@ function buildTabDOM(contentEl: HTMLElement): TabDOMElements {
   const inputEl = inputWrapper.createEl('textarea', {
     cls: 'claudian-input',
     attr: {
-      placeholder: 'How can I help you today?',
+      placeholder: 'How can i help you today?',
       rows: '3',
       dir: 'auto',
     },
@@ -581,7 +572,7 @@ export async function initializeTabService(
     }
 
     // Re-check after async operations — tab may have been closed during init
-    if ((tab as TabData).lifecycleState === 'closing') {
+    if (isClosingLifecycleState(tab.lifecycleState)) {
       unsubscribeReadyState?.();
       service?.cleanup();
       return;
@@ -686,6 +677,7 @@ function initializeInstructionAndTodo(tab: TabData, plugin: ClaudianPlugin): voi
   const { dom } = tab;
 
   syncTabProviderServices(tab, plugin);
+  ensureTitleGenerationService(tab, plugin);
   tab.ui.instructionModeManager = new InstructionModeManagerClass(
     dom.inputEl,
     {
@@ -697,7 +689,7 @@ function initializeInstructionAndTodo(tab: TabData, plugin: ClaudianPlugin): voi
   );
 
   // Bang bash mode (! command execution)
-  if (isBangBashEnabled(plugin.settings as unknown as Record<string, unknown>)) {
+  if (isBangBashEnabled(plugin.settings)) {
     const vaultPath = getVaultPath(plugin.app);
     if (vaultPath) {
       const enhancedPath = getEnhancedPath();
@@ -741,7 +733,7 @@ function initializeInputToolbar(
   tab: TabData,
   plugin: ClaudianPlugin,
   getProviderCatalogConfig?: () => ProviderCatalogInfo,
-  onProviderChanged?: (providerId: ProviderId) => void,
+  onProviderChanged?: (providerId: ProviderId) => void | Promise<void>,
 ): void {
   const { dom } = tab;
 
@@ -750,7 +742,7 @@ function initializeInputToolbar(
   // Blank-tab UI config wrapper that returns mixed model options
   const blankTabUIConfigProxy = (): ProviderChatUIConfig => {
     const draftProvider = tab.draftModel
-      ? getEnabledProviderForModel(tab.draftModel, plugin.settings as unknown as Record<string, unknown>)
+      ? getEnabledProviderForModel(tab.draftModel, plugin.settings)
       : DEFAULT_CHAT_PROVIDER_ID;
     const baseConfig = ProviderRegistry.getChatUIConfig(draftProvider);
     return {
@@ -777,7 +769,7 @@ function initializeInputToolbar(
         tab.draftModel = model;
         const newProvider = getEnabledProviderForModel(
           model,
-          plugin.settings as unknown as Record<string, unknown>,
+          plugin.settings,
         );
         const didProviderChange = newProvider !== previousProvider;
         if (tab.service) {
@@ -811,7 +803,7 @@ function initializeInputToolbar(
 
       // For bound tabs, reject cross-provider model changes
       const boundProvider = tab.providerId;
-      const modelProvider = getProviderForModel(model, plugin.settings as unknown as Record<string, unknown>);
+      const modelProvider = getProviderForModel(model, plugin.settings);
       if (modelProvider !== boundProvider) {
         new Notice('Cannot switch provider on a bound session. Start a new tab instead.');
         tab.ui.modelSelector?.updateDisplay();
@@ -833,7 +825,7 @@ function initializeInputToolbar(
       if (currentUsage) {
         const newContextWindow = uiConfig.getContextWindowSize(
           model,
-          providerSettings.customContextLimits as Record<string, number> | undefined,
+          providerSettings.customContextLimits,
         );
         tab.state.usage = recalculateUsageForModel(currentUsage, model, newContextWindow);
       }
@@ -907,9 +899,9 @@ function initializeInputToolbar(
   );
 
   // Wire persistence changes
-  tab.ui.externalContextSelector.setOnPersistenceChange(async (paths) => {
+  tab.ui.externalContextSelector.setOnPersistenceChange((paths) => {
     plugin.settings.persistentExternalContextPaths = paths;
-    await plugin.saveSettings();
+    void plugin.saveSettings();
   });
 
   refreshTabProviderUI(tab, plugin);
@@ -938,14 +930,11 @@ export function initializeTabUI(
   initializeContextManagers(tab, plugin);
 
   // Selection indicator - add to contextRowEl
-  dom.selectionIndicatorEl = dom.contextRowEl.createDiv({ cls: 'claudian-selection-indicator' });
-  dom.selectionIndicatorEl.style.display = 'none';
+  dom.selectionIndicatorEl = dom.contextRowEl.createDiv({ cls: 'claudian-selection-indicator claudian-hidden' });
 
-  dom.browserIndicatorEl = dom.contextRowEl.createDiv({ cls: 'claudian-browser-selection-indicator' });
-  dom.browserIndicatorEl.style.display = 'none';
+  dom.browserIndicatorEl = dom.contextRowEl.createDiv({ cls: 'claudian-browser-selection-indicator claudian-hidden' });
 
-  dom.canvasIndicatorEl = dom.contextRowEl.createDiv({ cls: 'claudian-canvas-indicator' });
-  dom.canvasIndicatorEl.style.display = 'none';
+  dom.canvasIndicatorEl = dom.contextRowEl.createDiv({ cls: 'claudian-canvas-indicator claudian-hidden' });
 
   const catalogInfo = options.getProviderCatalogConfig?.() ?? null;
   initializeSlashCommands(
@@ -994,11 +983,14 @@ export interface ForkContext {
 }
 
 function deepCloneMessages(messages: ChatMessage[]): ChatMessage[] {
-  const sc = (globalThis as unknown as { structuredClone?: <T>(value: T) => T }).structuredClone;
-  if (typeof sc === 'function') {
-    return sc(messages);
+  if (typeof structuredClone === 'function') {
+    return structuredClone(messages);
   }
   return JSON.parse(JSON.stringify(messages)) as ChatMessage[];
+}
+
+function isClosingLifecycleState(state: TabData['lifecycleState']): boolean {
+  return state === 'closing';
 }
 
 function countUserMessagesForForkTitle(messages: ChatMessage[]): number {
@@ -1191,7 +1183,7 @@ export function initializeTabControllers(
     plugin,
     component,
     dom.messagesEl,
-    (id) => tab.controllers.conversationController!.rewind(id),
+    (id, mode) => tab.controllers.conversationController!.rewind(id, mode),
     forkRequestCallback
       ? (id) => handleForkRequest(tab, plugin, id, forkRequestCallback)
       : undefined,
@@ -1360,7 +1352,7 @@ export function initializeTabControllers(
         if (tab.lifecycleState === 'blank' && tab.draftModel) {
           const derivedProvider = getEnabledProviderForModel(
             tab.draftModel,
-            plugin.settings as unknown as Record<string, unknown>,
+            plugin.settings,
           );
           tab.providerId = derivedProvider;
         }
@@ -1466,7 +1458,7 @@ export function wireTabInputEvents(tab: TabData, plugin: ClaudianPlugin): void {
       return;
     }
 
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    if (shouldSendMessageFromEnterKey(e, plugin.settings)) {
       e.preventDefault();
       void controllers.inputController?.sendMessage();
     }
@@ -1497,14 +1489,14 @@ export function wireTabInputEvents(tab: TabData, plugin: ClaudianPlugin): void {
   // Scroll listener for auto-scroll control (tracks position always, not just during streaming)
   const SCROLL_THRESHOLD = 20; // pixels from bottom to consider "at bottom"
   const RE_ENABLE_DELAY = 150; // ms to wait before re-enabling auto-scroll
-  let reEnableTimeout: ReturnType<typeof setTimeout> | null = null;
+  let reEnableTimeout: number | null = null;
 
   const isAutoScrollAllowed = (): boolean => plugin.settings.enableAutoScroll ?? true;
 
   const scrollHandler = () => {
     if (!isAutoScrollAllowed()) {
       if (reEnableTimeout) {
-        clearTimeout(reEnableTimeout);
+        window.clearTimeout(reEnableTimeout);
         reEnableTimeout = null;
       }
       state.autoScrollEnabled = false;
@@ -1517,14 +1509,14 @@ export function wireTabInputEvents(tab: TabData, plugin: ClaudianPlugin): void {
     if (!isAtBottom) {
       // Immediately disable when user scrolls up
       if (reEnableTimeout) {
-        clearTimeout(reEnableTimeout);
+        window.clearTimeout(reEnableTimeout);
         reEnableTimeout = null;
       }
       state.autoScrollEnabled = false;
     } else if (!state.autoScrollEnabled) {
       // Debounce re-enabling to avoid bounce during scroll animation
       if (!reEnableTimeout) {
-        reEnableTimeout = setTimeout(() => {
+        reEnableTimeout = window.setTimeout(() => {
           reEnableTimeout = null;
           // Re-verify position before enabling (content may have changed)
           const { scrollTop, scrollHeight, clientHeight } = dom.messagesEl;
@@ -1538,7 +1530,7 @@ export function wireTabInputEvents(tab: TabData, plugin: ClaudianPlugin): void {
   dom.messagesEl.addEventListener('scroll', scrollHandler, { passive: true });
   dom.eventCleanups.push(() => {
     dom.messagesEl.removeEventListener('scroll', scrollHandler);
-    if (reEnableTimeout) clearTimeout(reEnableTimeout);
+    if (reEnableTimeout) window.clearTimeout(reEnableTimeout);
   });
 }
 
@@ -1546,7 +1538,7 @@ export function wireTabInputEvents(tab: TabData, plugin: ClaudianPlugin): void {
  * Activates a tab (shows it and starts services).
  */
 export function activateTab(tab: TabData): void {
-  tab.dom.contentEl.style.display = 'flex';
+  tab.dom.contentEl.removeClass('claudian-hidden');
   tab.controllers.selectionController?.start();
   tab.controllers.browserSelectionController?.start();
   tab.controllers.canvasSelectionController?.start();
@@ -1558,7 +1550,7 @@ export function activateTab(tab: TabData): void {
  * Deactivates a tab (hides it and stops services).
  */
 export function deactivateTab(tab: TabData): void {
-  tab.dom.contentEl.style.display = 'none';
+  tab.dom.contentEl.addClass('claudian-hidden');
   tab.controllers.selectionController?.stop();
   tab.controllers.browserSelectionController?.stop();
   tab.controllers.canvasSelectionController?.stop();
@@ -1671,9 +1663,7 @@ export function setupServiceCallbacks(tab: TabData, plugin: ClaudianPlugin): voi
         hasRunning: tab.services.subagentManager.hasRunningSubagents(),
       })
     );
-    tab.service.setAutoTurnCallback((result: AutoTurnResult) => {
-      renderAutoTriggeredTurn(tab, result);
-    });
+    tab.service.setAutoTurnCallback((result: AutoTurnResult) => renderAutoTriggeredTurn(tab, result));
     tab.service.setPermissionModeSyncCallback((sdkMode) => {
       const mode = sdkMode === 'bypassPermissions' || sdkMode === 'yolo'
         ? 'yolo'
@@ -1701,39 +1691,108 @@ function generateMessageId(): string {
  * Renders an auto-triggered turn (e.g., agent response to task-notification)
  * that arrives after the main handler has completed.
  */
-function renderAutoTriggeredTurn(tab: TabData, result: AutoTurnResult): void {
+function isVisibleAutoTurnChunk(chunk: StreamChunk, hiddenToolIds: Set<string>): boolean {
+  switch (chunk.type) {
+    case 'text':
+      return chunk.content.trim().length > 0;
+    case 'thinking':
+    case 'notice':
+    case 'error':
+    case 'tool_output':
+    case 'context_compacted':
+    case 'subagent_tool_use':
+    case 'subagent_tool_result':
+      return true;
+    case 'tool_use':
+      return chunk.name !== TOOL_AGENT_OUTPUT;
+    case 'tool_result':
+      return !hiddenToolIds.has(chunk.id);
+    default:
+      return false;
+  }
+}
+
+function hasVisibleAutoTurnMessageContent(msg: ChatMessage): boolean {
+  if (msg.content.trim().length > 0) return true;
+  if (msg.toolCalls && msg.toolCalls.length > 0) return true;
+  return msg.contentBlocks?.some(block =>
+    block.type !== 'text' || block.content.trim().length > 0
+  ) ?? false;
+}
+
+async function renderAutoTriggeredTurn(tab: TabData, result: AutoTurnResult): Promise<void> {
   if (!tab.dom.contentEl.isConnected) {
     return;
   }
 
   const { chunks, metadata } = result;
-  const hasToolActivity = chunks.some(
-    chunk => chunk.type === 'tool_use' || chunk.type === 'tool_result'
+  if (chunks.length === 0) return;
+
+  const hiddenToolIds = new Set(
+    chunks
+      .filter((chunk): chunk is Extract<StreamChunk, { type: 'tool_use' }> =>
+        chunk.type === 'tool_use' && chunk.name === TOOL_AGENT_OUTPUT
+      )
+      .map(chunk => chunk.id)
   );
-  let textContent = '';
-
-  for (const chunk of chunks) {
-    if (chunk.type === 'text') {
-      textContent += chunk.content;
-    }
-  }
-
-  if (!textContent.trim() && !hasToolActivity) return;
-
-  const content = textContent.trim() || '(background task completed)';
+  const hasVisibleContent = chunks.some(chunk => isVisibleAutoTurnChunk(chunk, hiddenToolIds));
 
   const assistantMsg: ChatMessage = {
     id: metadata.assistantMessageId ?? generateMessageId(),
     role: 'assistant',
-    content,
+    content: '',
     timestamp: Date.now(),
-    contentBlocks: [{ type: 'text', content }],
+    toolCalls: [],
+    contentBlocks: [],
     ...(metadata.assistantMessageId && { assistantMessageId: metadata.assistantMessageId }),
   };
 
-  tab.state.addMessage(assistantMsg);
-  tab.renderer?.renderStoredMessage(assistantMsg);
-  tab.renderer?.scrollToBottom();
+  const previousContentEl = tab.state.currentContentEl;
+  const previousTextEl = tab.state.currentTextEl;
+  const previousTextContent = tab.state.currentTextContent;
+  const previousThinkingState = tab.state.currentThinkingState;
+
+  if (hasVisibleContent) {
+    tab.state.addMessage(assistantMsg);
+    const msgEl = tab.renderer?.addMessage?.(assistantMsg);
+    const contentEl = msgEl?.querySelector<HTMLElement>('.claudian-message-content');
+    if (contentEl) {
+      if (!previousContentEl) {
+        tab.state.toolCallElements.clear();
+      }
+      tab.state.currentContentEl = contentEl;
+      tab.state.currentTextEl = null;
+      tab.state.currentTextContent = '';
+      tab.state.currentThinkingState = null;
+    }
+  }
+
+  try {
+    for (const chunk of chunks) {
+      await tab.controllers.streamController?.handleStreamChunk(chunk, assistantMsg);
+    }
+
+    if (hasVisibleContent && !hasVisibleAutoTurnMessageContent(assistantMsg)) {
+      const placeholder = '(background task completed)';
+      assistantMsg.content = placeholder;
+      await tab.controllers.streamController?.appendText(placeholder);
+    }
+
+    if (hasVisibleContent) {
+      await tab.controllers.streamController?.finalizeCurrentThinkingBlock(assistantMsg);
+      await tab.controllers.streamController?.finalizeCurrentTextBlock(assistantMsg);
+    }
+  } finally {
+    if (hasVisibleContent) {
+      tab.controllers.streamController?.hideThinkingIndicator();
+      tab.services.subagentManager.resetStreamingState?.();
+      tab.state.currentContentEl = previousContentEl;
+      tab.state.currentTextEl = previousTextEl;
+      tab.state.currentTextContent = previousTextContent;
+      tab.state.currentThinkingState = previousThinkingState;
+      tab.renderer?.scrollToBottom();
+    }
+  }
 }
 
 export function updatePlanModeUI(tab: TabData, plugin: ClaudianPlugin, mode: string): void {
@@ -1746,7 +1805,7 @@ export function updatePlanModeUI(tab: TabData, plugin: ClaudianPlugin, mode: str
     snapshot.permissionMode = mode;
   }
   ProviderSettingsCoordinator.commitProviderSettingsSnapshot(
-    plugin.settings as unknown as Record<string, unknown>,
+    plugin.settings,
     providerId,
     snapshot,
   );

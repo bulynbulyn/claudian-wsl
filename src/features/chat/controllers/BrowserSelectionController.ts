@@ -16,7 +16,7 @@ export class BrowserSelectionController {
   private contextRowEl: HTMLElement;
   private onVisibilityChange: (() => void) | null;
   private storedSelection: BrowserSelectionContext | null = null;
-  private pollInterval: ReturnType<typeof setInterval> | null = null;
+  private pollInterval: number | null = null;
   private pollInFlight = false;
 
   constructor(
@@ -35,14 +35,14 @@ export class BrowserSelectionController {
 
   start(): void {
     if (this.pollInterval) return;
-    this.pollInterval = setInterval(() => {
+    this.pollInterval = window.setInterval(() => {
       void this.poll();
     }, BROWSER_SELECTION_POLL_INTERVAL);
   }
 
   stop(): void {
     if (this.pollInterval) {
-      clearInterval(this.pollInterval);
+      window.clearInterval(this.pollInterval);
       this.pollInterval = null;
     }
     this.clear();
@@ -76,7 +76,7 @@ export class BrowserSelectionController {
   }
 
   private getActiveBrowserView(): { view: ItemView; viewType: string; containerEl: HTMLElement } | null {
-    const activeLeaf = (this.app.workspace as any).activeLeaf ?? this.app.workspace.getMostRecentLeaf?.();
+    const activeLeaf = this.app.workspace.getMostRecentLeaf?.();
     const activeView = activeLeaf?.view as ItemView | undefined;
     const containerEl = (activeView as unknown as { containerEl?: HTMLElement }).containerEl;
     if (!activeView || !containerEl) return null;
@@ -129,7 +129,7 @@ export class BrowserSelectionController {
     const activeEl = doc.activeElement;
     if (!activeEl || !scopeEl.contains(activeEl)) return null;
 
-    if (activeEl instanceof HTMLTextAreaElement || activeEl instanceof HTMLInputElement) {
+    if (activeEl.instanceOf(HTMLTextAreaElement) || activeEl.instanceOf(HTMLInputElement)) {
       const { value, selectionStart, selectionEnd } = activeEl;
       if (typeof selectionStart !== 'number' || typeof selectionEnd !== 'number' || selectionStart === selectionEnd) return null;
       return value.slice(selectionStart, selectionEnd).trim() || null;
@@ -155,7 +155,7 @@ export class BrowserSelectionController {
   }
 
   private async extractSelectionFromWebviews(containerEl: HTMLElement): Promise<string | null> {
-    const webviews = Array.from(containerEl.querySelectorAll('webview')) as BrowserLikeWebview[];
+    const webviews = Array.from(containerEl.querySelectorAll<BrowserLikeWebview>('webview'));
     for (const webview of webviews) {
       if (typeof webview.executeJavaScript !== 'function') continue;
       try {
@@ -214,7 +214,7 @@ export class BrowserSelectionController {
       }
     }
 
-    const embeddableEl = containerEl.querySelector('iframe[src], webview[src]') as HTMLElement | null;
+    const embeddableEl = containerEl.querySelector<HTMLElement>('iframe[src], webview[src]');
     const embeddedSrc = embeddableEl?.getAttribute('src');
     if (embeddedSrc?.trim()) {
       return embeddedSrc.trim();
@@ -235,7 +235,7 @@ export class BrowserSelectionController {
   }
 
   private clearWhenInputIsNotFocused(): void {
-    if (document.activeElement === this.inputEl) return;
+    if (this.inputEl.ownerDocument.activeElement === this.inputEl) return;
     if (this.storedSelection) {
       this.storedSelection = null;
       this.updateIndicator();
@@ -250,9 +250,9 @@ export class BrowserSelectionController {
       const lineLabel = lineCount === 1 ? 'line' : 'lines';
       this.indicatorEl.textContent = `${lineCount} ${lineLabel} selected`;
       this.indicatorEl.setAttribute('title', this.buildIndicatorTitle());
-      this.indicatorEl.style.display = 'block';
+      this.indicatorEl.removeClass('claudian-hidden');
     } else {
-      this.indicatorEl.style.display = 'none';
+      this.indicatorEl.addClass('claudian-hidden');
       this.indicatorEl.textContent = '';
       this.indicatorEl.removeAttribute('title');
     }

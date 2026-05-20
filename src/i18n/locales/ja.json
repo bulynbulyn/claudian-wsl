@@ -24,10 +24,15 @@
   "chat": {
     "rewind": {
       "confirmMessage": "この時点に巻き戻しますか？このメッセージ以降のファイル変更が元に戻されます。手動またはbashで編集されたファイルには影響しません。",
+      "confirmMessageConversationOnly": "会話をこの時点に巻き戻しますか？ファイル変更は保持されます。",
       "confirmButton": "巻き戻す",
       "ariaLabel": "ここに巻き戻す",
+      "menuConversationOnly": "会話のみ巻き戻す",
+      "menuCodeAndConversation": "コード + 会話を巻き戻す",
       "notice": "巻き戻し完了：{count} 個のファイルを復元",
+      "noticeConversationOnly": "会話を巻き戻しました。ファイル変更は保持されました",
       "noticeSaveFailed": "巻き戻し完了：{count} 個のファイルを復元しましたが、状態を保存できませんでした：{error}",
+      "noticeConversationOnlySaveFailed": "会話を巻き戻しましたが、状態を保存できませんでした：{error}",
       "failed": "巻き戻しに失敗：{error}",
       "cannot": "巻き戻しできません：{error}",
       "unavailableStreaming": "ストリーミング中は巻き戻しできません",
@@ -106,6 +111,10 @@
     "navMappings": {
       "name": "Vimスタイルナビゲーションマッピング",
       "desc": "1行に1つのマッピング。形式：\"map <キー> <アクション>\"（アクション：scrollUp, scrollDown, focusInput）。"
+    },
+    "requireCommandOrControlEnterToSend": {
+      "name": "送信に Command/Ctrl+Enter を必須にする",
+      "desc": "有効にすると、Enter は改行を挿入します。macOS では Command+Enter、Windows と Linux では Ctrl+Enter で送信します。"
     },
     "hotkeys": "ホットキー",
     "inlineEditHotkey": {
@@ -279,9 +288,16 @@
       "name": "ストリーミング中の自動スクロール",
       "desc": "Claudeが応答をストリーミングしている間、自動的に下にスクロールします。無効にすると上部に留まり、最初から読むことができます。"
     },
-    "openInMainTab": {
-      "name": "メインエディタ領域で開く",
-      "desc": "チャットパネルを右サイドバーではなく、中央エディタ領域のメインタブとして開きます"
+    "deferMathRenderingDuringStreaming": {
+      "name": "ストリーミング中の数式レンダリングを遅延",
+      "desc": "応答のストリーミング中は生の LaTeX を表示し、各テキストブロックの完了時に一度だけ数式をレンダリングします。"
+    },
+    "chatViewPlacement": {
+      "name": "Claudian を開く場所",
+      "desc": "チャットパネルを作成するときに開く場所を選択します",
+      "rightSidebar": "右サイドバー",
+      "leftSidebar": "左サイドバー",
+      "mainTab": "メインエディタタブ"
     },
     "cliPath": {
       "name": "Claude CLI パス",

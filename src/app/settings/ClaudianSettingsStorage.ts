@@ -12,12 +12,14 @@ import {
   resolveEnvironmentSnippetScope,
 } from '../../core/providers/providerEnvironment';
 import type { VaultFileAdapter } from '../../core/storage/VaultFileAdapter';
-import type {
-  ClaudianSettings,
-  EnvironmentScope,
-  EnvSnippet,
-  HiddenProviderCommands,
-  ProviderConfigMap,
+import {
+  CHAT_VIEW_PLACEMENTS,
+  type ChatViewPlacement,
+  type ClaudianSettings,
+  type EnvironmentScope,
+  type EnvSnippet,
+  type HiddenProviderCommands,
+  type ProviderConfigMap,
 } from '../../core/types/settings';
 import {
   getClaudeProviderSettings,
@@ -27,6 +29,10 @@ import {
   getCodexProviderSettings,
   updateCodexProviderSettings,
 } from '../../providers/codex/settings';
+import {
+  getOpencodeProviderSettings,
+  updateOpencodeProviderSettings,
+} from '../../providers/opencode/settings';
 import { DEFAULT_CLAUDIAN_SETTINGS } from './defaultSettings';
 
 export {
@@ -56,36 +62,56 @@ const LEGACY_TOP_LEVEL_PROVIDER_FIELDS = [
   'lastCodexEnvHash',
 ] as const;
 
+const LEGACY_STRIPPED_SETTING_FIELDS = [
+  'activeConversationId',
+  'show1MModel',
+  'hiddenSlashCommands',
+  'slashCommands',
+  'allowExternalAccess',
+  'allowedExportPaths',
+  'enableBlocklist',
+  'blockedCommands',
+  ...LEGACY_TOP_LEVEL_PROVIDER_FIELDS,
+  'openInMainTab',
+] as const;
+
 function stripLegacyFields(settings: Record<string, unknown>): Record<string, unknown> {
-  const {
-    activeConversationId: _activeConversationId,
-    show1MModel: _show1MModel,
-    hiddenSlashCommands: _hiddenSlashCommands,
-    slashCommands: _slashCommands,
-    allowExternalAccess: _allowExternalAccess,
-    allowedExportPaths: _allowedExportPaths,
-    enableBlocklist: _enableBlocklist,
-    blockedCommands: _blockedCommands,
-    claudeSafeMode: _claudeSafeMode,
-    codexSafeMode: _codexSafeMode,
-    claudeCliPath: _claudeCliPath,
-    claudeCliPathsByHost: _claudeCliPathsByHost,
-    codexCliPath: _codexCliPath,
-    codexCliPathsByHost: _codexCliPathsByHost,
-    codexReasoningSummary: _codexReasoningSummary,
-    loadUserClaudeSettings: _loadUserClaudeSettings,
-    codexEnabled: _codexEnabled,
-    lastClaudeModel: _lastClaudeModel,
-    enableChrome: _enableChrome,
-    enableBangBash: _enableBangBash,
-    enableOpus1M: _enableOpus1M,
-    enableSonnet1M: _enableSonnet1M,
-    environmentVariables: _environmentVariables,
-    lastEnvHash: _lastEnvHash,
-    lastCodexEnvHash: _lastCodexEnvHash,
-    ...cleaned
-  } = settings;
+  const cleaned = { ...settings };
+  for (const key of LEGACY_STRIPPED_SETTING_FIELDS) {
+    delete cleaned[key];
+  }
   return cleaned;
+}
+
+function isChatViewPlacement(value: unknown): value is ChatViewPlacement {
+  return typeof value === 'string'
+    && (CHAT_VIEW_PLACEMENTS as readonly string[]).includes(value);
+}
+
+function normalizeChatViewPlacement(
+  value: unknown,
+  legacyOpenInMainTab: unknown,
+): ChatViewPlacement {
+  if (isChatViewPlacement(value)) {
+    return value;
+  }
+
+  if (typeof legacyOpenInMainTab === 'boolean') {
+    return legacyOpenInMainTab ? 'main-tab' : 'right-sidebar';
+  }
+
+  return DEFAULT_CLAUDIAN_SETTINGS.chatViewPlacement;
+}
+
+function shouldPersistChatViewPlacementMigration(
+  stored: Record<string, unknown>,
+  normalized: ChatViewPlacement,
+): boolean {
+  return 'openInMainTab' in stored
+    || (
+      'chatViewPlacement' in stored
+      && stored.chatViewPlacement !== normalized
+    );
 }
 
 function normalizeProviderConfigs(value: unknown): ProviderConfigMap {
@@ -100,6 +126,41 @@ function normalizeProviderConfigs(value: unknown): ProviderConfigMap {
     }
   }
   return result;
+}
+
+const HOST_SCOPED_PROVIDER_CONFIG_FIELDS: Record<string, string[]> = {
+  claude: ['cliPathsByHost'],
+  codex: ['cliPathsByHost', 'installationMethodsByHost', 'wslDistroOverridesByHost'],
+  opencode: ['cliPathsByHost'],
+};
+
+function hasHostScopedProviderConfigNormalization(
+  original: ProviderConfigMap,
+  normalized: unknown,
+): boolean {
+  if (!normalized || typeof normalized !== 'object' || Array.isArray(normalized)) {
+    return false;
+  }
+
+  const normalizedConfigs = normalized as ProviderConfigMap;
+  for (const [providerId, fields] of Object.entries(HOST_SCOPED_PROVIDER_CONFIG_FIELDS)) {
+    const originalConfig = original[providerId];
+    const normalizedConfig = normalizedConfigs[providerId];
+    if (!originalConfig || !normalizedConfig) {
+      continue;
+    }
+
+    for (const field of fields) {
+      if (
+        field in originalConfig
+        && JSON.stringify(originalConfig[field]) !== JSON.stringify(normalizedConfig[field])
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 function isEnvironmentScope(value: unknown): value is EnvironmentScope {
@@ -196,6 +257,10 @@ export class ClaudianSettingsStorage {
     );
     const envSnippets = normalizeEnvSnippets(stored.envSnippets);
     const providerConfigs = normalizeProviderConfigs(stored.providerConfigs);
+    const chatViewPlacement = normalizeChatViewPlacement(
+      stored.chatViewPlacement,
+      stored.openInMainTab,
+    );
     const legacyProviderSettings = {
       ...stored,
       hiddenProviderCommands,
@@ -211,20 +276,29 @@ export class ClaudianSettingsStorage {
       envSnippets,
       hiddenProviderCommands,
       providerConfigs,
+      chatViewPlacement,
     };
 
     const merged = {
       ...this.getDefaults(),
       ...legacyNormalized,
-    } as StoredClaudianSettings;
+    };
 
     updateClaudeProviderSettings(
-      merged as unknown as Record<string, unknown>,
+      merged,
       getClaudeProviderSettings(legacyProviderSettings),
     );
     updateCodexProviderSettings(
-      merged as unknown as Record<string, unknown>,
+      merged,
       getCodexProviderSettings(legacyProviderSettings),
+    );
+    updateOpencodeProviderSettings(
+      merged,
+      getOpencodeProviderSettings(legacyProviderSettings),
+    );
+    const didNormalizeHostScopedProviderConfigs = hasHostScopedProviderConfigNormalization(
+      providerConfigs,
+      merged.providerConfigs,
     );
 
     if (
@@ -239,7 +313,9 @@ export class ClaudianSettingsStorage {
       || 'allowedExportPaths' in stored
       || 'enableBlocklist' in stored
       || 'blockedCommands' in stored
+      || shouldPersistChatViewPlacementMigration(stored, chatViewPlacement)
       || JSON.stringify(envSnippets) !== JSON.stringify(stored.envSnippets ?? [])
+      || didNormalizeHostScopedProviderConfigs
       )
     ) {
       await this.save(merged);
@@ -250,7 +326,7 @@ export class ClaudianSettingsStorage {
 
   async save(settings: StoredClaudianSettings): Promise<void> {
     const content = JSON.stringify(
-      stripLegacyFields(settings as unknown as Record<string, unknown>),
+      stripLegacyFields(settings),
       null,
       2,
     );
@@ -279,7 +355,7 @@ export class ClaudianSettingsStorage {
 
     const current = await this.load();
     updateClaudeProviderSettings(
-      current as unknown as Record<string, unknown>,
+      current,
       { lastModel: model },
     );
     await this.save(current);
@@ -288,7 +364,7 @@ export class ClaudianSettingsStorage {
   async setLastEnvHash(hash: string): Promise<void> {
     const current = await this.load();
     updateClaudeProviderSettings(
-      current as unknown as Record<string, unknown>,
+      current,
       { environmentHash: hash },
     );
     await this.save(current);

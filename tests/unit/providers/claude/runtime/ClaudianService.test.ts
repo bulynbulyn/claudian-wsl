@@ -1170,6 +1170,55 @@ describe('ClaudianService', () => {
       expect(onChunk).toHaveBeenCalled();
     });
 
+    it('should route task_notification completion to the active handler', async () => {
+      await (service as any).routeMessage({
+        type: 'system',
+        subtype: 'task_notification',
+        task_id: 'agent-123',
+        status: 'completed',
+        output_file: '/tmp/agent-123.output',
+        summary: 'Agent completed successfully.',
+        uuid: 'notification-1',
+        session_id: 'session-1',
+      });
+
+      expect(onChunk).toHaveBeenCalledWith({
+        type: 'async_subagent_result',
+        agentId: 'agent-123',
+        status: 'completed',
+        result: 'Agent completed successfully.',
+      });
+    });
+
+    it('should flush task_notification completion through auto-turn callback without waiting for a result message', async () => {
+      (service as any).responseHandlers = [];
+      const autoTurnCallback = jest.fn();
+      service.setAutoTurnCallback(autoTurnCallback);
+
+      await (service as any).routeMessage({
+        type: 'system',
+        subtype: 'task_notification',
+        task_id: 'agent-456',
+        status: 'completed',
+        output_file: '/tmp/agent-456.output',
+        summary: 'Background agent finished.',
+        uuid: 'notification-2',
+        session_id: 'session-1',
+      });
+
+      expect(autoTurnCallback).toHaveBeenCalledWith({
+        chunks: [
+          {
+            type: 'async_subagent_result',
+            agentId: 'agent-456',
+            status: 'completed',
+            result: 'Background agent finished.',
+          },
+        ],
+        metadata: {},
+      });
+    });
+
     it('should route tool input deltas as tool_use updates', async () => {
       await (service as any).routeMessage({
         type: 'stream_event',
@@ -1519,14 +1568,22 @@ describe('ClaudianService', () => {
       expect(mockPersistentQuery.setModel).not.toHaveBeenCalled();
     });
 
-    it('should update thinking tokens when changed', async () => {
-      // Initial budget is 0 (not a valid ThinkingBudget value) → tokens = null
-      // Change to 'high' → tokens = 16000 (different from null → triggers update)
+    it('should restart when fixed thinking tokens change', async () => {
+      (mockPlugin as any).settings.model = 'custom-model';
+      (service as any).currentConfig = (service as any).buildPersistentQueryConfig(
+        '/mock/vault/path',
+        '/usr/local/bin/claude',
+        [],
+      );
       (mockPlugin as any).settings.thinkingBudget = 'high';
+      const ensureReadySpy = jest.spyOn(service, 'ensureReady').mockResolvedValue(true);
 
       await (service as any).applyDynamicUpdates({});
 
-      expect(mockPersistentQuery.setMaxThinkingTokens).toHaveBeenCalledWith(16000);
+      expect(mockPersistentQuery.setMaxThinkingTokens).not.toHaveBeenCalled();
+      expect(ensureReadySpy).toHaveBeenCalledWith(
+        expect.objectContaining({ force: true }),
+      );
     });
 
     it('should update effort level when changed for adaptive models', async () => {
@@ -1564,11 +1621,10 @@ describe('ClaudianService', () => {
       (mockPlugin as any).settings.model = 'sonnet';
       (mockPlugin as any).settings.effortLevel = 'max';
 
+      const previousQuery = mockPersistentQuery;
       await (service as any).applyDynamicUpdates({});
 
-      expect(mockPersistentQuery.setModel).toHaveBeenCalledWith('sonnet');
-      expect(mockPersistentQuery.setMaxThinkingTokens).toHaveBeenCalledWith(null);
-      expect(mockPersistentQuery.applyFlagSettings).toHaveBeenCalledWith({ effortLevel: 'max' });
+      expect(previousQuery.setMaxThinkingTokens).not.toHaveBeenCalled();
       expect((service as any).currentConfig.thinkingTokens).toBeNull();
       expect((service as any).currentConfig.effortLevel).toBe('max');
     });
@@ -1589,10 +1645,10 @@ describe('ClaudianService', () => {
 
       (mockPlugin as any).settings.model = 'custom-model';
 
+      const previousQuery = mockPersistentQuery;
       await (service as any).applyDynamicUpdates({});
 
-      expect(mockPersistentQuery.setModel).toHaveBeenCalledWith('custom-model');
-      expect(mockPersistentQuery.setMaxThinkingTokens).toHaveBeenCalledWith(16000);
+      expect(previousQuery.setMaxThinkingTokens).not.toHaveBeenCalled();
       expect((service as any).currentConfig.thinkingTokens).toBe(16000);
       expect((service as any).currentConfig.effortLevel).toBeNull();
     });
@@ -1733,11 +1789,21 @@ describe('ClaudianService', () => {
       await expect((service as any).applyDynamicUpdates({ model: 'claude-3-opus' })).resolves.toBeUndefined();
     });
 
-    it('should silently handle thinking tokens update error', async () => {
-      (mockPlugin as any).settings.thinkingBudget = 5000;
-      mockPersistentQuery.setMaxThinkingTokens.mockRejectedValueOnce(new Error('Thinking error'));
+    it('should not dynamically update fixed thinking tokens', async () => {
+      (mockPlugin as any).settings.model = 'custom-model';
+      (service as any).currentConfig = (service as any).buildPersistentQueryConfig(
+        '/mock/vault/path',
+        '/usr/local/bin/claude',
+        [],
+      );
+      (mockPlugin as any).settings.thinkingBudget = 'high';
+      const ensureReadySpy = jest.spyOn(service, 'ensureReady').mockResolvedValue(true);
 
       await expect((service as any).applyDynamicUpdates({})).resolves.toBeUndefined();
+      expect(mockPersistentQuery.setMaxThinkingTokens).not.toHaveBeenCalled();
+      expect(ensureReadySpy).toHaveBeenCalledWith(
+        expect.objectContaining({ force: true }),
+      );
     });
 
     it('should silently handle permission mode update error', async () => {
@@ -3457,6 +3523,22 @@ describe('ClaudianService', () => {
   });
 
   describe('rewind', () => {
+    it('conversation-only mode skips SDK file rewind and prepares resume checkpoint', async () => {
+      const mockRewindFiles = jest.fn();
+      const mockInterrupt = jest.fn().mockResolvedValue(undefined);
+      (service as any).persistentQuery = { rewindFiles: mockRewindFiles, interrupt: mockInterrupt };
+      (service as any).messageChannel = { close: jest.fn() };
+      (service as any).queryAbortController = { abort: jest.fn() };
+      (service as any).shuttingDown = false;
+
+      const result = await service.rewind('user-uuid', 'assistant-uuid', 'conversation');
+
+      expect(mockRewindFiles).not.toHaveBeenCalled();
+      expect(result).toEqual({ canRewind: true, filesChanged: [] });
+      expect((service as any).pendingResumeAt).toBe('assistant-uuid');
+      expect((service as any).persistentQuery).toBeNull();
+    });
+
     it('dry-runs first to capture filesChanged, then performs actual rewind', async () => {
       // SDK only returns filesChanged on dry run, not on actual rewind
       const mockRewindFiles = jest.fn()

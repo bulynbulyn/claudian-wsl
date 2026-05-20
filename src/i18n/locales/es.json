@@ -24,10 +24,15 @@
   "chat": {
     "rewind": {
       "confirmMessage": "¿Rebobinar a este punto? Los cambios de archivos después de este mensaje serán revertidos. El rebobinado no afecta archivos editados manualmente o mediante bash.",
+      "confirmMessageConversationOnly": "¿Rebobinar la conversación hasta este punto? Se conservarán los cambios de archivos.",
       "confirmButton": "Rebobinar",
       "ariaLabel": "Rebobinar hasta aquí",
+      "menuConversationOnly": "Rebobinar solo conversación",
+      "menuCodeAndConversation": "Rebobinar código + conversación",
       "notice": "Rebobinado: {count} archivo(s) revertido(s)",
+      "noticeConversationOnly": "Conversación rebobinada; cambios de archivos conservados",
       "noticeSaveFailed": "Rebobinado: {count} archivo(s) revertido(s), pero no se pudo guardar el estado: {error}",
+      "noticeConversationOnlySaveFailed": "Conversación rebobinada, pero no se pudo guardar el estado: {error}",
       "failed": "Error al rebobinar: {error}",
       "cannot": "No se puede rebobinar: {error}",
       "unavailableStreaming": "No se puede rebobinar durante la transmisión",
@@ -106,6 +111,10 @@
     "navMappings": {
       "name": "Mapeos de navegación estilo Vim",
       "desc": "Un mapeo por línea. Formato: \"map <tecla> <acción>\" (acciones: scrollUp, scrollDown, focusInput)."
+    },
+    "requireCommandOrControlEnterToSend": {
+      "name": "Requerir Command/Ctrl+Enter para enviar",
+      "desc": "Cuando está activado, Enter inserta un salto de línea. Command+Enter envía en macOS; Ctrl+Enter envía en Windows y Linux."
     },
     "hotkeys": "Atajos de teclado",
     "inlineEditHotkey": {
@@ -279,9 +288,16 @@
       "name": "Desplazamiento automático durante streaming",
       "desc": "Desplazarse automáticamente hacia abajo mientras Claude transmite respuestas. Desactivar para quedarse arriba y leer desde el principio."
     },
-    "openInMainTab": {
-      "name": "Abrir en área de editor principal",
-      "desc": "Abrir el panel de chat como una pestaña principal en el área de editor central en lugar de la barra lateral derecha"
+    "deferMathRenderingDuringStreaming": {
+      "name": "Diferir renderizado matemático durante streaming",
+      "desc": "Mostrar LaTeX sin procesar mientras se transmite la respuesta y renderizar las fórmulas una vez al completar cada bloque de texto."
+    },
+    "chatViewPlacement": {
+      "name": "Abrir Claudian en",
+      "desc": "Elige dónde se abre el panel de chat cuando se crea",
+      "rightSidebar": "Barra lateral derecha",
+      "leftSidebar": "Barra lateral izquierda",
+      "mainTab": "Pestaña del editor principal"
     },
     "cliPath": {
       "name": "Ruta CLI Claude",

@@ -61,6 +61,45 @@ jest.mock('@/utils/path', () => ({
   getVaultPath: jest.fn().mockReturnValue('/test/vault'),
 }));
 
+const originalWindow = (globalThis as { window?: Window }).window;
+
+function installTestWindow(): void {
+  const testWindow = {
+    requestAnimationFrame: (callback: FrameRequestCallback): number =>
+      globalThis.setTimeout(() => callback(performance.now()), 16) as unknown as number,
+    cancelAnimationFrame: (handle: number): void => {
+      globalThis.clearTimeout(handle as unknown as ReturnType<typeof setTimeout>);
+    },
+    setTimeout: (callback: () => void, timeout: number): number =>
+      globalThis.setTimeout(callback, timeout) as unknown as number,
+    clearTimeout: (handle: number): void => {
+      globalThis.clearTimeout(handle as unknown as ReturnType<typeof setTimeout>);
+    },
+    setInterval: (callback: () => void, timeout: number): number =>
+      globalThis.setInterval(callback, timeout) as unknown as number,
+    clearInterval: (handle: number): void => {
+      globalThis.clearInterval(handle as unknown as ReturnType<typeof setInterval>);
+    },
+  } as Window;
+
+  Object.defineProperty(globalThis, 'window', {
+    value: testWindow,
+    configurable: true,
+  });
+}
+
+function restoreTestWindow(): void {
+  if (originalWindow === undefined) {
+    delete (globalThis as { window?: Window }).window;
+    return;
+  }
+
+  Object.defineProperty(globalThis, 'window', {
+    value: originalWindow,
+    configurable: true,
+  });
+}
+
 function createMockDeps(): StreamControllerDeps {
   const state = new ChatState();
   const messagesEl = createMockEl();
@@ -105,6 +144,7 @@ function createMockDeps(): StreamControllerDeps {
       isLinkedAgentOutputTool: jest.fn().mockReturnValue(false),
       handleAgentOutputToolResult: jest.fn().mockReturnValue(undefined),
       handleAgentOutputToolUse: jest.fn(),
+      handleAsyncSubagentResult: jest.fn().mockReturnValue(undefined),
       handleTaskToolUse: jest.fn().mockReturnValue({ action: 'buffered' }),
       handleTaskToolResult: jest.fn(),
       refreshAsyncSubagent: jest.fn(),
@@ -157,6 +197,7 @@ describe('StreamController - Text Content', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    installTestWindow();
     deps = createMockDeps();
     controller = new StreamController(deps);
     deps.state.currentContentEl = createMockEl();
@@ -165,6 +206,7 @@ describe('StreamController - Text Content', () => {
   afterEach(() => {
     // Clean up any timers set by ChatState
     deps.state.resetStreamingState();
+    restoreTestWindow();
     jest.useRealTimers();
   });
 
@@ -210,6 +252,36 @@ describe('StreamController - Text Content', () => {
       );
     });
 
+    it('should defer math rendering during live text renders', async () => {
+      deps.state.currentTextEl = createMockEl();
+
+      await controller.appendText('Euler: $e^{i\\pi} + 1 = 0$');
+
+      jest.advanceTimersByTime(16);
+      await Promise.resolve();
+
+      expect(deps.renderer.renderContent).toHaveBeenCalledWith(
+        deps.state.currentTextEl,
+        'Euler: $e^{i\\pi} + 1 = 0$',
+        { deferMath: true }
+      );
+    });
+
+    it('should honor disabled deferred math rendering setting during live text renders', async () => {
+      (deps.plugin.settings as any).deferMathRenderingDuringStreaming = false;
+      deps.state.currentTextEl = createMockEl();
+
+      await controller.appendText('Euler: $e^{i\\pi} + 1 = 0$');
+
+      jest.advanceTimersByTime(16);
+      await Promise.resolve();
+
+      expect(deps.renderer.renderContent).toHaveBeenCalledWith(
+        deps.state.currentTextEl,
+        'Euler: $e^{i\\pi} + 1 = 0$'
+      );
+    });
+
     it('should flush a pending text render before finalizing text', async () => {
       const msg = createTestMessage();
 
@@ -228,6 +300,29 @@ describe('StreamController - Text Content', () => {
         type: 'text',
         content: 'Hello',
       });
+    });
+
+    it('should render original math once when finalizing a deferred text block', async () => {
+      const msg = createTestMessage();
+
+      await controller.appendText('Final $x^2$');
+      await controller.finalizeCurrentTextBlock(msg);
+
+      expect(deps.renderer.renderContent).toHaveBeenNthCalledWith(
+        1,
+        expect.anything(),
+        'Final $x^2$',
+        { deferMath: true }
+      );
+      expect(deps.renderer.renderContent).toHaveBeenNthCalledWith(
+        2,
+        expect.anything(),
+        'Final $x^2$'
+      );
+      expect(deps.renderer.addTextCopyButton).toHaveBeenCalledWith(
+        expect.anything(),
+        'Final $x^2$'
+      );
     });
   });
 
@@ -842,6 +937,47 @@ describe('StreamController - Text Content', () => {
       expect(deps.state.flavorTimerInterval).toBeNull();
     });
 
+    it('uses the content owner window for thinking timers', () => {
+      const ownerSetTimeout = jest.fn<ReturnType<Window['setTimeout']>, Parameters<Window['setTimeout']>>(
+        (callback, timeout) => globalThis.setTimeout(callback, timeout) as unknown as number,
+      );
+      const ownerClearTimeout = jest.fn<void, [number]>((handle) => {
+        globalThis.clearTimeout(handle as unknown as ReturnType<typeof setTimeout>);
+      });
+      const ownerSetInterval = jest.fn<ReturnType<Window['setInterval']>, Parameters<Window['setInterval']>>(
+        (callback, timeout) => globalThis.setInterval(callback, timeout) as unknown as number,
+      );
+      const ownerClearInterval = jest.fn<void, [number]>((handle) => {
+        globalThis.clearInterval(handle as unknown as ReturnType<typeof setInterval>);
+      });
+      const ownerWindow = {
+        ...deps.state.currentContentEl!.ownerDocument.defaultView,
+        setTimeout: ownerSetTimeout,
+        clearTimeout: ownerClearTimeout,
+        setInterval: ownerSetInterval,
+        clearInterval: ownerClearInterval,
+      };
+      Object.defineProperty(deps.state.currentContentEl!.ownerDocument, 'defaultView', {
+        configurable: true,
+        value: ownerWindow,
+      });
+
+      deps.state.responseStartTime = performance.now();
+
+      controller.showThinkingIndicator();
+      expect(ownerSetTimeout).toHaveBeenCalledWith(expect.any(Function), 400);
+
+      controller.hideThinkingIndicator();
+      expect(ownerClearTimeout).toHaveBeenCalled();
+
+      controller.showThinkingIndicator();
+      jest.advanceTimersByTime(500);
+      expect(ownerSetInterval).toHaveBeenCalledWith(expect.any(Function), 1000);
+
+      controller.hideThinkingIndicator();
+      expect(ownerClearInterval).toHaveBeenCalled();
+    });
+
     it('should clear timer interval in resetStreamingState', () => {
       deps.state.responseStartTime = performance.now();
 
@@ -1252,6 +1388,61 @@ describe('StreamController - Text Content', () => {
       expect(deps.renderer.renderContent).toHaveBeenCalledWith(contentEl, 'Let me think');
     });
 
+    it('should defer math rendering during live thinking renders', async () => {
+      const { createThinkingBlock } = jest.requireMock('@/features/chat/rendering/ThinkingBlockRenderer');
+      const msg = createTestMessage();
+      const contentEl = createMockEl();
+      createThinkingBlock.mockReturnValueOnce({
+        wrapperEl: createMockEl(),
+        contentEl,
+        labelEl: createMockEl(),
+        content: '',
+        startTime: Date.now(),
+      });
+
+      await controller.handleStreamChunk({ type: 'thinking', content: 'Reasoning $x^2$' }, msg);
+
+      jest.advanceTimersByTime(16);
+      await Promise.resolve();
+
+      expect(deps.renderer.renderContent).toHaveBeenCalledWith(
+        contentEl,
+        'Reasoning $x^2$',
+        { deferMath: true }
+      );
+    });
+
+    it('should render original math once when finalizing a deferred thinking block', async () => {
+      const { createThinkingBlock } = jest.requireMock('@/features/chat/rendering/ThinkingBlockRenderer');
+      const msg = createTestMessage();
+      const contentEl = createMockEl();
+      createThinkingBlock.mockReturnValueOnce({
+        wrapperEl: createMockEl(),
+        contentEl,
+        labelEl: createMockEl(),
+        content: '',
+        startTime: Date.now(),
+      });
+
+      await controller.handleStreamChunk({ type: 'thinking', content: 'Reasoning $x^2$' }, msg);
+      await controller.finalizeCurrentThinkingBlock(msg);
+
+      expect(deps.renderer.renderContent).toHaveBeenNthCalledWith(
+        1,
+        contentEl,
+        'Reasoning $x^2$',
+        { deferMath: true }
+      );
+      expect(deps.renderer.renderContent).toHaveBeenNthCalledWith(
+        2,
+        contentEl,
+        'Reasoning $x^2$'
+      );
+      expect(msg.contentBlocks).toContainEqual(
+        expect.objectContaining({ type: 'thinking', content: 'Reasoning $x^2$' })
+      );
+    });
+
     it('should flush a pending thinking render before finalizing', async () => {
       const msg = createTestMessage();
 
@@ -1562,6 +1753,47 @@ describe('StreamController - Text Content', () => {
         { foo: 'bar' }
       );
       expect(updateToolCallResult).not.toHaveBeenCalled();
+    });
+
+    it('async_subagent_result finalizes and hydrates the matching background subagent', async () => {
+      const runtime = deps.getAgentService!() as any;
+      const msg = createTestMessage();
+      deps.state.currentContentEl = createMockEl();
+      const completedSubagent = {
+        id: 'task-1',
+        description: 'Background task',
+        prompt: 'Do work',
+        mode: 'async',
+        status: 'completed',
+        toolCalls: [],
+        isExpanded: false,
+        asyncStatus: 'completed',
+        agentId: 'agent-1',
+        result: 'Notification summary',
+      };
+
+      (deps.subagentManager.handleAsyncSubagentResult as jest.Mock).mockReturnValueOnce(completedSubagent);
+      runtime.loadSubagentFinalResult.mockResolvedValueOnce('Recovered final result');
+
+      await controller.handleStreamChunk(
+        {
+          type: 'async_subagent_result',
+          agentId: 'agent-1',
+          status: 'completed',
+          result: 'Notification summary',
+        } as any,
+        msg
+      );
+
+      expect(deps.subagentManager.handleAsyncSubagentResult).toHaveBeenCalledWith(
+        'agent-1',
+        'completed',
+        'Notification summary'
+      );
+      expect(runtime.loadSubagentToolCalls).toHaveBeenCalledWith('agent-1');
+      expect(runtime.loadSubagentFinalResult).toHaveBeenCalledWith('agent-1');
+      expect(completedSubagent.result).toBe('Recovered final result');
+      expect(deps.subagentManager.refreshAsyncSubagent).toHaveBeenCalledWith(completedSubagent);
     });
 
     it('hydrates async subagent tool calls from sidecar during streaming completion', async () => {
@@ -2023,10 +2255,11 @@ describe('StreamController - Text Content', () => {
       // Advance fake clock so performance.now() returns non-zero
       jest.advanceTimersByTime(1);
       deps.state.responseStartTime = performance.now();
-      const clearIntervalSpy = jest.spyOn(global, 'clearInterval');
+      const activeWindow = deps.state.currentContentEl!.ownerDocument.defaultView!;
+      const clearIntervalSpy = jest.spyOn(activeWindow, 'clearInterval');
 
       // Manually set a pre-existing interval
-      deps.state.flavorTimerInterval = setInterval(() => {}, 9999) as unknown as ReturnType<typeof setInterval>;
+      deps.state.setFlavorTimerInterval(activeWindow.setInterval(() => {}, 9999), activeWindow);
 
       controller.showThinkingIndicator();
       jest.advanceTimersByTime(500);
@@ -2087,6 +2320,7 @@ describe('StreamController - Plan Mode', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    installTestWindow();
     deps = createMockDeps();
     controller = new StreamController(deps);
     deps.state.currentContentEl = createMockEl();
@@ -2094,6 +2328,7 @@ describe('StreamController - Plan Mode', () => {
 
   afterEach(() => {
     deps.state.resetStreamingState();
+    restoreTestWindow();
     jest.useRealTimers();
   });
 

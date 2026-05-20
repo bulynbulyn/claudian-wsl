@@ -4,7 +4,7 @@ patchSetMaxListenersForElectron();
 
 import './providers';
 
-import type { Editor } from 'obsidian';
+import type { Editor, WorkspaceLeaf } from 'obsidian';
 import { MarkdownView, Notice, Plugin } from 'obsidian';
 
 import { DEFAULT_CLAUDIAN_SETTINGS } from './app/settings/defaultSettings';
@@ -29,7 +29,7 @@ import type {
 import {
   VIEW_TYPE_CLAUDIAN,
 } from './core/types';
-import type { EnvironmentScope } from './core/types/settings';
+import type { ChatViewPlacement, EnvironmentScope } from './core/types/settings';
 import { ClaudianView } from './features/chat/ClaudianView';
 import { type InlineEditContext, InlineEditModal } from './features/inline-edit/ui/InlineEditModal';
 import { ClaudianSettingTab } from './features/settings/ClaudianSettings';
@@ -37,7 +37,14 @@ import { setLocale } from './i18n/i18n';
 import type { Locale } from './i18n/types';
 import { OPENCODE_PLAN_MODE_ID, OPENCODE_SAFE_MODE_ID } from './providers/opencode/modes';
 import { buildCursorContext } from './utils/editor';
+import { revealWorkspaceLeaf } from './utils/obsidianCompat';
 import { getVaultPath } from './utils/path';
+
+function isClaudianView(value: unknown): value is ClaudianView {
+  return !!value
+    && typeof value === 'object'
+    && typeof (value as { getTabManager?: unknown }).getTabManager === 'function';
+}
 
 export default class ClaudianPlugin extends Plugin {
   settings!: ClaudianSettings;
@@ -55,14 +62,14 @@ export default class ClaudianPlugin extends Plugin {
     );
 
     this.addRibbonIcon('bot', 'Open Claudian WSL', () => {
-      this.activateView();
+      void this.activateView();
     });
 
     this.addCommand({
       id: 'open-view',
       name: 'Open chat view',
       callback: () => {
-        this.activateView();
+        void this.activateView();
       },
     });
 
@@ -74,7 +81,7 @@ export default class ClaudianPlugin extends Plugin {
           ? ctx
           : this.app.workspace.getActiveViewOfType(MarkdownView);
         if (!view) {
-          new Notice('Inline edit unavailable: could not access the active markdown view.');
+          new Notice('Inline edit unavailable: could not access the active Markdown view.');
           return;
         }
 
@@ -129,10 +136,9 @@ export default class ClaudianPlugin extends Plugin {
       id: 'new-session',
       name: 'New session (in current tab)',
       checkCallback: (checking: boolean) => {
-        const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN)[0];
-        if (!leaf) return false;
+        const view = this.getView();
+        if (!view) return false;
 
-        const view = leaf.view as ClaudianView;
         const tabManager = view.getTabManager();
         if (!tabManager) return false;
 
@@ -142,7 +148,7 @@ export default class ClaudianPlugin extends Plugin {
         if (activeTab.state.isStreaming) return false;
 
         if (!checking) {
-          tabManager.createNewConversation();
+          void tabManager.createNewConversation();
         }
         return true;
       },
@@ -152,17 +158,16 @@ export default class ClaudianPlugin extends Plugin {
       id: 'close-current-tab',
       name: 'Close current tab',
       checkCallback: (checking: boolean) => {
-        const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN)[0];
-        if (!leaf) return false;
+        const view = this.getView();
+        if (!view) return false;
 
-        const view = leaf.view as ClaudianView;
         const tabManager = view.getTabManager();
         if (!tabManager) return false;
 
         if (!checking) {
           const activeTabId = tabManager.getActiveTabId();
           if (activeTabId) {
-            tabManager.closeTab(activeTabId);
+            void tabManager.closeTab(activeTabId);
           }
         }
         return true;
@@ -172,7 +177,11 @@ export default class ClaudianPlugin extends Plugin {
     this.addSettingTab(new ClaudianSettingTab(this.app, this));
   }
 
-  async onunload() {
+  onunload(): void {
+    void this.persistOpenTabStates();
+  }
+
+  private async persistOpenTabStates(): Promise<void> {
     // Ensures state is saved even if Obsidian quits without calling onClose()
     for (const view of this.getAllViews()) {
       const tabManager = view.getTabManager();
@@ -188,9 +197,7 @@ export default class ClaudianPlugin extends Plugin {
     let leaf = workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN)[0];
 
     if (!leaf) {
-      const newLeaf = this.settings.openInMainTab
-        ? workspace.getLeaf('tab')
-        : workspace.getRightLeaf(false);
+      const newLeaf = this.getLeafForPlacement(this.settings.chatViewPlacement);
       if (newLeaf) {
         await newLeaf.setViewState({
           type: VIEW_TYPE_CLAUDIAN,
@@ -201,11 +208,24 @@ export default class ClaudianPlugin extends Plugin {
     }
 
     if (leaf) {
-      workspace.revealLeaf(leaf);
+      await revealWorkspaceLeaf(workspace, leaf);
+    }
+  }
+
+  private getLeafForPlacement(placement: ChatViewPlacement): WorkspaceLeaf | null {
+    const { workspace } = this.app;
+    switch (placement) {
+      case 'main-tab':
+        return workspace.getLeaf('tab');
+      case 'left-sidebar':
+        return workspace.getLeftLeaf(false);
+      case 'right-sidebar':
+        return workspace.getRightLeaf(false);
     }
   }
 
   private canCreateNewTab(): boolean {
+    const hasClaudianLeaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN).length > 0;
     const view = this.getView();
     const tabManager = view?.getTabManager();
 
@@ -213,7 +233,7 @@ export default class ClaudianPlugin extends Plugin {
       return tabManager.canCreateTab();
     }
 
-    if (view) {
+    if (hasClaudianLeaf) {
       return false;
     }
 
@@ -260,7 +280,7 @@ export default class ClaudianPlugin extends Plugin {
     this.settings = {
       ...DEFAULT_CLAUDIAN_SETTINGS,
       ...claudian,
-    } as ClaudianSettings;
+    };
 
     // Plan mode is ephemeral — normalize back to normal on load so the app
     // doesn't start stuck in plan mode after a restart (prePlanPermissionMode is lost)
@@ -289,7 +309,7 @@ export default class ClaudianPlugin extends Plugin {
     }
 
     const didNormalizeProviderSelection = ProviderSettingsCoordinator.normalizeProviderSelection(
-      this.settings as unknown as Record<string, unknown>,
+      this.settings,
     );
     const didNormalizeModelVariants = this.normalizeModelVariantSettings();
 
@@ -324,7 +344,7 @@ export default class ClaudianPlugin extends Plugin {
     const { changed, invalidatedConversations } = this.reconcileModelWithEnvironment();
 
     ProviderSettingsCoordinator.projectActiveProviderState(
-      this.settings as unknown as Record<string, unknown>,
+      this.settings,
     );
 
     if (changed || didNormalizeModelVariants || didNormalizeProviderSelection) {
@@ -359,16 +379,16 @@ export default class ClaudianPlugin extends Plugin {
 
   normalizeModelVariantSettings(): boolean {
     return ProviderSettingsCoordinator.normalizeAllModelVariants(
-      this.settings as unknown as Record<string, unknown>,
+      this.settings,
     );
   }
 
   async saveSettings() {
     ProviderSettingsCoordinator.normalizeProviderSelection(
-      this.settings as unknown as Record<string, unknown>,
+      this.settings,
     );
     ProviderSettingsCoordinator.persistProjectedProviderState(
-      this.settings as unknown as Record<string, unknown>,
+      this.settings,
     );
 
     await this.storage.saveClaudianSettings(this.settings);
@@ -491,18 +511,18 @@ export default class ClaudianPlugin extends Plugin {
   /** Returns the runtime environment variables (fixed at plugin load). */
   getActiveEnvironmentVariables(
     providerId: ProviderId = ProviderRegistry.resolveSettingsProviderId(
-      this.settings as unknown as Record<string, unknown>,
+      this.settings,
     ),
   ): string {
     return getRuntimeEnvironmentText(
-      this.settings as unknown as Record<string, unknown>,
+      this.settings,
       providerId,
     );
   }
 
   getEnvironmentVariablesForScope(scope: EnvironmentScope): string {
     return getScopedEnvironmentVariables(
-      this.settings as unknown as Record<string, unknown>,
+      this.settings,
       scope,
     );
   }
@@ -513,7 +533,7 @@ export default class ClaudianPlugin extends Plugin {
       return null;
     }
 
-    return cliResolver.resolveFromSettings(this.settings as unknown as Record<string, unknown>);
+    return cliResolver.resolveFromSettings(this.settings);
   }
 
   private reconcileModelWithEnvironment(providerIds: ProviderId[] = ProviderRegistry.getRegisteredProviderIds()): {
@@ -521,7 +541,7 @@ export default class ClaudianPlugin extends Plugin {
     invalidatedConversations: Conversation[];
   } {
     return ProviderSettingsCoordinator.reconcileProviders(
-      this.settings as unknown as Record<string, unknown>,
+      this.settings,
       this.conversations,
       providerIds,
     );
@@ -539,7 +559,7 @@ export default class ClaudianPlugin extends Plugin {
         continue;
       }
 
-      const providerId = scope.slice('provider:'.length) as ProviderId;
+      const providerId = scope.slice('provider:'.length);
       if (registeredProviderIds.has(providerId)) {
         affectedProviderIds.add(providerId);
       }
@@ -653,7 +673,8 @@ export default class ClaudianPlugin extends Plugin {
     if (!conversation) return;
 
     // providerId is immutable — strip it from updates to prevent accidental mutation
-    const { providerId: _, ...safeUpdates } = updates;
+    const safeUpdates = { ...updates };
+    delete safeUpdates.providerId;
     Object.assign(conversation, safeUpdates, { updatedAt: Date.now() });
 
     await this.storage.sessions.saveMetadata(
@@ -712,15 +733,12 @@ export default class ClaudianPlugin extends Plugin {
 
   getView(): ClaudianView | null {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN);
-    if (leaves.length > 0) {
-      return leaves[0].view as ClaudianView;
-    }
-    return null;
+    return leaves.map(leaf => leaf.view).find(isClaudianView) ?? null;
   }
 
   getAllViews(): ClaudianView[] {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CLAUDIAN);
-    return leaves.map(leaf => leaf.view as ClaudianView);
+    return leaves.map(leaf => leaf.view).filter(isClaudianView);
   }
 
   findConversationAcrossViews(conversationId: string): { view: ClaudianView; tabId: string } | null {

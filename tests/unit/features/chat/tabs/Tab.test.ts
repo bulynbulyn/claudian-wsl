@@ -1,7 +1,7 @@
 import '@/providers';
 
 import { createMockEl } from '@test/helpers/mockElement';
-import { Notice } from 'obsidian';
+import { Notice, Platform } from 'obsidian';
 
 import { ProviderRegistry } from '@/core/providers/ProviderRegistry';
 import { ProviderWorkspaceRegistry } from '@/core/providers/ProviderWorkspaceRegistry';
@@ -201,7 +201,7 @@ let mockSelectionController: ReturnType<typeof createMockSelectionController>;
 let mockBrowserSelectionController: ReturnType<typeof createMockBrowserSelectionController>;
 let mockCanvasSelectionController: ReturnType<typeof createMockCanvasSelectionController>;
 let mockStreamController: { onAsyncSubagentStateChange: jest.Mock };
-let mockConversationController: { save: jest.Mock };
+let mockConversationController: { save: jest.Mock; rewind: jest.Mock };
 let mockInputController: ReturnType<typeof createMockInputController>;
 let mockNavigationController: { initialize: jest.Mock; dispose: jest.Mock };
 
@@ -342,7 +342,10 @@ jest.mock('@/features/chat/controllers/StreamController', () => ({
 
 jest.mock('@/features/chat/controllers/ConversationController', () => ({
   ConversationController: jest.fn().mockImplementation(() => {
-    mockConversationController = { save: jest.fn().mockResolvedValue(undefined) };
+    mockConversationController = {
+      save: jest.fn().mockResolvedValue(undefined),
+      rewind: jest.fn().mockResolvedValue(undefined),
+    };
     return mockConversationController;
   }),
 }));
@@ -920,7 +923,7 @@ describe('Tab - Service Initialization', () => {
       expect(mockSlashCommandDropdown.resetSdkSkillsCache).toHaveBeenCalled();
     });
 
-    it('rebinds blank-tab helper services when a newly enabled provider takes over the draft model', () => {
+    it('rebinds provider-scoped helper services when a newly enabled provider takes over the draft model', () => {
       const createInstructionRefineServiceSpy = jest.spyOn(ProviderRegistry, 'createInstructionRefineService')
         .mockReturnValue({ cancel: jest.fn(), resetConversation: jest.fn() } as any);
       const createTitleGenerationServiceSpy = jest.spyOn(ProviderRegistry, 'createTitleGenerationService')
@@ -956,7 +959,7 @@ describe('Tab - Service Initialization', () => {
 
       expect(tab.providerId).toBe('codex');
       expect(createInstructionRefineServiceSpy).toHaveBeenLastCalledWith(plugin, 'codex');
-      expect(createTitleGenerationServiceSpy).toHaveBeenLastCalledWith(plugin, 'codex');
+      expect(createTitleGenerationServiceSpy).not.toHaveBeenCalledWith(plugin, 'codex');
     });
 
     it('surfaces provider-scoped model settings for inactive-provider tabs and saves back to that provider snapshot', async () => {
@@ -1393,8 +1396,13 @@ describe('Tab - Service Callbacks', () => {
       const plugin = createMockPlugin();
       const tab = createTab(createMockOptions({ plugin }));
       const addMessageSpy = jest.spyOn(tab.state, 'addMessage');
-      const renderStoredMessage = jest.fn();
+      const addMessage = jest.fn(() => {
+        const msgEl = createMockEl();
+        msgEl.createDiv({ cls: 'claudian-message-content' });
+        return msgEl;
+      });
       const scrollToBottom = jest.fn();
+      const handleStreamChunk = jest.fn().mockResolvedValue(undefined);
 
       Object.defineProperty(tab.dom.contentEl, 'isConnected', {
         value: true,
@@ -1402,7 +1410,19 @@ describe('Tab - Service Callbacks', () => {
         configurable: true,
       });
 
-      tab.renderer = { renderStoredMessage, scrollToBottom } as any;
+      tab.renderer = {
+        addMessage,
+        renderContent: jest.fn(),
+        addTextCopyButton: jest.fn(),
+        scrollToBottom,
+      } as any;
+      tab.controllers.streamController = {
+        handleStreamChunk,
+        appendText: jest.fn().mockResolvedValue(undefined),
+        finalizeCurrentThinkingBlock: jest.fn().mockResolvedValue(undefined),
+        finalizeCurrentTextBlock: jest.fn().mockResolvedValue(undefined),
+        hideThinkingIndicator: jest.fn(),
+      } as any;
       tab.controllers.inputController = {
         handleApprovalRequest: jest.fn(),
         dismissPendingApproval: jest.fn(),
@@ -1411,6 +1431,7 @@ describe('Tab - Service Callbacks', () => {
       } as any;
       tab.services.subagentManager = {
         hasRunningSubagents: jest.fn().mockReturnValue(false),
+        resetStreamingState: jest.fn(),
       } as any;
 
       const service = {
@@ -1427,13 +1448,13 @@ describe('Tab - Service Callbacks', () => {
       setupServiceCallbacks(tab, plugin);
 
       const autoTurnCallback = service.setAutoTurnCallback.mock.calls[0][0];
-      return { tab, addMessageSpy, renderStoredMessage, scrollToBottom, autoTurnCallback };
+      return { tab, addMessageSpy, addMessage, handleStreamChunk, scrollToBottom, autoTurnCallback };
     }
 
-    it('renders tool-only auto-triggered turns with a placeholder assistant message', () => {
-      const { addMessageSpy, renderStoredMessage, scrollToBottom, autoTurnCallback } = setupAutoTurnTest();
+    it('renders tool-only auto-triggered turns with a placeholder assistant message', async () => {
+      const { addMessageSpy, addMessage, handleStreamChunk, scrollToBottom, autoTurnCallback } = setupAutoTurnTest();
 
-      autoTurnCallback({
+      await autoTurnCallback({
         chunks: [
           { type: 'tool_result', id: 'task-1', content: 'done' },
         ],
@@ -1446,15 +1467,48 @@ describe('Tab - Service Callbacks', () => {
           content: '(background task completed)',
         })
       );
-      expect(renderStoredMessage).toHaveBeenCalled();
+      expect(addMessage).toHaveBeenCalled();
+      expect(handleStreamChunk).toHaveBeenCalledWith(
+        { type: 'tool_result', id: 'task-1', content: 'done' },
+        expect.objectContaining({ role: 'assistant' })
+      );
       expect(scrollToBottom).toHaveBeenCalled();
     });
 
-    it('skips auto-triggered rendering after the tab DOM is detached', () => {
-      const { tab, addMessageSpy, renderStoredMessage, scrollToBottom, autoTurnCallback } = setupAutoTurnTest();
+    it('routes hidden async subagent auto-turn chunks without adding a placeholder message', async () => {
+      const { addMessageSpy, addMessage, handleStreamChunk, scrollToBottom, autoTurnCallback } = setupAutoTurnTest();
+
+      await autoTurnCallback({
+        chunks: [
+          {
+            type: 'async_subagent_result',
+            agentId: 'agent-1',
+            status: 'completed',
+            result: 'Done',
+          },
+        ],
+        metadata: {},
+      });
+
+      expect(handleStreamChunk).toHaveBeenCalledWith(
+        {
+          type: 'async_subagent_result',
+          agentId: 'agent-1',
+          status: 'completed',
+          result: 'Done',
+        },
+        expect.objectContaining({ role: 'assistant' })
+      );
+      expect(addMessageSpy).not.toHaveBeenCalled();
+      expect(addMessage).not.toHaveBeenCalled();
+      expect(scrollToBottom).not.toHaveBeenCalled();
+    });
+
+    it('skips auto-triggered rendering after the tab DOM is detached', async () => {
+      const { tab, addMessageSpy, addMessage, handleStreamChunk, scrollToBottom, autoTurnCallback } = setupAutoTurnTest();
 
       (tab.dom.contentEl as any).isConnected = false;
-      autoTurnCallback({
+      await autoTurnCallback({
         chunks: [
           { type: 'text', content: 'Background result' },
         ],
@@ -1462,7 +1516,8 @@ describe('Tab - Service Callbacks', () => {
       });
 
       expect(addMessageSpy).not.toHaveBeenCalled();
-      expect(renderStoredMessage).not.toHaveBeenCalled();
+      expect(addMessage).not.toHaveBeenCalled();
+      expect(handleStreamChunk).not.toHaveBeenCalled();
       expect(scrollToBottom).not.toHaveBeenCalled();
     });
   });
@@ -1737,6 +1792,23 @@ describe('Tab - Controller Initialization', () => {
       expect(tab.controllers.conversationController).toBeDefined();
     });
 
+    it('should forward rewind mode from renderer to ConversationController', async () => {
+      const options = createMockOptions();
+      const tab = createTab(options);
+      const mockComponent = {} as any;
+
+      initializeTabUI(tab, options.plugin);
+      initializeTabControllers(tab, options.plugin, mockComponent, options.mcpManager);
+
+      const { MessageRenderer } = jest.requireMock('@/features/chat/rendering/MessageRenderer') as { MessageRenderer: jest.Mock };
+      const lastCall = MessageRenderer.mock.calls[MessageRenderer.mock.calls.length - 1];
+      const rewindCallback = lastCall[3];
+
+      await rewindCallback('message-1', 'conversation');
+
+      expect(mockConversationController.rewind).toHaveBeenCalledWith('message-1', 'conversation');
+    });
+
     it('should create InputController', () => {
       const options = createMockOptions();
       const tab = createTab(options);
@@ -1839,6 +1911,7 @@ describe('Tab - Controller Initialization', () => {
 describe('Tab - Event Handler Behavior', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    Platform.isMacOS = true;
     mockFileContextManager = createMockFileContextManager();
     mockSlashCommandDropdown = createMockSlashCommandDropdown();
     mockInstructionModeManager = createMockInstructionModeManager();
@@ -2055,6 +2128,56 @@ describe('Tab - Event Handler Behavior', () => {
 
       expect(event.preventDefault).not.toHaveBeenCalled();
       expect(mockInputController.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('should require Command+Enter on macOS when the send shortcut setting is enabled', () => {
+      mockInstructionModeManager.handleTriggerKey.mockReturnValue(false);
+      mockInstructionModeManager.handleKeydown.mockReturnValue(false);
+      mockSlashCommandDropdown.handleKeydown.mockReturnValue(false);
+      mockFileContextManager.handleMentionKeydown.mockReturnValue(false);
+      const { options, fireKeydown } = setupKeydownTab();
+      Platform.isMacOS = true;
+      options.plugin.settings.requireCommandOrControlEnterToSend = true;
+
+      const enterEvent = { key: 'Enter', shiftKey: false, ctrlKey: false, metaKey: false, isComposing: false, preventDefault: jest.fn() };
+      fireKeydown(enterEvent);
+
+      expect(enterEvent.preventDefault).not.toHaveBeenCalled();
+      expect(mockInputController.sendMessage).not.toHaveBeenCalled();
+
+      const controlEnterEvent = { key: 'Enter', shiftKey: false, ctrlKey: true, metaKey: false, isComposing: false, preventDefault: jest.fn() };
+      fireKeydown(controlEnterEvent);
+
+      expect(controlEnterEvent.preventDefault).not.toHaveBeenCalled();
+      expect(mockInputController.sendMessage).not.toHaveBeenCalled();
+
+      const commandEnterEvent = { key: 'Enter', shiftKey: false, ctrlKey: false, metaKey: true, isComposing: false, preventDefault: jest.fn() };
+      fireKeydown(commandEnterEvent);
+
+      expect(commandEnterEvent.preventDefault).toHaveBeenCalled();
+      expect(mockInputController.sendMessage).toHaveBeenCalled();
+    });
+
+    it('should require Ctrl+Enter off macOS when the send shortcut setting is enabled', () => {
+      mockInstructionModeManager.handleTriggerKey.mockReturnValue(false);
+      mockInstructionModeManager.handleKeydown.mockReturnValue(false);
+      mockSlashCommandDropdown.handleKeydown.mockReturnValue(false);
+      mockFileContextManager.handleMentionKeydown.mockReturnValue(false);
+      const { options, fireKeydown } = setupKeydownTab();
+      Platform.isMacOS = false;
+      options.plugin.settings.requireCommandOrControlEnterToSend = true;
+
+      const commandEnterEvent = { key: 'Enter', shiftKey: false, ctrlKey: false, metaKey: true, isComposing: false, preventDefault: jest.fn() };
+      fireKeydown(commandEnterEvent);
+
+      expect(commandEnterEvent.preventDefault).not.toHaveBeenCalled();
+      expect(mockInputController.sendMessage).not.toHaveBeenCalled();
+
+      const controlEnterEvent = { key: 'Enter', shiftKey: false, ctrlKey: true, metaKey: false, isComposing: false, preventDefault: jest.fn() };
+      fireKeydown(controlEnterEvent);
+
+      expect(controlEnterEvent.preventDefault).toHaveBeenCalled();
+      expect(mockInputController.sendMessage).toHaveBeenCalled();
     });
 
     it('should not send message on Enter when isComposing (IME)', () => {
@@ -3837,7 +3960,7 @@ describe('Tab - Blank Tab Draft Model Change', () => {
     expect(tab.serviceInitialized).toBe(false);
     expect(tab.providerId).toBe('claude');
     expect(createInstructionRefineServiceSpy.mock.calls.length).toBeGreaterThan(initialInstructionCalls);
-    expect(createTitleGenerationServiceSpy.mock.calls.length).toBeGreaterThan(initialTitleCalls);
+    expect(createTitleGenerationServiceSpy.mock.calls.length).toBe(initialTitleCalls);
   });
 });
 

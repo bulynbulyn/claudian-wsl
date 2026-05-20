@@ -16,7 +16,8 @@ import type {
   ApprovalCallback,
   ApprovalDecisionOption,
   AskUserQuestionCallback,
-  AutoTurnResult,
+  AutoTurnCallback,
+  ChatRewindMode,
   ChatRewindResult,
   ChatRuntimeEnsureReadyOptions,
   ChatRuntimeQueryOptions,
@@ -222,7 +223,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
   async reloadMcpServers(): Promise<void> {}
 
   async ensureReady(options?: ChatRuntimeEnsureReadyOptions): Promise<boolean> {
-    const settings = getOpencodeProviderSettings(this.plugin.settings as unknown as Record<string, unknown>);
+    const settings = getOpencodeProviderSettings(this.plugin.settings);
     if (!settings.enabled) {
       this.setReady(false);
       return false;
@@ -252,7 +253,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
     const nextLaunchKey = JSON.stringify({
       command: resolvedCliPath,
       configPath: artifacts.configPath,
-      envText: getRuntimeEnvironmentText(this.plugin.settings as unknown as Record<string, unknown>, 'opencode'),
+      envText: getRuntimeEnvironmentText(this.plugin.settings, 'opencode'),
       promptKey: computeSystemPromptKey(promptSettings),
       artifactKey: artifacts.launchKey,
     });
@@ -472,6 +473,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
   async rewind(
     _userMessageId: string,
     _assistantMessageId: string,
+    _mode?: ChatRewindMode,
   ): Promise<ChatRewindResult> {
     return { canRewind: false };
   }
@@ -492,7 +494,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
 
   setSubagentHookProvider(_getState: () => SubagentRuntimeState): void {}
 
-  setAutoTurnCallback(_callback: ((result: AutoTurnResult) => void) | null): void {}
+  setAutoTurnCallback(_callback: AutoTurnCallback | null): void {}
 
   consumeTurnMetadata(): ChatTurnMetadata {
     const metadata = this.currentTurnMetadata;
@@ -657,7 +659,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
     databasePathOverride?: string | null,
   ): NodeJS.ProcessEnv {
     return buildOpencodeRuntimeEnv(
-      this.plugin.settings as unknown as Record<string, unknown>,
+      this.plugin.settings,
       cliPath,
       databasePathOverride,
     );
@@ -665,7 +667,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
 
   private getProviderSettings(): Record<string, unknown> {
     return ProviderSettingsCoordinator.getProviderSettingsSnapshot(
-      this.plugin.settings as unknown as Record<string, unknown>,
+      this.plugin.settings,
       this.providerId,
     );
   }
@@ -1171,10 +1173,10 @@ export class OpencodeChatRuntime implements ChatRuntime {
 
     return new Promise<SlashCommand[]>((resolve) => {
       const waiter = (commands: SlashCommand[]) => {
-        clearTimeout(timeoutId);
+        window.clearTimeout(timeoutId);
         resolve([...commands]);
       };
-      const timeoutId = setTimeout(() => {
+      const timeoutId = window.setTimeout(() => {
         const index = this.supportedCommandWaiters.indexOf(waiter);
         if (index >= 0) {
           this.supportedCommandWaiters.splice(index, 1);

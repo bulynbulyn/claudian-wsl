@@ -98,15 +98,12 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
     const shouldValidateCliPathAsFile = (): boolean => !isWindowsHost || installationMethod !== 'wsl';
 
     const cliPathSetting = new Setting(container)
-      .setName(`Codex CLI path (${hostnameKey})`)
+      .setName('Codex CLI path')
       .setDesc(getCliPathCopy().desc);
 
-    const validationEl = container.createDiv({ cls: 'claudian-cli-path-validation' });
-    validationEl.style.color = 'var(--text-error)';
-    validationEl.style.fontSize = '0.85em';
-    validationEl.style.marginTop = '-0.5em';
-    validationEl.style.marginBottom = '0.5em';
-    validationEl.style.display = 'none';
+    const validationEl = container.createDiv({
+      cls: 'claudian-cli-path-validation claudian-setting-validation claudian-setting-validation-error claudian-hidden',
+    });
 
     const validatePath = (value: string): string | null => {
       const trimmed = value.trim();
@@ -135,16 +132,16 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
       const error = validatePath(value);
       if (error) {
         validationEl.setText(error);
-        validationEl.style.display = 'block';
+        validationEl.toggleClass('claudian-hidden', false);
         if (inputEl) {
-          inputEl.style.borderColor = 'var(--text-error)';
+          inputEl.toggleClass('claudian-input-error', true);
         }
         return false;
       }
 
-      validationEl.style.display = 'none';
+      validationEl.toggleClass('claudian-hidden', true);
       if (inputEl) {
-        inputEl.style.borderColor = '';
+        inputEl.toggleClass('claudian-input-error', false);
       }
       return true;
     };
@@ -162,7 +159,7 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
         updateCliPathValidation(cliPathInputEl.value, cliPathInputEl);
       }
       if (wslDistroSettingEl) {
-        wslDistroSettingEl.style.display = installationMethod === 'wsl' ? '' : 'none';
+        wslDistroSettingEl.toggleClass('claudian-hidden', installationMethod !== 'wsl');
       }
       if (wslDistroInputEl) {
         wslDistroInputEl.disabled = installationMethod !== 'wsl';
@@ -201,7 +198,6 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
           await persistCliPath(value);
         });
       text.inputEl.addClass('claudian-settings-cli-path-input');
-      text.inputEl.style.width = '100%';
       cliPathInputEl = text.inputEl;
 
       updateCliPathValidation(currentValue, text.inputEl);
@@ -210,7 +206,7 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
     if (isWindowsHost) {
       const wslDistroSetting = new Setting(container)
         .setName('WSL distro override')
-        .setDesc('Optional advanced override. Leave empty to infer the distro from a \\\\wsl$ workspace path when possible, otherwise use the default WSL distro.');
+        .setDesc('Optional advanced override. Leave empty to infer the distro from a WSL workspace path when possible, otherwise use the default WSL distro.');
 
       wslDistroSettingEl = wslDistroSetting.settingEl;
       wslDistroSetting.addText((text) => {
@@ -223,7 +219,6 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
           });
 
         text.inputEl.addClass('claudian-settings-cli-path-input');
-        text.inputEl.style.width = '100%';
         text.inputEl.disabled = installationMethod !== 'wsl';
         wslDistroInputEl = text.inputEl;
       });
@@ -240,8 +235,8 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
       .setDesc(t('settings.codexSafeMode.desc'))
       .addDropdown((dropdown) => {
         dropdown
-          .addOption('workspace-write', 'workspace-write')
-          .addOption('read-only', 'read-only')
+          .addOption('workspace-write', 'Workspace write')
+          .addOption('read-only', 'Read only')
           .setValue(codexSettings.safeMode)
           .onChange(async (value) => {
             updateCodexProviderSettings(
@@ -265,7 +260,7 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     new Setting(container)
       .setName('Custom models')
-      .setDesc('Append additional Codex model IDs to the picker, one per line. OPENAI_MODEL still takes precedence when set.')
+      .setDesc('Append additional Codex model ids to the picker, one per line. `OPENAI_MODEL` still takes precedence when set.')
       .addTextArea((text) => {
         let pendingCustomModels = codexSettings.customModels;
         let savedCustomModels = codexSettings.customModels;
@@ -374,7 +369,7 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     const codexCatalog = codexWorkspace.commandCatalog;
     if (codexCatalog) {
-      new Setting(container).setName('Codex Skills').setHeading();
+      new Setting(container).setName('Codex skills').setHeading();
 
       const skillsDesc = container.createDiv({ cls: 'claudian-sp-settings-desc' });
       skillsDesc.createEl('p', {
@@ -394,7 +389,7 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
 
     // --- Subagents ---
 
-    new Setting(container).setName('Codex Subagents').setHeading();
+    new Setting(container).setName('Codex subagents').setHeading();
 
     const subagentDesc = container.createDiv({ cls: 'claudian-sp-settings-desc' });
     subagentDesc.createEl('p', {
@@ -413,7 +408,7 @@ export const codexSettingsTabRenderer: ProviderSettingsTabRenderer = {
     const mcpNotice = container.createDiv({ cls: 'claudian-mcp-settings-desc' });
     const mcpDesc = mcpNotice.createEl('p', { cls: 'setting-item-description' });
     mcpDesc.appendText('Codex manages MCP servers via its own CLI. Configure with ');
-    mcpDesc.createEl('code', { text: 'codex mcp' });
+    mcpDesc.createEl('code').appendText('codex mcp');
     mcpDesc.appendText(' and they will be available in Claudian. ');
     mcpDesc.createEl('a', {
       text: 'Learn more',

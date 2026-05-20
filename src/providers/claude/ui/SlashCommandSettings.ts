@@ -59,14 +59,14 @@ export class SlashCommandModal extends Modal {
     let contextValue: 'fork' | '' = this.existingEntry?.context ?? '';
     let agentInput: HTMLInputElement;
 
-    /* eslint-disable prefer-const -- assigned in Setting callbacks */
-    let disableUserSetting!: Setting;
-    let disableUserToggle!: ToggleComponent;
-    /* eslint-enable prefer-const */
+    let disableUserSetting: Setting | null = null;
+    let disableUserToggle: ToggleComponent | null = null;
 
     const updateSkillOnlyFields = () => {
+      if (!disableUserSetting || !disableUserToggle) return;
+
       const isSkillType = selectedType === 'skill';
-      disableUserSetting.settingEl.style.display = isSkillType ? '' : 'none';
+      disableUserSetting.settingEl.toggleClass('claudian-hidden', !isSkillType);
       if (!isSkillType) {
         disableUserInvocation = false;
         disableUserToggle.setValue(false);
@@ -97,7 +97,7 @@ export class SlashCommandModal extends Modal {
       .addText(text => {
         nameInput = text.inputEl;
         text.setValue(this.existingEntry?.name || '')
-          .setPlaceholder('review-code');
+          .setPlaceholder('Review-code');
       });
 
     new Setting(contentEl)
@@ -139,7 +139,7 @@ export class SlashCommandModal extends Modal {
       .addText(text => {
         modelInput = text.inputEl;
         text.setValue(this.existingEntry?.model || '')
-          .setPlaceholder('claude-sonnet-4-5');
+          .setPlaceholder('Claude-sonnet-4-5');
       });
 
     new Setting(details)
@@ -176,7 +176,7 @@ export class SlashCommandModal extends Modal {
         toggle.setValue(contextValue === 'fork')
           .onChange(value => {
             contextValue = value ? 'fork' : '';
-            agentSetting.settingEl.style.display = value ? '' : 'none';
+            agentSetting.settingEl.toggleClass('claudian-hidden', !value);
           });
       });
 
@@ -186,9 +186,9 @@ export class SlashCommandModal extends Modal {
       .addText(text => {
         agentInput = text.inputEl;
         text.setValue(this.existingEntry?.agent || '')
-          .setPlaceholder('code-reviewer');
+          .setPlaceholder('Code-reviewer');
       });
-    agentSetting.settingEl.style.display = contextValue === 'fork' ? '' : 'none';
+    agentSetting.settingEl.toggleClass('claudian-hidden', contextValue !== 'fork');
 
     new Setting(contentEl)
       .setName('Prompt template')
@@ -218,7 +218,8 @@ export class SlashCommandModal extends Modal {
       text: 'Save',
       cls: 'claudian-save-btn',
     });
-    saveBtn.addEventListener('click', async () => {
+    saveBtn.addEventListener('click', () => {
+      void (async (): Promise<void> => {
       const name = nameInput.value.trim();
       const nameError = validateCommandName(name);
       if (nameError) {
@@ -281,6 +282,7 @@ export class SlashCommandModal extends Modal {
         return;
       }
       this.close();
+      })();
     });
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -399,12 +401,14 @@ export class SlashCommandSettings {
         attr: { 'aria-label': 'Convert to skill' },
       });
       setIcon(convertBtn, 'package');
-      convertBtn.addEventListener('click', async () => {
+      convertBtn.addEventListener('click', () => {
+        void (async (): Promise<void> => {
         try {
           await this.transformToSkill(cmd);
         } catch {
           new Notice('Failed to convert to skill');
         }
+        })();
       });
     }
 
@@ -414,13 +418,15 @@ export class SlashCommandSettings {
         attr: { 'aria-label': 'Delete' },
       });
       setIcon(deleteBtn, 'trash-2');
-      deleteBtn.addEventListener('click', async () => {
+      deleteBtn.addEventListener('click', () => {
+        void (async (): Promise<void> => {
         try {
           await this.deleteCommand(cmd);
         } catch {
           const label = isSkillEntry(cmd) ? 'skill' : 'slash command';
           new Notice(`Failed to delete ${label}`);
         }
+        })();
       });
     }
   }

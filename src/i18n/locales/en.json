@@ -24,10 +24,15 @@
   "chat": {
     "rewind": {
       "confirmMessage": "Rewind to this point? File changes after this message will be reverted. Rewinding does not affect files edited manually or via bash.",
+      "confirmMessageConversationOnly": "Rewind conversation to this point? File changes will be kept.",
       "confirmButton": "Rewind",
       "ariaLabel": "Rewind to here",
+      "menuConversationOnly": "Rewind conversation only",
+      "menuCodeAndConversation": "Rewind code + conversation",
       "notice": "Rewound: {count} file(s) reverted",
+      "noticeConversationOnly": "Rewound conversation; file changes kept",
       "noticeSaveFailed": "Rewound: {count} file(s) reverted, but failed to save state: {error}",
+      "noticeConversationOnlySaveFailed": "Rewound conversation, but failed to save state: {error}",
       "failed": "Rewind failed: {error}",
       "cannot": "Cannot rewind: {error}",
       "unavailableStreaming": "Cannot rewind while streaming",
@@ -106,6 +111,10 @@
     "navMappings": {
       "name": "Vim-style navigation mappings",
       "desc": "One mapping per line. Format: \"map <key> <action>\" (actions: scrollUp, scrollDown, focusInput)."
+    },
+    "requireCommandOrControlEnterToSend": {
+      "name": "Require Command/Ctrl+Enter to send",
+      "desc": "When enabled, Enter inserts a newline. Command+Enter sends on macOS; Ctrl+Enter sends on Windows and Linux."
     },
     "hotkeys": "Hotkeys",
     "inlineEditHotkey": {
@@ -279,9 +288,16 @@
       "name": "Auto-scroll during streaming",
       "desc": "Automatically scroll to the bottom as Claude streams responses. Disable to stay at the top and read from the beginning."
     },
-    "openInMainTab": {
-      "name": "Open in main editor area",
-      "desc": "Open chat panel as a main tab in the center editor area instead of the right sidebar"
+    "deferMathRenderingDuringStreaming": {
+      "name": "Defer math rendering during streaming",
+      "desc": "Show raw LaTeX while responses stream, then render math once when each text block completes."
+    },
+    "chatViewPlacement": {
+      "name": "Open Claudian in",
+      "desc": "Choose where the chat panel opens when it is created",
+      "rightSidebar": "Right sidebar",
+      "leftSidebar": "Left sidebar",
+      "mainTab": "Main editor tab"
     },
     "cliPath": {
       "name": "Claude CLI path",
