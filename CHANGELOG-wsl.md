@@ -1,6 +1,51 @@
-# Claudian v2.0.10-wsl.1
+# Claudian WSL
 
-基于原版 [YishenTu/claudian](https://github.com/YishenTu/claudian) v2.0.10 的 WSL 支持二开版本。
+基于原版 [YishenTu/claudian](https://github.com/YishenTu/claudian) 的 WSL 支持二开版本。
+
+## v2.0.16-wsl.1 合并上游 v2.0.16
+
+### 上游新功能融入 (v2.0.11 ~ v2.0.16)
+
+| 版本 | 功能 | 描述 |
+|------|------|------|
+| 2.0.11 | **Chat View Placement** | 支持 right-sidebar、left-sidebar、main-tab 三种视图位置 |
+| 2.0.11 | **Claude Code CJS Wrapper** | 支持 cli-wrapper.cjs 入口文件 |
+| 2.0.11 | **Streaming Math Rendering** | 流式渲染时延迟数学公式渲染 |
+| 2.0.12 | **Plugin ID Rename** | 插件 ID 更名为 realclaudian |
+| 2.0.12 | **Background Task Notifications** | 修复 Claude 后台任务通知处理 |
+| 2.0.12 | **Node Shebang Detection** | 修复 Node shebang 检测逻辑 |
+| 2.0.13 | **Obsidian Review Fixes** | 修复 Obsidian 审核错误 |
+| 2.0.14 | **ESLint Audit Compliance** | 满足 Obsidian ESLint 审计要求 |
+| 2.0.15 | **Configurable Send Shortcut** | 支持 Cmd/Ctrl+Enter 发送消息 |
+| 2.0.15 | **Rewind Mode Selection** | 支持 conversation 和 code-and-conversation 两种回退模式 |
+| 2.0.15 | **Codex Raw JSON-RPC Streaming** | Codex 原始 JSON-RPC 事件流式传输 |
+| 2.0.16 | **Title Generation Routing** | 标题生成按模型路由到正确的 provider |
+| 2.0.16 | **Security Review Followups** | 安全审查后续修复 |
+
+### 上游重大重构
+
+| 重构 | 描述 |
+|------|------|
+| **Device Settings Key** | 从 os.hostname() 迁移到 device:<uuid> 不透明密钥 |
+| **Setting Sources** | 新增 resolveClaudeSettingSources() 支持 user/project/local |
+| **Thinking Budget API** | 采用新 API：options.thinking = { type: 'enabled', budgetTokens } |
+| **AutoTurn Callback** | 提取 flushAutoTurnBuffer() 专用方法 |
+| **CSS Class Toggling** | UI 验证从 inline style 迁移到 CSS class 切换 |
+
+### WSL 功能保留
+
+- ✅ Claude WSL：Installation method、distro 检测、路径转换、历史记录、Rewind
+- ✅ OpenCode WSL：Installation method、数据库路径计算、sqlite3 历史加载
+- ✅ MCP server 路径映射
+- ✅ YOLO/bypassPermissions 重启检测
+- ✅ Root user 安全检测
+- ✅ UNC 路径 Session 文件访问
+
+### 已知问题
+
+- 1 个测试失败（OpenCode 模式解析逻辑变更，非 WSL 相关）
+
+---
 
 ## v2.0.10-wsl.1 合并上游 v2.0.10
 
