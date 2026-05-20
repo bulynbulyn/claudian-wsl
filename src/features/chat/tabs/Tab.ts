@@ -1291,8 +1291,14 @@ export function initializeTabControllers(
         applyProviderUIGating(tab, plugin);
       },
       ensureServiceInitialized: async () => {
+        // Check if service is already initialized for the correct provider
         if (tab.serviceInitialized && tab.lifecycleState === 'bound_active') {
-          return true;
+          // If provider matches, service is ready
+          if (tab.service?.providerId === tab.providerId) {
+            return true;
+          }
+          // Provider changed - need to reinitialize
+          console.log('[Claudian] ensureServiceInitialized: provider changed from', tab.service?.providerId, 'to', tab.providerId);
         }
 
         try {
@@ -1305,6 +1311,7 @@ export function initializeTabControllers(
             tab.providerId = derivedProvider;
           }
 
+          console.log('[Claudian] ensureServiceInitialized: initializing service for provider', tab.providerId);
           await initializeTabService(tab, plugin);
           setupServiceCallbacks(tab, plugin);
 
