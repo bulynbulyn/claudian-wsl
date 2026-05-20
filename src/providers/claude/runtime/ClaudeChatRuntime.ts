@@ -310,7 +310,25 @@ export class ClaudianService implements ChatRuntime {
     } else {
       this.pendingResumeAt = undefined;
     }
-    return conv.sessionId ?? state.forkSource?.sessionId ?? null;
+
+    // Get the session ID from conversation or fork source
+    const rawSessionId = conv.sessionId ?? state.forkSource?.sessionId ?? null;
+
+    // Validate session ID format for Claude provider
+    // Claude uses UUID format (e.g., "54a629b3-9e37-4699-a952-1297bc4e1139")
+    // OpenCode uses "ses_" prefix format (e.g., "ses_1baa27930ffeB294Zsk0aVabM3")
+    // If we get a non-UUID session ID, it's from a different provider - ignore it
+    if (rawSessionId && !this.isValidClaudeSessionId(rawSessionId)) {
+      console.warn('[Claudian] Ignoring non-UUID session ID from different provider:', rawSessionId);
+      return null;
+    }
+
+    return rawSessionId;
+  }
+
+  private isValidClaudeSessionId(sessionId: string): boolean {
+    // UUID format: 8-4-4-4-12 hex characters
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId);
   }
 
   syncConversationState(
