@@ -25,6 +25,7 @@ import {
 import { buildClaudeLaunchSpec } from './ClaudeLaunchSpecBuilder';
 import type { createClaudePathMapper} from './ClaudePathMapper';
 import { mapMcpServersForWsl } from './ClaudePathMapper';
+import { windowsToWslPath } from '../../../core/wsl/WslPathMapper';
 import { createCustomSpawnFunction } from './customSpawn';
 import {
   DISABLED_BUILTIN_SUBAGENTS,
@@ -343,10 +344,21 @@ export class QueryOptionsBuilder {
       isWslRootUser = isWslUserRoot(distroName);
     }
 
+    // In WSL mode, convert vaultPath to WSL format for system prompt
+    // so Claude Code uses /mnt/d/... instead of D:\...
+    if (isWslMode && systemPromptSettings.vaultPath) {
+      const wslPath = launchSpec?.targetCwd ?? windowsToWslPath(systemPromptSettings.vaultPath);
+      if (wslPath) {
+        systemPromptSettings.vaultPath = wslPath;
+      }
+    }
+
     // In WSL mode, use the WSL path for cwd so Claude Code runs in the correct directory
     const cwd = isWslMode && launchSpec?.targetCwd
       ? launchSpec.targetCwd
       : ctx.vaultPath;
+
+    console.log('[Claudian] QueryOptions: isWslMode:', isWslMode, 'launchSpec?.targetCwd:', launchSpec?.targetCwd, 'ctx.vaultPath:', ctx.vaultPath, 'final cwd:', cwd, 'systemPrompt vaultPath:', systemPromptSettings.vaultPath);
 
     const options: Options = {
       cwd,
