@@ -36,16 +36,36 @@
 
 ### Claude
 
-1. Settings → Claude → Installation method → **WSL**
-2. CLI path 填 `claude` 或 Linux 路径
-3. 确保 WSL 中已安装 Claude CLI
+1. Settings → Claude → **Installation method** → 选择 `WSL`
+2. **CLI path**：填 `claude`（自动检测）或完整路径如 `/home/username/.local/bin/claude`
+3. **WSL distro override**（可选）：指定 WSL 发行版名称，如 `Ubuntu`、`Debian`。留空则自动检测
+4. **WSL home path**（可选）：填 WSL 用户目录，如 `/home/username`。留空则自动推断
+
+**前提条件**：WSL 中需安装 Claude CLI 和 Node.js
 
 ### OpenCode
 
-1. Settings → OpenCode → Installation method → **WSL**
-2. CLI path 填 `opencode` 或 Linux 路径
-3. WSL home path 填 `/home/username`
-4. 确保 WSL 中已安装 sqlite3：`sudo apt install sqlite3`
+1. Settings → OpenCode → **Installation method** → 选择 `WSL`
+2. **CLI path**：填 `opencode`（自动检测）或完整路径如 `/home/username/.local/bin/opencode`
+3. **WSL distro override**（可选）：指定 WSL 发行版名称。留空则自动检测
+4. **WSL home path**（必填）：填 WSL 用户目录，如 `/home/username`
+
+**前提条件**：WSL 中需安装 sqlite3：`sudo apt install sqlite3`
+
+### 参数说明
+
+| 参数 | 说明 | 示例 |
+|------|------|------|
+| **Installation method** | 运行方式。`native-windows` = Windows 本地，`wsl` = 通过 WSL 运行 | `wsl` |
+| **CLI path** | CLI 可执行文件路径。留空自动检测 | `claude`、`/usr/local/bin/claude` |
+| **WSL distro override** | WSL 发行版名称。留空从 vault 路径或默认 WSL 推断 | `Ubuntu`、`Debian` |
+| **WSL home path** | WSL 用户主目录。用于访问 session 文件 | `/home/bulinbulin` |
+
+### 自动检测逻辑
+
+- **WSL distro**：优先使用 override 设置 → 从 vault UNC 路径（`\\wsl$\Ubuntu\...`）推断 → 使用默认 WSL 发行版
+- **CLI path**：留空时自动在 WSL 中查找 `claude` / `opencode` 命令
+- **WSL home path**：留空时根据 Windows 用户名推断（`/home/<username>`）
 
 ## 原版功能
 
