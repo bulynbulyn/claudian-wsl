@@ -1290,6 +1290,33 @@ export function initializeTabControllers(
         refreshTabProviderUI(tab, plugin);
         applyProviderUIGating(tab, plugin);
       },
+      ensureServiceInitialized: async () => {
+        if (tab.serviceInitialized && tab.lifecycleState === 'bound_active') {
+          return true;
+        }
+
+        try {
+          // For blank tabs on first send: derive provider from draft model
+          if (tab.lifecycleState === 'blank' && tab.draftModel) {
+            const derivedProvider = getEnabledProviderForModel(
+              tab.draftModel,
+              plugin.settings,
+            );
+            tab.providerId = derivedProvider;
+          }
+
+          await initializeTabService(tab, plugin);
+          setupServiceCallbacks(tab, plugin);
+
+          // Transition: lock model selector to bound provider
+          refreshTabProviderUI(tab, plugin);
+          applyProviderUIGating(tab, plugin);
+          return true;
+        } catch (error) {
+          new Notice(error instanceof Error ? error.message : 'Failed to initialize chat service');
+          return false;
+        }
+      },
     },
     {
       onNewConversation: () => {

@@ -48,6 +48,7 @@ export interface ConversationControllerDeps {
   getStatusPanel: () => StatusPanel | null;
   getAgentService?: () => ChatRuntime | null;
   ensureServiceForConversation?: (conversation: Conversation | null) => Promise<void>;
+  ensureServiceInitialized?: () => Promise<boolean>;
   dismissPendingInlinePrompts?: () => void;
 }
 
@@ -323,11 +324,26 @@ export class ConversationController {
 
     // Ensure service is initialized before attempting rewind
     // Service is lazy-loaded and may not exist if user hasn't sent a message yet
+    console.log('[Claudian] Rewind: ensureServiceForConversation exists:', !!this.deps.ensureServiceForConversation);
+    console.log('[Claudian] Rewind: ensureServiceInitialized exists:', !!this.deps.ensureServiceInitialized);
     if (this.deps.ensureServiceForConversation) {
+      console.log('[Claudian] Rewind: calling ensureServiceForConversation');
       await this.deps.ensureServiceForConversation(null);
+      console.log('[Claudian] Rewind: ensureServiceForConversation completed');
+    }
+    if (this.deps.ensureServiceInitialized) {
+      console.log('[Claudian] Rewind: calling ensureServiceInitialized');
+      const ready = await this.deps.ensureServiceInitialized();
+      console.log('[Claudian] Rewind: ensureServiceInitialized result:', ready);
+      if (!ready) {
+        new Notice(t('chat.rewind.failed', { error: 'Failed to initialize agent service' }));
+        return;
+      }
     }
 
+    console.log('[Claudian] Rewind: getAgentService exists:', !!this.deps.getAgentService);
     const agentService = this.getAgentService();
+    console.log('[Claudian] Rewind: agentService result:', agentService ? 'exists' : 'null', 'providerId:', agentService?.providerId);
     if (!agentService) {
       new Notice(t('chat.rewind.failed', { error: 'Agent service not available' }));
       return;
