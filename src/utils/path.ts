@@ -353,12 +353,15 @@ export function normalizePathForVault(
 ): string | null {
   if (!rawPath) return null;
 
+  console.log('[Claudian] normalizePathForVault input:', { rawPath, vaultPath });
+
   // Convert WSL paths to Windows paths when running on Windows
   // e.g., /mnt/d/Downloads/... -> D:\Downloads\...
   let pathToNormalize = rawPath;
   if (process.platform === 'win32' && rawPath.startsWith('/mnt/')) {
     const windowsPath = maybeMapLinuxToWindowsDrive(rawPath);
     if (windowsPath) {
+      console.log('[Claudian] normalizePathForVault: converted WSL path to Windows:', windowsPath);
       pathToNormalize = windowsPath;
     }
   }
@@ -366,13 +369,18 @@ export function normalizePathForVault(
   const normalizedRaw = normalizePathForFilesystem(pathToNormalize);
   if (!normalizedRaw) return null;
 
-  if (vaultPath && isPathWithinVault(normalizedRaw, vaultPath)) {
+  const isWithin = vaultPath ? isPathWithinVault(normalizedRaw, vaultPath) : false;
+  console.log('[Claudian] normalizePathForVault: normalizedRaw:', normalizedRaw, 'isWithinVault:', isWithin);
+
+  if (vaultPath && isWithin) {
     const absolute = path.isAbsolute(normalizedRaw)
       ? normalizedRaw
       : path.resolve(vaultPath, normalizedRaw);
     const relative = path.relative(vaultPath, absolute);
+    console.log('[Claudian] normalizePathForVault: absolute:', absolute, 'relative:', relative);
     return relative ? relative.replace(/\\/g, '/') : null;
   }
 
+  console.log('[Claudian] normalizePathForVault: returning normalizedRaw:', normalizedRaw);
   return normalizedRaw.replace(/\\/g, '/');
 }
