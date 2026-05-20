@@ -2,7 +2,7 @@
 
 > 基于 [Claudian](https://github.com/YishenTu/claudian) v2.0.16 的 WSL 支持版本
 
-⚠️ **说明**: 本项目由 ** Claude Code** 生成，仅测试了基本的 Claude Code-WSL 功能，其他功能未详细测试。如有问题请提 [Issues](https://github.com/bulynbulyn/claudian-wsl/issues)。
+⚠️ **说明**: 本项目由 **Claude Code** 生成，仅测试了基本的 Claude Code-WSL 功能，其他功能未详细测试。如有问题请提 [Issues](https://github.com/bulynbulyn/claudian-wsl/issues)。
 
 ![GitHub release](https://img.shields.io/github/v/release/bulynbulyn/claudian-wsl)
 ![License](https://img.shields.io/github/license/bulynbulyn/claudian-wsl)
