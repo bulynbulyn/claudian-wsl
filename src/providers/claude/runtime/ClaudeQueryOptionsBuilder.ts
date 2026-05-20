@@ -343,8 +343,13 @@ export class QueryOptionsBuilder {
       isWslRootUser = isWslUserRoot(distroName);
     }
 
+    // In WSL mode, use the WSL path for cwd so Claude Code runs in the correct directory
+    const cwd = isWslMode && launchSpec?.targetCwd
+      ? launchSpec.targetCwd
+      : ctx.vaultPath;
+
     const options: Options = {
-      cwd: ctx.vaultPath,
+      cwd,
       systemPrompt: buildSystemPrompt(systemPromptSettings),
       model,
       abortController,
