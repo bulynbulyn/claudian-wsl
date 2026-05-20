@@ -321,6 +321,12 @@ export class ConversationController {
       return;
     }
 
+    // Ensure service is initialized before attempting rewind
+    // Service is lazy-loaded and may not exist if user hasn't sent a message yet
+    if (this.deps.ensureServiceForConversation) {
+      await this.deps.ensureServiceForConversation(null);
+    }
+
     const agentService = this.getAgentService();
     if (!agentService) {
       new Notice(t('chat.rewind.failed', { error: 'Agent service not available' }));
