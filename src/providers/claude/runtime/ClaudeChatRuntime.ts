@@ -1745,6 +1745,7 @@ export class ClaudianService implements ChatRuntime {
     assistantMessageId: string,
     mode: ChatRewindMode = 'code-and-conversation',
   ): Promise<ChatRewindResult> {
+    const claudeSettings = getClaudeProviderSettings(this.plugin.settings);
     return executeClaudeRewind(userMessageId, {
       assistantMessageId,
       mode,
@@ -1754,6 +1755,8 @@ export class ClaudianService implements ChatRuntime {
         this.pendingResumeAt = resumeAt;
       },
       vaultPath: this.vaultPath,
+      installationMethod: claudeSettings.installationMethod,
+      wslDistroOverride: claudeSettings.wslDistroOverride,
     });
   }
 
