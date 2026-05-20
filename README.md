@@ -2,7 +2,7 @@
 
 > 基于 [Claudian](https://github.com/YishenTu/claudian) v2.0.16 的 WSL 支持版本
 
-⚠️ **说明**: 本项目由 **glm5 + Claude Code** 生成，仅测试了基本的 Claude Code-WSL 功能，其他功能未详细测试。如有问题请提 [Issues](https://github.com/bulynbulyn/claudian-wsl/issues)。
+⚠️ **说明**: 本项目由 ** Claude Code** 生成，仅测试了基本的 Claude Code-WSL 功能，其他功能未详细测试。如有问题请提 [Issues](https://github.com/bulynbulyn/claudian-wsl/issues)。
 
 ![GitHub release](https://img.shields.io/github/v/release/bulynbulyn/claudian-wsl)
 ![License](https://img.shields.io/github/license/bulynbulyn/claudian-wsl)
@@ -15,10 +15,11 @@
 
 ## WSL 功能
 
-| Provider | 功能 |
-|----------|------|
-| **Claude** | WSL distro 自动检测、路径自动转换、历史记录、Rewind |
-| **OpenCode** | 数据库路径自动计算、历史记录加载（sqlite3） |
+
+| Provider     | 功能                                                |
+| ------------ | --------------------------------------------------- |
+| **Claude**   | WSL distro 自动检测、路径自动转换、历史记录、Rewind |
+| **OpenCode** | 数据库路径自动计算、历史记录加载（sqlite3）         |
 
 ## 安装
 
@@ -56,12 +57,13 @@
 
 ### 参数说明
 
-| 参数 | 说明 | 示例 |
-|------|------|------|
-| **Installation method** | 运行方式。`native-windows` = Windows 本地，`wsl` = 通过 WSL 运行 | `wsl` |
-| **CLI path** | CLI 可执行文件路径。留空自动检测 | `claude`、`/usr/local/bin/claude` |
-| **WSL distro override** | WSL 发行版名称。留空从 vault 路径或默认 WSL 推断 | `Ubuntu`、`Debian` |
-| **WSL home path** | WSL 用户主目录。用于访问 session 文件 | `/home/bulinbulin` |
+
+| 参数                    | 说明                                                             | 示例                              |
+| ----------------------- | ---------------------------------------------------------------- | --------------------------------- |
+| **Installation method** | 运行方式。`native-windows` = Windows 本地，`wsl` = 通过 WSL 运行 | `wsl`                             |
+| **CLI path**            | CLI 可执行文件路径。留空自动检测                                 | `claude`、`/usr/local/bin/claude` |
+| **WSL distro override** | WSL 发行版名称。留空从 vault 路径或默认 WSL 推断                 | `Ubuntu`、`Debian`                |
+| **WSL home path**       | WSL 用户主目录。用于访问 session 文件                            | `/home/bulinbulin`                |
 
 ### 自动检测逻辑
 
