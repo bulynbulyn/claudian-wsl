@@ -3,6 +3,8 @@ import type { App } from 'obsidian';
 import * as os from 'os';
 import * as path from 'path';
 
+import { maybeMapLinuxToWindowsDrive } from '../core/wsl/WslPathMapper';
+
 export function getVaultPath(app: App): string | null {
   const adapter = app.vault.adapter;
 
@@ -351,7 +353,17 @@ export function normalizePathForVault(
 ): string | null {
   if (!rawPath) return null;
 
-  const normalizedRaw = normalizePathForFilesystem(rawPath);
+  // Convert WSL paths to Windows paths when running on Windows
+  // e.g., /mnt/d/Downloads/... -> D:\Downloads\...
+  let pathToNormalize = rawPath;
+  if (process.platform === 'win32' && rawPath.startsWith('/mnt/')) {
+    const windowsPath = maybeMapLinuxToWindowsDrive(rawPath);
+    if (windowsPath) {
+      pathToNormalize = windowsPath;
+    }
+  }
+
+  const normalizedRaw = normalizePathForFilesystem(pathToNormalize);
   if (!normalizedRaw) return null;
 
   if (vaultPath && isPathWithinVault(normalizedRaw, vaultPath)) {
