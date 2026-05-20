@@ -71,6 +71,10 @@ function spawnWslProcess(
   const { signal } = options;
   const spawnCwd = launchSpec.spawnCwd || process.cwd();
 
+  console.log('[Claudian] WSL spawn: launchSpec.args:', launchSpec.args);
+  console.log('[Claudian] WSL spawn: options.cwd:', options.cwd);
+  console.log('[Claudian] WSL spawn: launchSpec.targetCwd:', launchSpec.targetCwd);
+
   // launchSpec.args contains WSL wrapper: [--distribution, distro, --cd, cwd, claude]
   // options.args contains SDK-built CLI args: [--verbose, --permission-mode, --permission-prompt-tool, etc.]
   // Simply concatenate them - no duplication possible since they're different categories
