@@ -2,6 +2,39 @@
 
 基于原版 [YishenTu/claudian](https://github.com/YishenTu/claudian) 的 WSL 支持二开版本。
 
+## v2.0.17-wsl.1 合并上游 v2.0.17
+
+### 上游新功能 (v2.0.17)
+
+| 功能 | 描述 |
+|------|------|
+| **OpenCode Thinking Levels** | 支持按模型选择 ACP 思考级别（如 low/medium/high），聊天工具栏显示 Effort 选择器 |
+| **Model Metadata Warmup** | 选择模型后自动预热 thinking options 元数据，持久化到 `thinkingOptionsByModel` |
+| **prepareModelMetadata Hook** | `ProviderChatUIConfig` 新增可选钩子，用于模型选中后发现并缓存模型级元数据 |
+
+### 冲突解决
+
+| 文件 | 解决策略 |
+|------|---------|
+| `manifest.json` | 保留 WSL 插件身份（id: claudian），版本升至 2.0.17-wsl.1 |
+| `package.json` / `package-lock.json` | 版本升至 2.0.17-wsl.1 |
+| `src/providers/opencode/settings.ts` | 合并 WSL 安装方式字段 + 上游 `thinkingOptionsByModel` 字段 |
+
+### WSL 功能保留
+
+- ✅ Claude WSL：Installation method、distro 检测、路径转换、历史记录、Rewind
+- ✅ OpenCode WSL：Installation method、数据库路径计算、sqlite3 历史加载
+- ✅ MCP server 路径映射
+- ✅ YOLO/bypassPermissions 重启检测
+- ✅ Root user 安全检测
+- ✅ UNC 路径 Session 文件访问
+
+### 已知问题
+
+- 6 个测试失败（均为 fork 已有问题，非合并引入）
+
+---
+
 ## v2.0.16-wsl.1 合并上游 v2.0.16
 
 ### 上游新功能融入 (v2.0.11 ~ v2.0.16)
