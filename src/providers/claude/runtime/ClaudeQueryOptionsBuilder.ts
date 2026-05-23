@@ -13,6 +13,7 @@ import {
 import type { AppPluginManager } from '../../../core/providers/types';
 import type { ClaudianSettings, PermissionMode } from '../../../core/types/settings';
 import { isWslUserRoot } from '../../../core/wsl';
+import { windowsToWslPath } from '../../../core/wsl/WslPathMapper';
 import {
   type ClaudeSafeMode,
   getClaudeProviderSettings,
@@ -25,7 +26,6 @@ import {
 import { buildClaudeLaunchSpec } from './ClaudeLaunchSpecBuilder';
 import type { createClaudePathMapper} from './ClaudePathMapper';
 import { mapMcpServersForWsl } from './ClaudePathMapper';
-import { windowsToWslPath } from '../../../core/wsl/WslPathMapper';
 import { createCustomSpawnFunction } from './customSpawn';
 import {
   DISABLED_BUILTIN_SUBAGENTS,
