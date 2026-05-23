@@ -93,3 +93,10 @@ dev
 
 .claude/
 .codex/
+.agents/
+
+# Temporary context files
+.context/
+
+# Screenshots
+QQ截图*.png
