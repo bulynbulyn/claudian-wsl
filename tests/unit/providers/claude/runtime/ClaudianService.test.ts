@@ -1568,7 +1568,8 @@ describe('ClaudianService', () => {
       expect(mockPersistentQuery.setModel).not.toHaveBeenCalled();
     });
 
-    it('should restart when fixed thinking tokens change', async () => {
+    it('should ignore legacy thinking budget changes', async () => {
+
       (mockPlugin as any).settings.model = 'custom-model';
       (service as any).currentConfig = (service as any).buildPersistentQueryConfig(
         '/mock/vault/path',
@@ -1581,9 +1582,8 @@ describe('ClaudianService', () => {
       await (service as any).applyDynamicUpdates({});
 
       expect(mockPersistentQuery.setMaxThinkingTokens).not.toHaveBeenCalled();
-      expect(ensureReadySpy).toHaveBeenCalledWith(
-        expect.objectContaining({ force: true }),
-      );
+      expect(ensureReadySpy).not.toHaveBeenCalled();
+
     });
 
     it('should update effort level when changed for adaptive models', async () => {
@@ -1596,16 +1596,18 @@ describe('ClaudianService', () => {
       expect((service as any).currentConfig.effortLevel).toBe('max');
     });
 
-    it('should not update effort level for non-adaptive models', async () => {
+    it('should update effort level for custom model ids', async () => {
+
       (mockPlugin as any).settings.model = 'custom-model';
       (mockPlugin as any).settings.effortLevel = 'max';
 
       await (service as any).applyDynamicUpdates({});
 
-      expect(mockPersistentQuery.applyFlagSettings).not.toHaveBeenCalled();
+      expect(mockPersistentQuery.applyFlagSettings).toHaveBeenCalledWith({ effortLevel: 'max' });
     });
 
-    it('should clear thinking tokens when switching from budgeted to adaptive models', async () => {
+    it('should keep effort active when switching from custom to built-in model ids', async () => {
+
       (mockPlugin as any).settings.model = 'custom-model';
       (mockPlugin as any).settings.thinkingBudget = 'high';
       (service as any).currentConfig = (service as any).buildPersistentQueryConfig(
@@ -1625,11 +1627,11 @@ describe('ClaudianService', () => {
       await (service as any).applyDynamicUpdates({});
 
       expect(previousQuery.setMaxThinkingTokens).not.toHaveBeenCalled();
-      expect((service as any).currentConfig.thinkingTokens).toBeNull();
       expect((service as any).currentConfig.effortLevel).toBe('max');
     });
 
-    it('should restore thinking tokens when switching from adaptive to budgeted models', async () => {
+    it('should keep effort active when switching from built-in to custom model ids', async () => {
+
       (mockPlugin as any).settings.model = 'sonnet';
       (mockPlugin as any).settings.thinkingBudget = 'high';
       (mockPlugin as any).settings.effortLevel = 'max';
@@ -1649,8 +1651,8 @@ describe('ClaudianService', () => {
       await (service as any).applyDynamicUpdates({});
 
       expect(previousQuery.setMaxThinkingTokens).not.toHaveBeenCalled();
-      expect((service as any).currentConfig.thinkingTokens).toBe(16000);
-      expect((service as any).currentConfig.effortLevel).toBeNull();
+      expect((service as any).currentConfig.effortLevel).toBe('max');
+
     });
 
     it('should update permission mode when changed', async () => {
@@ -1789,7 +1791,8 @@ describe('ClaudianService', () => {
       await expect((service as any).applyDynamicUpdates({ model: 'claude-3-opus' })).resolves.toBeUndefined();
     });
 
-    it('should not dynamically update fixed thinking tokens', async () => {
+    it('should not dynamically update legacy thinking budget', async () => {
+
       (mockPlugin as any).settings.model = 'custom-model';
       (service as any).currentConfig = (service as any).buildPersistentQueryConfig(
         '/mock/vault/path',
@@ -1801,9 +1804,8 @@ describe('ClaudianService', () => {
 
       await expect((service as any).applyDynamicUpdates({})).resolves.toBeUndefined();
       expect(mockPersistentQuery.setMaxThinkingTokens).not.toHaveBeenCalled();
-      expect(ensureReadySpy).toHaveBeenCalledWith(
-        expect.objectContaining({ force: true }),
-      );
+      expect(ensureReadySpy).not.toHaveBeenCalled();
+
     });
 
     it('should silently handle permission mode update error', async () => {
@@ -2319,7 +2321,8 @@ describe('ClaudianService', () => {
       (service as any).queryAbortController = { abort: jest.fn() };
       (service as any).currentConfig = {
         model: 'claude-3-5-sonnet',
-        thinkingTokens: null,
+        effortLevel: 'high',
+
         permissionMode: 'ask',
         systemPromptKey: '',
         disallowedToolsKey: '',
@@ -2329,6 +2332,8 @@ describe('ClaudianService', () => {
         settingSources: '',
         claudeCliPath: '/usr/local/bin/claude',
         enableChrome: false,
+        enableAutoMode: false,
+
       };
 
       // Change CLI path to trigger restart
@@ -2495,7 +2500,8 @@ describe('ClaudianService', () => {
       (service as any).vaultPath = '/mock/vault/path';
       (service as any).currentConfig = {
         model: 'claude-3-5-sonnet',
-        thinkingTokens: null,
+        effortLevel: 'high',
+
         permissionMode: 'ask',
         systemPromptKey: '',
         disallowedToolsKey: '',
@@ -2505,6 +2511,8 @@ describe('ClaudianService', () => {
         settingSources: '',
         claudeCliPath: '/usr/local/bin/claude',
         enableChrome: false,
+        enableAutoMode: false,
+
       };
 
       // Set up handler to resolve immediately
@@ -2559,7 +2567,8 @@ describe('ClaudianService', () => {
       (service as any).vaultPath = '/mock/vault/path';
       (service as any).currentConfig = {
         model: 'claude-3-5-sonnet',
-        thinkingTokens: null,
+        effortLevel: 'high',
+
         permissionMode: 'ask',
         systemPromptKey: '',
         disallowedToolsKey: '',
@@ -2569,6 +2578,8 @@ describe('ClaudianService', () => {
         settingSources: '',
         claudeCliPath: '/usr/local/bin/claude',
         enableChrome: false,
+        enableAutoMode: false,
+
       };
 
       const chunks: any[] = [];
@@ -2602,7 +2613,8 @@ describe('ClaudianService', () => {
       (service as any).vaultPath = '/mock/vault/path';
       (service as any).currentConfig = {
         model: 'claude-3-5-sonnet',
-        thinkingTokens: null,
+        effortLevel: 'high',
+
         permissionMode: 'ask',
         systemPromptKey: '',
         disallowedToolsKey: '',
@@ -2612,6 +2624,8 @@ describe('ClaudianService', () => {
         settingSources: '',
         claudeCliPath: '/usr/local/bin/claude',
         enableChrome: false,
+        enableAutoMode: false,
+
       };
 
       // Mock applyDynamicUpdates to clear persistent query (simulating restart failure)
@@ -2653,7 +2667,8 @@ describe('ClaudianService', () => {
       (service as any).vaultPath = '/mock/vault/path';
       (service as any).currentConfig = {
         model: 'claude-3-5-sonnet',
-        thinkingTokens: null,
+        effortLevel: 'high',
+
         permissionMode: 'ask',
         systemPromptKey: '',
         disallowedToolsKey: '',
@@ -2663,6 +2678,8 @@ describe('ClaudianService', () => {
         settingSources: '',
         claudeCliPath: '/usr/local/bin/claude',
         enableChrome: false,
+        enableAutoMode: false,
+
       };
 
       const chunks: any[] = [];
@@ -2692,7 +2709,8 @@ describe('ClaudianService', () => {
       (service as any).vaultPath = '/mock/vault/path';
       (service as any).currentConfig = {
         model: 'claude-3-5-sonnet',
-        thinkingTokens: null,
+        effortLevel: 'high',
+
         permissionMode: 'ask',
         systemPromptKey: '',
         disallowedToolsKey: '',
@@ -2702,6 +2720,8 @@ describe('ClaudianService', () => {
         settingSources: '',
         claudeCliPath: '/usr/local/bin/claude',
         enableChrome: false,
+        enableAutoMode: false,
+
       };
 
       // Mock applyDynamicUpdates to avoid side effects
@@ -2739,7 +2759,8 @@ describe('ClaudianService', () => {
       (service as any).vaultPath = '/mock/vault/path';
       (service as any).currentConfig = {
         model: 'claude-3-5-sonnet',
-        thinkingTokens: null,
+        effortLevel: 'high',
+
         permissionMode: 'ask',
         systemPromptKey: '',
         disallowedToolsKey: '',
@@ -2749,6 +2770,8 @@ describe('ClaudianService', () => {
         settingSources: '',
         claudeCliPath: '/usr/local/bin/claude',
         enableChrome: false,
+        enableAutoMode: false,
+
       };
 
       // Mock applyDynamicUpdates to avoid side effects
@@ -2797,7 +2820,8 @@ describe('ClaudianService', () => {
       (service as any).vaultPath = '/mock/vault/path';
       (service as any).currentConfig = {
         model: 'claude-3-5-sonnet',
-        thinkingTokens: null,
+        effortLevel: 'high',
+
         permissionMode: 'ask',
         systemPromptKey: '',
         disallowedToolsKey: '',
@@ -2807,6 +2831,8 @@ describe('ClaudianService', () => {
         settingSources: '',
         claudeCliPath: '/usr/local/bin/claude',
         enableChrome: false,
+        enableAutoMode: false,
+
       };
 
       // Mock applyDynamicUpdates to avoid side effects
@@ -3623,21 +3649,21 @@ describe('ClaudianService', () => {
     it('sets pendingForkSession and pendingResumeAt when conversation has forkSource but no sessionId', () => {
       service.syncConversationState({
         sessionId: null,
-        providerState: { forkSource: { sessionId: 'source-session', resumeAt: 'asst-uuid-123' } },
+        providerState: { forkSource: { sessionId: '54a629b3-9e37-4699-a952-1297bc4e1139', resumeAt: 'asst-uuid-123' } },
       });
 
-      expect(service.getSessionId()).toBe('source-session');
+      expect(service.getSessionId()).toBe('54a629b3-9e37-4699-a952-1297bc4e1139');
       expect((service as any).pendingForkSession).toBe(true);
       expect((service as any).pendingResumeAt).toBe('asst-uuid-123');
     });
 
     it('does not set pendingForkSession when conversation has its own sessionId', () => {
       service.syncConversationState({
-        sessionId: 'own-session',
-        providerState: { forkSource: { sessionId: 'source-session', resumeAt: 'asst-uuid-123' } },
+        sessionId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+        providerState: { forkSource: { sessionId: '54a629b3-9e37-4699-a952-1297bc4e1139', resumeAt: 'asst-uuid-123' } },
       });
 
-      expect(service.getSessionId()).toBe('own-session');
+      expect(service.getSessionId()).toBe('a1b2c3d4-e5f6-7890-abcd-ef1234567890');
       expect((service as any).pendingForkSession).toBe(false);
       expect((service as any).pendingResumeAt).toBeUndefined();
     });
@@ -3653,10 +3679,10 @@ describe('ClaudianService', () => {
 
     it('resolves to sessionId when only sessionId is present (no forkSource)', () => {
       service.syncConversationState({
-        sessionId: 'existing-session',
+        sessionId: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
       });
 
-      expect(service.getSessionId()).toBe('existing-session');
+      expect(service.getSessionId()).toBe('b2c3d4e5-f6a7-8901-bcde-f12345678901');
       expect((service as any).pendingForkSession).toBe(false);
     });
 
@@ -3671,7 +3697,7 @@ describe('ClaudianService', () => {
 
       // Second call: conversation has own sessionId, should clear fork state
       service.syncConversationState({
-        sessionId: 'own-session',
+        sessionId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
         providerState: { forkSource: { sessionId: 'source-1', resumeAt: 'asst-1' } },
       });
       expect((service as any).pendingForkSession).toBe(false);
@@ -3696,12 +3722,12 @@ describe('ClaudianService', () => {
         sessionId: null,
         providerState: {
           providerSessionId: 'sdk-session-xyz',
-          forkSource: { sessionId: 'source-session', resumeAt: 'asst-uuid-123' },
+          forkSource: { sessionId: '54a629b3-9e37-4699-a952-1297bc4e1139', resumeAt: 'asst-uuid-123' },
         },
       });
 
       // Resolves to forkSource.sessionId via the ?? chain, but does NOT set pending fork state
-      expect(service.getSessionId()).toBe('source-session');
+      expect(service.getSessionId()).toBe('54a629b3-9e37-4699-a952-1297bc4e1139');
       expect((service as any).pendingForkSession).toBe(false);
       expect((service as any).pendingResumeAt).toBeUndefined();
     });
@@ -3768,10 +3794,10 @@ describe('ClaudianService', () => {
 
       service.syncConversationState({
         sessionId: null,
-        providerState: { forkSource: { sessionId: 'source-session', resumeAt: 'assistant-uuid' } },
+        providerState: { forkSource: { sessionId: '54a629b3-9e37-4699-a952-1297bc4e1139', resumeAt: 'assistant-uuid' } },
       }, ['/external/path']);
 
-      expect(setSessionIdSpy).toHaveBeenCalledWith('source-session', ['/external/path']);
+      expect(setSessionIdSpy).toHaveBeenCalledWith('54a629b3-9e37-4699-a952-1297bc4e1139', ['/external/path']);
       expect((service as any).pendingForkSession).toBe(true);
       expect((service as any).pendingResumeAt).toBe('assistant-uuid');
     });
@@ -3781,7 +3807,7 @@ describe('ClaudianService', () => {
 
       service.syncConversationState({
         sessionId: null,
-        providerState: { forkSource: { sessionId: 'source-session', resumeAt: 'assistant-uuid' } },
+        providerState: { forkSource: { sessionId: '54a629b3-9e37-4699-a952-1297bc4e1139', resumeAt: 'assistant-uuid' } },
       });
 
       service.syncConversationState(null, ['/external/path']);

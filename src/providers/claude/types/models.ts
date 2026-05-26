@@ -43,13 +43,13 @@ export const DEFAULT_EFFORT_LEVEL: Record<string, EffortLevel> = {
   'opus[1m]': 'high',
 };
 
-/** Default thinking budget per model tier. */
+/** Default thinking budget per model tier (for non-adaptive models). */
 export const DEFAULT_THINKING_BUDGET: Record<string, ThinkingBudget> = {
   'haiku': 'off',
-  'sonnet': 'low',
-  'sonnet[1m]': 'low',
-  'opus': 'medium',
-  'opus[1m]': 'medium',
+  'sonnet': 'off',
+  'sonnet[1m]': 'off',
+  'opus': 'off',
+  'opus[1m]': 'off',
 };
 
 const ONE_M_SUFFIX = '[1m]';
@@ -93,11 +93,14 @@ function resolveCustomContextLimit(
   return matchingLimits.length === 1 ? matchingLimits[0] : null;
 }
 
-/** Whether the model is a known Claude model that supports adaptive thinking. */
+/** Whether the model supports adaptive thinking. All known Claude models and custom models default to adaptive. */
 export function isAdaptiveThinkingModel(model: string): boolean {
   const normalized = normalizeModelId(model);
   if (DEFAULT_MODEL_VALUES.has(normalized)) return true;
-  return /claude-(haiku|sonnet|opus)-/.test(normalized);
+  if (/claude-(haiku|sonnet|opus)-/.test(normalized)) return true;
+  // Custom models default to adaptive thinking (matches upstream behavior where
+  // resolveEffortLevel always returns an effort level for all models)
+  return true;
 }
 
 export function isDefaultClaudeModel(model: string): boolean {
@@ -131,28 +134,36 @@ export function normalizeEffortLevel(
   return DEFAULT_EFFORT_LEVEL[normalizeModelId(model)] ?? 'high';
 }
 
-export function resolveThinkingTokens(
+export function resolveEffortLevel(
   model: string,
-  thinkingBudget: unknown,
-): number | null {
-  if (isAdaptiveThinkingModel(model)) {
-    return null;
-  }
-
-  const budgetConfig = THINKING_BUDGETS.find((budget) => budget.value === thinkingBudget);
-  const thinkingTokens = budgetConfig?.tokens ?? null;
-  return thinkingTokens && thinkingTokens > 0 ? thinkingTokens : null;
+  effortLevel: unknown,
+): EffortLevel {
+  return normalizeEffortLevel(model, effortLevel);
 }
 
+/**
+ * Resolve adaptive effort level. Returns the effort level if the model supports
+ * adaptive thinking, or null if the model requires a fixed thinking budget instead.
+ */
 export function resolveAdaptiveEffortLevel(
   model: string,
   effortLevel: unknown,
 ): EffortLevel | null {
-  if (!isAdaptiveThinkingModel(model)) {
-    return null;
-  }
-
+  if (!isAdaptiveThinkingModel(model)) return null;
   return normalizeEffortLevel(model, effortLevel);
+}
+
+/**
+ * Resolve fixed thinking token budget. Returns the token count if the model
+ * uses a fixed budget (not adaptive), or null if the model uses adaptive thinking.
+ */
+export function resolveThinkingTokens(
+  model: string,
+  thinkingBudget: unknown,
+): number | null {
+  if (isAdaptiveThinkingModel(model)) return null;
+  const budget = THINKING_BUDGETS.find(b => b.value === thinkingBudget);
+  return budget ? budget.tokens : THINKING_BUDGETS[2].tokens; // default to 'medium'
 }
 
 export const CONTEXT_WINDOW_STANDARD = 200_000;

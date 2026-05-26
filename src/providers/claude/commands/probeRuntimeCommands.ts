@@ -6,7 +6,10 @@ import type ClaudianPlugin from '../../../main';
 import { getEnhancedPath, parseEnvironmentVariables } from '../../../utils/env';
 import { getVaultPath } from '../../../utils/path';
 import { createCustomSpawnFunction } from '../runtime/customSpawn';
-import { getClaudeProviderSettings, resolveClaudeSettingSources } from '../settings';
+import {
+  getClaudeProviderSettings,
+  resolveClaudeSettingSources,
+} from '../settings';
 
 function mapSdkCommands(sdkCommands: SDKSlashCommand[]): SlashCommand[] {
   return sdkCommands.map((cmd) => ({

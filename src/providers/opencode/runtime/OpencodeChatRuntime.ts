@@ -170,6 +170,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
   private readonly sessionUpdateNormalizer = new AcpSessionUpdateNormalizer();
   private readonly toolStreamAdapter = createOpencodeToolStreamAdapter();
   private transport: AcpJsonRpcTransport | null = null;
+  private unregisterTransportClose: (() => void) | null = null;
 
   constructor(
     private readonly plugin: ClaudianPlugin,
@@ -306,6 +307,7 @@ export class OpencodeChatRuntime implements ChatRuntime {
       || !this.transport
       || !this.connection
       || !this.process.isAlive()
+      || this.transport.isClosed
       || options?.force === true
       || this.currentLaunchKey !== nextLaunchKey;
 
@@ -635,6 +637,12 @@ export class OpencodeChatRuntime implements ChatRuntime {
       onClose: (listener) => this.process!.onClose(listener),
       output: this.process.stdin,
     });
+    const transport = this.transport;
+    this.unregisterTransportClose = transport.onClose(() => {
+      if (this.transport === transport) {
+        this.setReady(false);
+      }
+    });
 
     this.connection = new AcpClientConnection({
       clientInfo: {
@@ -666,6 +674,9 @@ export class OpencodeChatRuntime implements ChatRuntime {
     this.currentSessionModeId = null;
     this.pathMapper = null;
     this.setSupportedCommands([]);
+
+    this.unregisterTransportClose?.();
+    this.unregisterTransportClose = null;
 
     this.connection?.dispose();
     this.connection = null;

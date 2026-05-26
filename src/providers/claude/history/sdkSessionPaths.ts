@@ -52,14 +52,12 @@ export function wslPathToWindowsUNC(wslPath: string, wslDistro?: string): string
  */
 export function getWslDistroName(wslDistroOverride?: string): string | undefined {
   if (wslDistroOverride && wslDistroOverride.trim()) {
-    console.log('[Claudian] WSL distro from settings:', wslDistroOverride);
     return wslDistroOverride.trim();
   }
 
   // Try WSL_DISTRO env var
   const wslDistroEnv = process.env.WSL_DISTRO;
   if (wslDistroEnv) {
-    console.log('[Claudian] WSL_DISTRO from env:', wslDistroEnv);
     return wslDistroEnv;
   }
 
@@ -74,21 +72,18 @@ export function getWslDistroName(wslDistroOverride?: string): string | undefined
 export function getWslHomePath(wslHomePathOverride?: string): string {
   // Try settings override first
   if (wslHomePathOverride && wslHomePathOverride.trim()) {
-    console.log('[Claudian] WSL home from settings:', wslHomePathOverride);
     return wslHomePathOverride.trim();
   }
 
   // Try WSL_HOME env var
   const wslHomeEnv = process.env.WSL_HOME;
   if (wslHomeEnv) {
-    console.log('[Claudian] WSL_HOME from env:', wslHomeEnv);
     return wslHomeEnv;
   }
 
   // Try WSL_USER env var
   const wslUserEnv = process.env.WSL_USER;
   if (wslUserEnv) {
-    console.log('[Claudian] WSL_USER from env:', wslUserEnv);
     return `/home/${wslUserEnv}`;
   }
 
@@ -97,9 +92,7 @@ export function getWslHomePath(wslHomePathOverride?: string): string {
 
   // Default to first option (most common case)
   const defaultWslUser = winUser.toLowerCase() === 'administrator' ? 'root' : winUser.toLowerCase();
-  const defaultHome = `/home/${defaultWslUser}`;
-  console.log('[Claudian] Using default WSL home:', defaultHome, '(winUser:', winUser, ')');
-  return defaultHome;
+  return `/home/${defaultWslUser}`;
 }
 
 /**
@@ -159,13 +152,9 @@ export function getSDKSessionPath(
 
   // Build Unix-style session path first
   const unixSessionPath = `${wslHome}/.claude/projects/${encodedVault}/${sessionId}.jsonl`;
-  console.log('[Claudian] WSL Unix session path:', unixSessionPath);
 
   // Convert to Windows UNC path for fs access
-  const windowsUNCPath = wslPathToWindowsUNC(unixSessionPath, distro);
-  console.log('[Claudian] Windows UNC session path:', windowsUNCPath);
-
-  return windowsUNCPath;
+  return wslPathToWindowsUNC(unixSessionPath, distro);
 }
 
 /** Validates an identifier for safe use in filesystem paths (no traversal, bounded length). */
@@ -192,12 +181,8 @@ export function sdkSessionExists(
 ): boolean {
   try {
     const sessionPath = getSDKSessionPath(vaultPath, sessionId, isWslMode, wslHomePath, wslDistro);
-    console.log('[Claudian] sdkSessionExists checking:', { vaultPath, sessionId, sessionPath, isWslMode, wslHomePath, wslDistro });
-    const exists = existsSync(sessionPath);
-    console.log('[Claudian] sdkSessionExists result:', exists);
-    return exists;
-  } catch (e) {
-    console.warn('[Claudian] sdkSessionExists error:', e);
+    return existsSync(sessionPath);
+  } catch {
     return false;
   }
 }
@@ -230,9 +215,7 @@ export async function readSDKSession(
 ): Promise<SDKSessionReadResult> {
   try {
     const sessionPath = getSDKSessionPath(vaultPath, sessionId, isWslMode, wslHomePath, wslDistro);
-    console.log('[Claudian] readSDKSession path:', sessionPath);
     if (!existsSync(sessionPath)) {
-      console.log('[Claudian] readSDKSession: file does not exist');
       return { messages: [], skippedLines: 0 };
     }
 
@@ -250,11 +233,9 @@ export async function readSDKSession(
       }
     }
 
-    console.log('[Claudian] readSDKSession success:', { messagesCount: messages.length, skippedLines });
     return { messages, skippedLines };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    console.warn('[Claudian] readSDKSession error:', errorMsg);
     return { messages: [], skippedLines: 0, error: errorMsg };
   }
 }

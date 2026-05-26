@@ -199,6 +199,7 @@ export class OpencodeAuxQueryRunner implements AuxQueryRunner {
       || !this.transport
       || !this.connection
       || !this.process.isAlive()
+      || this.transport.isClosed
       || this.currentLaunchKey !== nextLaunchKey;
 
     if (!shouldRestart) {

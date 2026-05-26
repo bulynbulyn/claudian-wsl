@@ -71,10 +71,8 @@ function resolveRewindFilePath(filePath: string, vaultPath: string | null, deps:
     const pathMapper = createClaudePathMapper(target);
     const hostPath = pathMapper.toHostPath(resolvedPath);
     if (hostPath) {
-      console.log('[Claudian] Rewind: converted WSL path', resolvedPath, 'to Windows path', hostPath);
       return hostPath;
     }
-    console.warn('[Claudian] Rewind: could not convert WSL path', resolvedPath);
   }
 
   return resolvedPath;
@@ -207,19 +205,7 @@ export async function executeClaudeRewind(
     return { canRewind: true, filesChanged: [] };
   }
 
-  console.log('[Claudian] Rewind: starting with config:', {
-    installationMethod: deps.installationMethod,
-    wslDistroOverride: deps.wslDistroOverride,
-    platform: process.platform,
-  });
-
   const preview = await deps.rewindFiles(userMessageId, true);
-  console.log('[Claudian] Rewind: preview result:', {
-    canRewind: preview.canRewind,
-    filesChanged: preview.filesChanged,
-    error: (preview as RewindFilesResult & { error?: string }).error,
-  });
-
   if (!preview.canRewind) {
     return preview;
   }

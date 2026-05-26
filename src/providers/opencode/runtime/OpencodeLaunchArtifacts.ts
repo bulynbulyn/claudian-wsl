@@ -111,32 +111,26 @@ export async function prepareOpencodeLaunchArtifacts(
   let databasePath: string | null;
   const isWslMode = params.wslSettings?.installationMethod === 'wsl';
 
-  console.log('[OpenCode Artifacts] Preparing launch artifacts');
-  console.log('[OpenCode Artifacts] WSL mode:', isWslMode);
-  console.log('[OpenCode Artifacts] WSL settings:', params.wslSettings);
-
   if (isWslMode) {
     // In WSL mode, use forced Linux path calculation
     const wslHomePath = params.wslSettings?.wslHomePath || '';
     const linuxDbPath = wslHomePath
       ? resolveOpencodeDatabasePathForWsl(wslHomePath)
       : null;
-    console.log('[OpenCode Artifacts] Linux database path:', linuxDbPath);
 
     // Convert to Windows UNC path for storage (used by history loader)
     if (linuxDbPath) {
-      databasePath = convertLinuxToWslUncPath(linuxDbPath, params.wslSettings?.wslDistroOverride);
-      console.log('[OpenCode Artifacts] Converted to UNC:', databasePath);
+      databasePath = convertLinuxToWslUnc(linuxDbPath, params.wslSettings?.wslDistroOverride);
     } else {
       databasePath = null;
     }
   } else {
     // Native mode: use Windows environment
     databasePath = resolveOpencodeDatabasePath(params.runtimeEnv);
-    console.log('[OpenCode Artifacts] Native database path:', databasePath);
   }
 
   await fs.mkdir(artifactsDir, { recursive: true });
+  await ensureOpencodeDatabaseDirectory(databasePath);
   await writeIfChanged(systemPromptPath, systemPrompt);
   await writeIfChanged(configPath, configContent);
 
@@ -148,11 +142,18 @@ export async function prepareOpencodeLaunchArtifacts(
       promptKey,
       configContent,
       databasePath ?? '',
-      params.runtimeEnv.OPENCODE_DB ?? '',
       params.runtimeEnv.XDG_DATA_HOME ?? '',
     ].join('::'),
     systemPromptPath,
   };
+}
+
+async function ensureOpencodeDatabaseDirectory(databasePath: string | null): Promise<void> {
+  if (!databasePath || databasePath === ':memory:') {
+    return;
+  }
+
+  await fs.mkdir(path.dirname(databasePath), { recursive: true });
 }
 
 export function buildOpencodeManagedConfig(
@@ -246,7 +247,7 @@ function normalizeSystemPrompt(systemPrompt: string): string {
   return systemPrompt.endsWith('\n') ? systemPrompt : `${systemPrompt}\n`;
 }
 
-function convertLinuxToWslUncPath(linuxPath: string, distroOverride?: string): string {
+function convertLinuxToWslUnc(linuxPath: string, distroOverride?: string): string {
   if (!linuxPath.startsWith('/')) {
     return linuxPath;
   }

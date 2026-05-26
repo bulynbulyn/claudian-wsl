@@ -286,11 +286,11 @@ export class AcpClientConnection {
   private async requestWithFallback<T>(
     logicalMethod: AcpLogicalMethod,
     params?: unknown,
-    options?: JsonRpcRequestOptions,
+    requestOptions?: JsonRpcRequestOptions,
   ): Promise<T> {
     const cachedMethod = this.methodCache.get(logicalMethod);
     if (cachedMethod) {
-      return this.options.transport.request<T>(cachedMethod, params, options);
+      return this.options.transport.request<T>(cachedMethod, params, requestOptions);
     }
 
     const candidates = getAcpMethodCandidates(logicalMethod, this.options.methodOverrides);
@@ -298,7 +298,7 @@ export class AcpClientConnection {
 
     for (const methodName of candidates) {
       try {
-        const result = await this.options.transport.request<T>(methodName, params, options);
+        const result = await this.options.transport.request<T>(methodName, params, requestOptions);
         this.methodCache.set(logicalMethod, methodName);
         return result;
       } catch (error) {

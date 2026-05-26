@@ -64,69 +64,46 @@ export function resolveExistingOpencodeDatabasePath(
   preferredPath?: string | null,
   env: NodeJS.ProcessEnv = process.env,
 ): string | null {
-  console.log('[OpenCode Paths] Resolving database path');
-  console.log('[OpenCode Paths] Preferred path:', preferredPath);
-  console.log('[OpenCode Paths] Platform:', process.platform);
-
   const preferred = preferredPath?.trim();
   if (preferred) {
     if (preferred === ':memory:') {
-      console.log('[OpenCode Paths] Preferred path is :memory:');
       return preferred;
     }
 
     // WSL path conversion: if running on Windows with a Linux path, convert to UNC
     const isLinuxPath = preferred.startsWith('/');
-    console.log('[OpenCode Paths] Preferred is Linux path:', isLinuxPath);
 
     const convertedPath = process.platform === 'win32' && isLinuxPath
       ? maybeConvertWslPath(preferred)
       : preferred;
 
-    console.log('[OpenCode Paths] Converted path:', convertedPath);
-
     if (fs.existsSync(convertedPath)) {
-      console.log('[OpenCode Paths] Converted path exists, returning:', convertedPath);
       return convertedPath;
     }
 
     // If original path exists (non-WSL case), return it
     if (convertedPath !== preferred && fs.existsSync(preferred)) {
-      console.log('[OpenCode Paths] Original path exists, returning:', preferred);
       return preferred;
     }
-
-    console.log('[OpenCode Paths] Neither converted nor original path exists');
   }
 
-  console.log('[OpenCode Paths] Trying to resolve default database path');
   const resolved = resolveOpencodeDatabasePath(env);
-  console.log('[OpenCode Paths] Resolved default path:', resolved);
-
   if (resolved && (resolved === ':memory:' || fs.existsSync(resolved))) {
-    console.log('[OpenCode Paths] Default path exists or is :memory:');
     return resolved;
   }
 
   // Try WSL conversion for resolved path as well
   if (resolved && resolved.startsWith('/') && process.platform === 'win32') {
-    console.log('[OpenCode Paths] Trying WSL conversion for resolved path');
     const convertedResolved = maybeConvertWslPath(resolved);
-    console.log('[OpenCode Paths] Converted resolved path:', convertedResolved);
-
     if (fs.existsSync(convertedResolved)) {
-      console.log('[OpenCode Paths] Converted resolved path exists');
       return convertedResolved;
     }
   }
 
-  console.log('[OpenCode Paths] Returning fallback:', preferred ?? resolved);
   return preferred ?? resolved;
 }
 
 function maybeConvertWslPath(linuxPath: string): string {
-  console.log('[OpenCode WSL] Converting Linux path:', linuxPath);
-
   // Try common WSL distro names in order of popularity
   const distroCandidates = [
     'Ubuntu',
@@ -140,10 +117,7 @@ function maybeConvertWslPath(linuxPath: string): string {
 
   for (const distro of distroCandidates) {
     const uncPath = convertLinuxToWslUnc(linuxPath, distro);
-    console.log('[OpenCode WSL] Trying distro:', distro, 'UNC path:', uncPath);
-
     if (uncPath && fs.existsSync(uncPath)) {
-      console.log('[OpenCode WSL] Found existing path for distro:', distro);
       return uncPath;
     }
   }
@@ -151,15 +125,12 @@ function maybeConvertWslPath(linuxPath: string): string {
   // Fallback: use \\wsl.localhost\ which works with default distro
   // This format is supported on newer Windows versions
   const wslLocalhostPath = `\\\\wsl.localhost\\${linuxPath.slice(1).replace(/\//g, '\\')}`;
-  console.log('[OpenCode WSL] Trying wsl.localhost path:', wslLocalhostPath);
 
   if (fs.existsSync(wslLocalhostPath)) {
-    console.log('[OpenCode WSL] wsl.localhost path exists');
     return wslLocalhostPath;
   }
 
   // Last resort: return original Linux path (will fail fs.existsSync check)
-  console.log('[OpenCode WSL] No WSL conversion found, returning original Linux path');
   return linuxPath;
 }
 

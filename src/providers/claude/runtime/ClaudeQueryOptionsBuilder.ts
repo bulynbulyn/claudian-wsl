@@ -91,10 +91,6 @@ export class QueryOptionsBuilder {
       }
     }
 
-    // Fixed thinking budgets are startup query options. Adaptive effort remains
-    // dynamic via applyFlagSettings(), but fixed budgets require query rebuilds.
-    if (currentConfig.thinkingTokens !== newConfig.thinkingTokens) return true;
-
     if (currentConfig.enableChrome !== newConfig.enableChrome) return true;
     if (currentConfig.enableAutoMode !== newConfig.enableAutoMode) return true;
 
@@ -102,6 +98,10 @@ export class QueryOptionsBuilder {
     if (QueryOptionsBuilder.pathsChanged(currentConfig.externalContextPaths, newConfig.externalContextPaths)) {
       return true;
     }
+
+    // Fixed thinking budgets are startup query options. Adaptive effort remains
+    // dynamic via applyFlagSettings(), but fixed budgets require query rebuilds.
+    if (currentConfig.thinkingTokens !== newConfig.thinkingTokens) return true;
 
     // WSL installation method change requires restart
     if (currentConfig.installationMethod !== newConfig.installationMethod) return true;
@@ -357,8 +357,6 @@ export class QueryOptionsBuilder {
     const cwd = isWslMode && launchSpec?.targetCwd
       ? launchSpec.targetCwd
       : ctx.vaultPath;
-
-    console.log('[Claudian] QueryOptions: isWslMode:', isWslMode, 'launchSpec?.targetCwd:', launchSpec?.targetCwd, 'ctx.vaultPath:', ctx.vaultPath, 'final cwd:', cwd, 'systemPrompt vaultPath:', systemPromptSettings.vaultPath);
 
     const options: Options = {
       cwd,

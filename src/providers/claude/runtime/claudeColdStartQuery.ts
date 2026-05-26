@@ -66,6 +66,7 @@ export async function runColdStartQuery(
   );
   const enhancedPath = getEnhancedPath(customEnv.PATH, resolvedClaudePath);
 
+
   const settings = config.providerSettings
     ?? ProviderSettingsCoordinator.getProviderSettingsSnapshot(
       config.plugin.settings,
@@ -112,7 +113,6 @@ export async function runColdStartQuery(
   // Use acceptEdits mode if WSL user is root (CLI rejects bypassPermissions for root)
   const permissionMode = isWslRootUser ? 'acceptEdits' : 'bypassPermissions';
   const allowDangerouslySkipPermissions = !isWslRootUser;
-
   const options: Options = {
     cwd: vaultPath,
     systemPrompt: config.systemPrompt,

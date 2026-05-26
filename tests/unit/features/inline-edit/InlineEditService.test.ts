@@ -342,6 +342,7 @@ describe('InlineEditService', () => {
 
     it('should set settingSources to project only when loadUserClaudeSettings is false', async () => {
       mockPlugin.settings.loadUserClaudeSettings = false;
+
       service = new InlineEditService(mockPlugin);
 
       setMockMessages([
@@ -413,9 +414,10 @@ describe('InlineEditService', () => {
       expect(options?.maxThinkingTokens).toBeUndefined();
     });
 
-    it('should set thinking budget for custom models', async () => {
+    it('should set adaptive thinking with effort for custom models', async () => {
       mockPlugin.settings.model = 'custom-model';
       mockPlugin.settings.thinkingBudget = 'medium';
+      mockPlugin.settings.effortLevel = 'medium';
       service = new InlineEditService(mockPlugin);
 
       setMockMessages([
@@ -435,7 +437,9 @@ describe('InlineEditService', () => {
       });
 
       const options = getLastOptions();
-      expect(options?.thinking).toEqual({ type: 'enabled', budgetTokens: expect.any(Number) });
+      expect(options?.thinking).toEqual({ type: 'adaptive' });
+      expect(options?.effort).toBe('medium');
+
       expect(options?.maxThinkingTokens).toBeUndefined();
     });
 

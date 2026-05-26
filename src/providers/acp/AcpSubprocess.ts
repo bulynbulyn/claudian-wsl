@@ -3,6 +3,7 @@ import type { Readable, Writable } from 'node:stream';
 
 import type { WslLaunchSpec } from '../../core/wsl';
 
+
 const SIGKILL_TIMEOUT_MS = 3_000;
 const STDERR_BUFFER_LIMIT = 8_000;
 
@@ -64,6 +65,7 @@ export class AcpSubprocess {
     }
 
     // Native mode
+
     const proc = spawn(this.launchSpec.command, this.launchSpec.args, {
       cwd: this.launchSpec.cwd,
       env: this.launchSpec.env,

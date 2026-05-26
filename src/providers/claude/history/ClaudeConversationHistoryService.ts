@@ -363,20 +363,7 @@ export class ClaudeConversationHistoryService implements ProviderConversationHis
     vaultPath: string | null,
     settings?: Record<string, unknown>,
   ): Promise<void> {
-    console.log('[Claudian] hydrateConversationHistory called:', {
-      conversationId: conversation.id,
-      title: conversation.title,
-      sessionId: conversation.sessionId,
-      vaultPath,
-      messagesCount: conversation.messages.length,
-    });
-
-    if (!vaultPath) {
-      console.warn('[Claudian] hydrateConversationHistory skipped: vaultPath is null');
-      return;
-    }
-    if (this.hydratedConversationIds.has(conversation.id)) {
-      console.log('[Claudian] hydration skipped: already hydrated');
+    if (!vaultPath || this.hydratedConversationIds.has(conversation.id)) {
       return;
     }
 
@@ -385,7 +372,6 @@ export class ClaudeConversationHistoryService implements ProviderConversationHis
     const isWslMode = claudeSettings.installationMethod === 'wsl' && process.platform === 'win32';
     const wslHomePath = claudeSettings.wslHomePath;
     const wslDistro = claudeSettings.wslDistroOverride;
-    console.log('[Claudian] WSL mode detected:', isWslMode, 'installationMethod:', claudeSettings.installationMethod, 'wslHomePath:', wslHomePath, 'wslDistro:', wslDistro);
 
     const state = getClaudeState(conversation.providerState);
     const isPendingFork = this.isPendingForkConversation(conversation);
