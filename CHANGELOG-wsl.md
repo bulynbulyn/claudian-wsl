@@ -2,6 +2,45 @@
 
 基于原版 [YishenTu/claudian](https://github.com/YishenTu/claudian) 的 WSL 支持二开版本。
 
+## v2.0.18-wsl.1 合并上游 v2.0.18
+
+### 上游新功能 (v2.0.18)
+
+| 功能 | 描述 |
+|------|------|
+| **Custom Model Aliases** | 支持自定义模型别名，在环境变量片段和全局设置中配置 `modelAliases` |
+| **OpenCode ACP Transport 加固** | 修复 ACP 传输层重启逻辑，新增 `isClosed` 状态检测和 `closeInput`/`closeOutput` 方法 |
+| **OpenCode 数据库目录预创建** | 启动前自动创建 OpenCode 数据库目录，避免首次运行报错 |
+| **AskUserQuestion 自定义输入修复** | 修复 Claude provider 中 "Other" 自定义输入不可达的问题 |
+
+### 冲突解决
+
+| 文件 | 解决策略 |
+|------|---------|
+| `manifest.json` | 保留 WSL 插件身份（id: claudian），版本升至 2.0.18-wsl.1 |
+| `package.json` / `package-lock.json` | 版本升至 2.0.18-wsl.1 |
+| Claude provider 源文件（17 个） | 上游版本为基底 + WSL 代码重新集成（首次合并质量不佳，二次修复） |
+| `OpencodeLaunchArtifacts.ts` | 移除错误添加的 `OPENCODE_DB` 到 launch key |
+| `ClaudeChatRuntime.ts` | UUID 验证仅限直接会话 ID，允许 fork source 的跨 provider session ID |
+| `ClaudianService.test.ts` | 测试 session ID 更新为有效 UUID 格式 |
+
+### WSL 功能保留
+
+- ✅ Claude WSL：Installation method、distro 检测、路径转换、历史记录、Rewind
+- ✅ OpenCode WSL：Installation method、数据库路径计算、sqlite3 历史加载
+- ✅ MCP server 路径映射
+- ✅ YOLO/bypassPermissions 重启检测
+- ✅ Root user 安全检测
+- ✅ UNC 路径 Session 文件访问
+
+### 已知问题
+
+- 5 个测试失败（均为上游代码问题，非合并引入）
+  - `InlineAskUserQuestion`：4 个键盘导航测试期望行为与实现不一致
+  - `OpencodeChatRuntime`：1 个模式选择测试引用了不在可用列表中的模式
+
+---
+
 ## v2.0.17-wsl.1 合并上游 v2.0.17
 
 ### 上游新功能 (v2.0.17)

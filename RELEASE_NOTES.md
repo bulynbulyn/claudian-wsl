@@ -1,3 +1,30 @@
+## v2.0.18-wsl.1
+
+基于 [YishenTu/claudian](https://github.com/YishenTu/claudian) v2.0.18，合并上游新功能并保留 WSL 支持。
+
+### 上游新功能
+
+- **Custom Model Aliases**：支持自定义模型别名，在环境变量片段和全局设置中配置
+- **OpenCode ACP Transport 加固**：修复传输层重启逻辑，新增 `isClosed` 状态检测
+- **OpenCode 数据库目录预创建**：启动前自动创建数据库目录
+- **AskUserQuestion 自定义输入修复**：修复 Claude provider 中 "Other" 输入不可达的问题
+
+### WSL 修复
+
+- **跨 provider fork 恢复**：修复 Claude 会话从 OpenCode fork 时 session ID 被错误拒绝的问题
+  - UUID 验证仅限直接会话 ID，允许 fork source 的 `ses_` 格式 session ID
+
+### WSL 功能保留
+
+- ✅ Claude WSL：Installation method、distro 检测、路径转换、历史记录、Rewind
+- ✅ OpenCode WSL：Installation method、数据库路径计算、sqlite3 历史加载
+- ✅ MCP server 路径映射
+- ✅ YOLO/bypassPermissions 重启检测
+- ✅ Root user 安全检测
+- ✅ UNC 路径 Session 文件访问
+
+---
+
 ## v2.0.10-wsl.2
 
 修复 WSL root 用户运行 Claude CLI 时的安全限制问题。
