@@ -236,6 +236,14 @@ export class PiChatRuntime implements ChatRuntime {
     const promptSettings = this.getSystemPromptSettings(cwd);
     const systemPrompt = buildSystemPrompt(promptSettings);
     const noSession = !allowSessionCreation && !hasSessionTarget;
+
+    // In WSL mode, write system prompt to a temp file to avoid bash
+    // interpreting multi-line content with special characters as commands.
+    let systemPromptFile: string | undefined;
+    if (settings.installationMethod === 'wsl' && systemPrompt) {
+      systemPromptFile = await this.writeSystemPromptTempFile(cwd, systemPrompt);
+    }
+
     const launchSpec = buildPiLaunchSpec({
       command: resolvedCliPath,
       cwd,
@@ -245,6 +253,7 @@ export class PiChatRuntime implements ChatRuntime {
       providerState: this.getCurrentProviderState(),
       settings,
       systemPrompt,
+      systemPromptFile,
     });
 
     // WSL mode: build WSL launch spec if installation method is 'wsl'
@@ -866,6 +875,14 @@ export class PiChatRuntime implements ChatRuntime {
     } catch {
       // Live checkpoint metadata is best-effort; hydration can still recover IDs later.
     }
+  }
+
+  private async writeSystemPromptTempFile(vaultPath: string, systemPrompt: string): Promise<string> {
+    const tempDir = path.join(vaultPath, '.claudian', 'tmp');
+    await fsp.mkdir(tempDir, { recursive: true });
+    const tempFile = path.join(tempDir, 'pi-system-prompt.md');
+    await fsp.writeFile(tempFile, systemPrompt, 'utf-8');
+    return tempFile;
   }
 
   private getSystemPromptSettings(vaultPath: string): SystemPromptSettings {

@@ -15,6 +15,7 @@ export interface BuildPiLaunchSpecParams {
   providerState?: PiProviderState | null;
   settings: PiProviderSettings;
   systemPrompt?: string;
+  systemPromptFile?: string;
   thinkingLevel?: string | null;
 }
 
@@ -79,7 +80,13 @@ export function buildPiLaunchSpec(params: BuildPiLaunchSpecParams): PiLaunchSpec
   const args = ['--mode', 'rpc'];
   const systemPrompt = params.systemPrompt?.trim();
   if (systemPrompt) {
-    args.push('--system-prompt', systemPrompt);
+    // In WSL mode, write system prompt to a temp file and use --append-system-prompt
+    // to avoid bash interpreting multi-line content with special characters as commands.
+    if (params.systemPromptFile) {
+      args.push('--append-system-prompt', params.systemPromptFile);
+    } else {
+      args.push('--system-prompt', systemPrompt);
+    }
   }
 
   if (params.noSession) {
