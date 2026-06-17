@@ -51,8 +51,15 @@ export class PiCliResolver {
     const isWsl = installationMethod === 'wsl';
 
     if (isWsl) {
-      return resolveWslCliPath(hostnamePath)
+      // In WSL mode, prefer the bare command name so bash -i can resolve it
+      // via fnm/nvm PATH. Only use explicit paths if the user configured them.
+      const explicitPath = resolveWslCliPath(hostnamePath)
         ?? resolveWslCliPath(legacyPath.trim());
+      // If the resolved path is a temporary fnm/nvm shell path, fall back to 'pi'
+      if (explicitPath && isTempShellPath(explicitPath)) {
+        return 'pi';
+      }
+      return explicitPath ?? 'pi';
     }
 
     const customEnv = parseEnvironmentVariables(envText || '');
@@ -83,4 +90,9 @@ function resolveWslCliPath(cliPath: string): string | null {
   }
   // Windows path in WSL mode - accept as-is
   return trimmed;
+}
+
+// Detect fnm/nvm temporary shell paths that won't exist in a fresh bash -i context
+function isTempShellPath(p: string): boolean {
+  return p.includes('/fnm_multishells/') || p.includes('/nvm/versions/');
 }
