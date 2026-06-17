@@ -56,11 +56,17 @@ export function buildPiWslLaunchSpec(
   const targetCwd = pathMapper.toTargetPath(options.hostVaultPath) ?? '/';
   const targetCommand = pathMapper.toTargetPath(options.command) ?? options.command;
 
+  // WSL's .bashrc has an interactive guard that prevents fnm/nvm from loading
+  // in non-interactive shells. Use bash -i to force interactive mode so that
+  // .bashrc is fully sourced and Node.js version managers are initialized.
+  const allArgs = [targetCommand, ...options.cliArgs];
+  const escapedArgs = allArgs.map(a => a.replace(/'/g, "'\\''"));
+  const commandString = `'${escapedArgs.join("' '")}'`;
+
   const wslArgs = [
     '-d', distro,
     '--',
-    targetCommand,
-    ...options.cliArgs,
+    'bash', '-i', '-c', commandString,
   ];
 
   return {
