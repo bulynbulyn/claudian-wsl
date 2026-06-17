@@ -19,6 +19,8 @@ import {
 } from './models';
 
 export type PiToolMode = 'all' | 'readonly';
+export type PiInstallationMethod = 'native-windows' | 'wsl';
+export type HostnameInstallationMethods = Record<string, PiInstallationMethod>;
 
 export interface PersistedPiProviderSettings {
   cliPath: string;
@@ -31,6 +33,12 @@ export interface PersistedPiProviderSettings {
   preferredThinkingByModel: Record<string, PiThinkingLevel>;
   toolMode: PiToolMode;
   visibleModels: string[];
+  // WSL support
+  installationMethod: PiInstallationMethod;
+  installationMethodsByHost: HostnameInstallationMethods;
+  wslDistroOverride: string;
+  wslDistroOverridesByHost: HostnameCliPaths;
+  wslHomePath: string;
 }
 
 export type PiProviderSettings = PersistedPiProviderSettings;
@@ -46,6 +54,12 @@ export const DEFAULT_PI_PROVIDER_SETTINGS: Readonly<PersistedPiProviderSettings>
   preferredThinkingByModel: {},
   toolMode: 'all',
   visibleModels: [],
+  // WSL defaults
+  installationMethod: 'native-windows',
+  installationMethodsByHost: {},
+  wslDistroOverride: '',
+  wslDistroOverridesByHost: {},
+  wslHomePath: '',
 });
 
 function normalizeHostnameCliPaths(value: unknown): HostnameCliPaths {
@@ -57,6 +71,24 @@ function normalizeHostnameCliPaths(value: unknown): HostnameCliPaths {
   for (const [key, entry] of Object.entries(value)) {
     if (typeof entry === 'string' && entry.trim()) {
       result[key] = entry.trim();
+    }
+  }
+  return result;
+}
+
+function normalizePiInstallationMethod(value: unknown): PiInstallationMethod {
+  return value === 'wsl' ? 'wsl' : 'native-windows';
+}
+
+function normalizePiInstallationMethodsByHost(value: unknown): HostnameInstallationMethods {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  const result: HostnameInstallationMethods = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof key === 'string' && key.trim()) {
+      result[key] = normalizePiInstallationMethod(entry);
     }
   }
   return result;
@@ -162,6 +194,14 @@ export function getPiProviderSettings(settings: Record<string, unknown>): PiProv
   const discoveredModels = normalizePiDiscoveredModels(config.discoveredModels);
   const visibleModels = normalizePiVisibleModels(config.visibleModels, discoveredModels);
   const persistableIds = getPersistablePiModelIds(settings, visibleModels);
+  const hostnameKey = getHostnameKey();
+  const installationMethodsByHost = normalizePiInstallationMethodsByHost(config.installationMethodsByHost);
+  const wslDistroOverridesByHost = normalizeHostnameCliPaths(config.wslDistroOverridesByHost);
+
+  // Priority: hostname-specific > legacy > default
+  const hostnameInstallationMethod = installationMethodsByHost[hostnameKey];
+  const installationMethod = hostnameInstallationMethod
+    ?? normalizePiInstallationMethod(config.installationMethod);
 
   return {
     cliPath: (config.cliPath as string | undefined)
@@ -175,6 +215,8 @@ export function getPiProviderSettings(settings: Record<string, unknown>): PiProv
     environmentVariables: (config.environmentVariables as string | undefined)
       ?? getProviderEnvironmentVariables(settings, 'pi')
       ?? DEFAULT_PI_PROVIDER_SETTINGS.environmentVariables,
+    installationMethod,
+    installationMethodsByHost,
     modelAliases: normalizePiModelAliasesForPersistableIds(
       config.modelAliases,
       discoveredModels,
@@ -187,6 +229,11 @@ export function getPiProviderSettings(settings: Record<string, unknown>): PiProv
     ),
     toolMode: normalizePiToolMode(config.toolMode),
     visibleModels,
+    wslDistroOverride: (config.wslDistroOverride as string | undefined)
+      ?? DEFAULT_PI_PROVIDER_SETTINGS.wslDistroOverride,
+    wslDistroOverridesByHost,
+    wslHomePath: (config.wslHomePath as string | undefined)
+      ?? DEFAULT_PI_PROVIDER_SETTINGS.wslHomePath,
   };
 }
 
@@ -241,16 +288,52 @@ export function updatePiProviderSettings(
     nextCliPath = DEFAULT_PI_PROVIDER_SETTINGS.cliPath;
   }
 
+  // WSL settings handling
+  const nextInstallationMethodsByHost = 'installationMethodsByHost' in updates
+    ? normalizePiInstallationMethodsByHost(updates.installationMethodsByHost)
+    : { ...current.installationMethodsByHost };
+  let nextInstallationMethod = current.installationMethod;
+
+  if ('installationMethod' in updates) {
+    const method = normalizePiInstallationMethod(updates.installationMethod);
+    nextInstallationMethodsByHost[hostnameKey] = method;
+    nextInstallationMethod = method;
+  }
+
+  const nextWslDistroOverridesByHost = 'wslDistroOverridesByHost' in updates
+    ? normalizeHostnameCliPaths(updates.wslDistroOverridesByHost)
+    : { ...current.wslDistroOverridesByHost };
+  let nextWslDistroOverride = current.wslDistroOverride.trim();
+
+  if ('wslDistroOverride' in updates) {
+    const trimmedOverride = typeof updates.wslDistroOverride === 'string' ? updates.wslDistroOverride.trim() : '';
+    if (trimmedOverride) {
+      nextWslDistroOverridesByHost[hostnameKey] = trimmedOverride;
+    } else {
+      delete nextWslDistroOverridesByHost[hostnameKey];
+    }
+    nextWslDistroOverride = trimmedOverride;
+  }
+
+  const nextWslHomePath = typeof updates.wslHomePath === 'string'
+    ? updates.wslHomePath.trim()
+    : current.wslHomePath.trim();
+
   const next: PiProviderSettings = {
     ...current,
     ...updates,
     cliPath: nextCliPath,
     cliPathsByHost: nextCliPathsByHost,
     discoveredModels: nextDiscoveredModels,
+    installationMethod: nextInstallationMethod,
+    installationMethodsByHost: nextInstallationMethodsByHost,
     modelAliases: nextModelAliases,
     preferredThinkingByModel: nextPreferredThinkingByModel,
     toolMode: normalizePiToolMode(updates.toolMode ?? current.toolMode),
     visibleModels: nextVisibleModels,
+    wslDistroOverride: nextWslDistroOverride,
+    wslDistroOverridesByHost: nextWslDistroOverridesByHost,
+    wslHomePath: nextWslHomePath,
   };
 
   if (updates.visibleModels !== undefined) {
@@ -270,10 +353,15 @@ export function updatePiProviderSettings(
     enabled: next.enabled,
     environmentHash: next.environmentHash,
     environmentVariables: next.environmentVariables,
+    installationMethod: next.installationMethod,
+    installationMethodsByHost: next.installationMethodsByHost,
     modelAliases: next.modelAliases,
     preferredThinkingByModel: next.preferredThinkingByModel,
     toolMode: next.toolMode,
     visibleModels: next.visibleModels,
+    wslDistroOverride: next.wslDistroOverride,
+    wslDistroOverridesByHost: next.wslDistroOverridesByHost,
+    wslHomePath: next.wslHomePath,
   });
 
   return next;

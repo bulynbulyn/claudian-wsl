@@ -6,6 +6,7 @@ import * as path from 'node:path';
 
 import { isWriteEditTool } from '../../../core/tools/toolNames';
 import type { ChatMessage, ContentBlock, ToolCallInfo } from '../../../core/types';
+import { wslPathToWindowsUNC } from '../../../core/wsl';
 import { extractDiffData } from '../../../utils/diff';
 import {
   extractPiToolTextContent,
@@ -275,10 +276,16 @@ export async function createPiForkSessionFile(
   };
 }
 
+export interface PiWslSettings {
+  wslDistroOverride?: string;
+  wslHomePath?: string;
+}
+
 export function findPiSessionFile(
   sessionIdOrFile: string,
   cwd?: string | null,
   sessionDir?: string | null,
+  wslSettings?: PiWslSettings | null,
 ): string | null {
   const trimmed = sessionIdOrFile.trim();
   if (!trimmed) {
@@ -294,6 +301,16 @@ export function findPiSessionFile(
     cwd ? path.join(cwd, '.pi', 'agent', 'sessions') : null,
     path.join(os.homedir(), '.pi', 'agent', 'sessions'),
   ].filter((root): root is string => !!root);
+
+  // WSL mode: add WSL UNC path as additional search root
+  if (wslSettings?.wslHomePath) {
+    const distroName = wslSettings.wslDistroOverride || 'Ubuntu';
+    const wslSessionsPath = `${wslSettings.wslHomePath}/.pi/agent/sessions`;
+    const uncPath = wslPathToWindowsUNC(wslSessionsPath, distroName);
+    if (uncPath) {
+      roots.push(uncPath);
+    }
+  }
 
   for (const root of roots) {
     const direct = path.join(root, trimmed.endsWith('.jsonl') ? trimmed : `${trimmed}.jsonl`);

@@ -66,7 +66,7 @@ import {
 import { buildPiPromptImages, buildPiPromptText } from './buildPiPrompt';
 import { buildPiUsageInfo } from './buildPiUsageInfo';
 import { PiExtensionUiBridge, type PiExtensionUiRenderer } from './PiExtensionUiBridge';
-import { buildPiLaunchSpec, type PiLaunchSpec } from './PiLaunchSpec';
+import { buildPiLaunchSpec, buildPiWslLaunchSpec, type PiLaunchSpec } from './PiLaunchSpec';
 import { buildPiSetModelPayload } from './PiRpcPayloads';
 import { type PiRpcRecord, PiRpcTransport } from './PiRpcTransport';
 import { PiSubprocess } from './PiSubprocess';
@@ -246,6 +246,21 @@ export class PiChatRuntime implements ChatRuntime {
       settings,
       systemPrompt,
     });
+
+    // WSL mode: build WSL launch spec if installation method is 'wsl'
+    if (settings.installationMethod === 'wsl') {
+      const wslSpec = buildPiWslLaunchSpec({
+        command: resolvedCliPath,
+        cliArgs: launchSpec.args,
+        hostVaultPath: cwd,
+        env: this.buildRuntimeEnv(runtimeEnvText),
+        installationMethod: settings.installationMethod,
+        wslDistroOverride: settings.wslDistroOverride,
+      });
+      if (wslSpec) {
+        launchSpec.wslLaunchSpec = wslSpec;
+      }
+    }
     const sessionTarget = this.sessionFile ?? this.sessionId ?? null;
     const nextLaunchKey = JSON.stringify({
       command: resolvedCliPath,

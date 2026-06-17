@@ -1,3 +1,5 @@
+import type { WslLaunchSpec } from '../../../core/wsl';
+import { createWslPathMapper, resolveWslExecutionTarget } from '../../../core/wsl';
 import { decodePiModelId, normalizePiThinkingLevel } from '../models';
 import type { PiProviderSettings } from '../settings';
 import type { PiProviderState } from '../types';
@@ -22,6 +24,53 @@ export interface PiLaunchSpec {
   cwd: string;
   env: NodeJS.ProcessEnv;
   launchKey: string;
+  wslLaunchSpec?: WslLaunchSpec;
+}
+
+export interface BuildPiWslLaunchSpecOptions {
+  command: string;
+  cliArgs: string[];
+  hostVaultPath: string;
+  env: NodeJS.ProcessEnv;
+  installationMethod?: 'native-windows' | 'wsl';
+  wslDistroOverride?: string;
+}
+
+export function buildPiWslLaunchSpec(
+  options: BuildPiWslLaunchSpecOptions,
+): WslLaunchSpec | undefined {
+  const target = resolveWslExecutionTarget({
+    hostPlatform: process.platform,
+    hostVaultPath: options.hostVaultPath,
+    installationMethod: options.installationMethod,
+    wslDistroOverride: options.wslDistroOverride,
+  });
+
+  if (target.method !== 'wsl') {
+    return undefined;
+  }
+
+  const pathMapper = createWslPathMapper(target);
+  const distro = target.distroName ?? 'Ubuntu';
+  const targetCwd = pathMapper.toTargetPath(options.hostVaultPath) ?? '/';
+  const targetCommand = pathMapper.toTargetPath(options.command) ?? options.command;
+
+  const wslArgs = [
+    '-d', distro,
+    '--',
+    targetCommand,
+    ...options.cliArgs,
+  ];
+
+  return {
+    args: wslArgs,
+    command: 'wsl.exe',
+    env: options.env as Record<string, string>,
+    pathMapper,
+    spawnCwd: options.hostVaultPath,
+    target,
+    targetCwd,
+  };
 }
 
 const READONLY_TOOLS = 'read,grep,find,ls';

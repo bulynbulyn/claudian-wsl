@@ -8,10 +8,15 @@ const baseSettings: PiProviderSettings = {
   enabled: true,
   environmentHash: '',
   environmentVariables: '',
+  installationMethod: 'native-windows',
+  installationMethodsByHost: {},
   modelAliases: {},
   preferredThinkingByModel: {},
   toolMode: 'all',
   visibleModels: [],
+  wslDistroOverride: '',
+  wslDistroOverridesByHost: {},
+  wslHomePath: '',
 };
 
 describe('PiLaunchSpec', () => {

@@ -30,7 +30,7 @@ describe('PiCliResolver', () => {
     expect(resolver.resolve({
       'current-host': '/current/pi',
       'other-host': '/other/pi',
-    }, '/legacy/pi')).toBe('/current/pi');
+    }, '/legacy/pi', '')).toBe('/current/pi');
   });
 
   it('falls back to cliPath and returns null for invalid paths', () => {
@@ -42,12 +42,12 @@ describe('PiCliResolver', () => {
     });
 
     const resolver = new PiCliResolver();
-    expect(resolver.resolve({ 'other-host': '/other/pi' }, '/legacy/pi')).toBe('/legacy/pi');
+    expect(resolver.resolve({ 'other-host': '/other/pi' }, '/legacy/pi', '')).toBe('/legacy/pi');
 
     mockedStat.mockImplementation(() => {
       throw new Error('ENOENT');
     });
-    expect(resolver.resolve({ 'other-host': '/other/pi' }, '/legacy/pi')).toBeNull();
+    expect(resolver.resolve({ 'other-host': '/other/pi' }, '/legacy/pi', '')).toBeNull();
   });
 
   it('falls back to PATH lookup when no Pi CLI path is configured', () => {

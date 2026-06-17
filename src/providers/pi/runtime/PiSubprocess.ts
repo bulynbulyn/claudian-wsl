@@ -2,6 +2,7 @@ import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import * as path from 'node:path';
 import type { Readable, Writable } from 'node:stream';
 
+import type { WslLaunchSpec } from '../../../core/wsl';
 import { getEnhancedPath } from '../../../utils/env';
 import {
   resolveWindowsCmdShimSpawnSpec,
@@ -17,6 +18,7 @@ export interface PiSubprocessLaunchSpec {
   command: string;
   cwd: string;
   env: NodeJS.ProcessEnv;
+  wslLaunchSpec?: WslLaunchSpec;
 }
 
 type CloseListener = (error?: Error) => void;
@@ -51,6 +53,20 @@ export class PiSubprocess {
       return;
     }
 
+    // WSL mode: use wslLaunchSpec if provided
+    if (this.launchSpec.wslLaunchSpec) {
+      const wslSpec = this.launchSpec.wslLaunchSpec;
+      const proc = spawn(wslSpec.command, wslSpec.args, {
+        cwd: wslSpec.spawnCwd,
+        env: wslSpec.env,
+        stdio: 'pipe',
+        windowsHide: true,
+      });
+      this.attachProcessHandlers(proc);
+      this.proc = proc;
+      return;
+    }
+
     const resolvedSpawnSpec = resolveWindowsCmdShimSpawnSpec(this.launchSpec);
     this.resolvedSpawnSpec = resolvedSpawnSpec;
     const proc = spawn(resolvedSpawnSpec.command, resolvedSpawnSpec.args, {
@@ -66,7 +82,11 @@ export class PiSubprocess {
       windowsHide: true,
       ...(resolvedSpawnSpec.windowsVerbatimArguments ? { windowsVerbatimArguments: true } : {}),
     });
+    this.attachProcessHandlers(proc);
+    this.proc = proc;
+  }
 
+  private attachProcessHandlers(proc: ChildProcessWithoutNullStreams): void {
     proc.stderr.on('data', (chunk: Buffer | string) => {
       const text = typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
       this.stderrBuffer = `${this.stderrBuffer}${text}`.slice(-STDERR_BUFFER_LIMIT);
@@ -85,8 +105,6 @@ export class PiSubprocess {
       );
       this.notifyClose(exitError);
     });
-
-    this.proc = proc;
   }
 
   isAlive(): boolean {
