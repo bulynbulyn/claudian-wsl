@@ -1,6 +1,6 @@
 # Claudian WSL
 
-> 基于 [Claudian](https://github.com/YishenTu/claudian) v2.0.18 的 WSL 支持版本
+> 基于 [Claudian](https://github.com/YishenTu/claudian) v2.0.24 的 WSL 支持版本
 
 ⚠️ **说明**: 本项目由 **Claude Code** 生成，仅测试了基本的 Claude Code-WSL 功能，其他功能未详细测试。如有问题请提 [Issues](https://github.com/bulynbulyn/claudian-wsl/issues)。
 
@@ -9,17 +9,18 @@
 
 ## 适用范围
 
-**仅适用于 Claude Code / OpenCode 安装在 WSL 的 Windows 用户。**
+**仅适用于 Claude Code / OpenCode / Pi 安装在 WSL 的 Windows 用户。**
 
 其他用户请使用原版 [YishenTu/claudian](https://github.com/YishenTu/claudian)。
 
 ## WSL 功能
 
 
-| Provider     | 功能                                                |
-| ------------ | --------------------------------------------------- |
-| **Claude**   | WSL distro 自动检测、路径自动转换、历史记录、Rewind |
-| **OpenCode** | 数据库路径自动计算、历史记录加载（sqlite3）         |
+| Provider     | 功能                                                          |
+| ------------ | ------------------------------------------------------------- |
+| **Claude**   | WSL distro 自动检测、路径自动转换、历史记录、Rewind           |
+| **OpenCode** | 数据库路径自动计算、历史记录加载（sqlite3）                   |
+| **Pi**       | WSL 进程启动、交互式 shell 环境加载、session 文件读取         |
 
 ## 安装
 
@@ -55,6 +56,15 @@
 
 **前提条件**：WSL 中需安装 sqlite3：`sudo apt install sqlite3`
 
+### Pi
+
+1. Settings → Pi → **Installation method** → 选择 `WSL`
+2. **CLI path**：填 `pi`（自动检测）或完整路径如 `/home/username/.local/bin/pi`
+3. **WSL distro override**（可选）：指定 WSL 发行版名称。留空则自动检测
+4. **WSL home path**（可选）：填 WSL 用户目录，如 `/home/username`。用于 session 历史加载
+
+**前提条件**：WSL 中需安装 Pi CLI 和 Node.js（建议通过 fnm/nvm 管理版本）
+
 ### 参数说明
 
 
@@ -68,7 +78,7 @@
 ### 自动检测逻辑
 
 - **WSL distro**：优先使用 override 设置 → 从 vault UNC 路径（`\\wsl$\Ubuntu\...`）推断 → 使用默认 WSL 发行版
-- **CLI path**：留空时自动在 WSL 中查找 `claude` / `opencode` 命令
+- **CLI path**：留空时自动在 WSL 中查找 `claude` / `opencode` / `pi` 命令
 - **WSL home path**：留空时根据 Windows 用户名推断（`/home/<username>`）
 
 ## 原版功能

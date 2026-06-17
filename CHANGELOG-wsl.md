@@ -2,6 +2,71 @@
 
 基于原版 [YishenTu/claudian](https://github.com/YishenTu/claudian) 的 WSL 支持二开版本。
 
+## v2.0.24-wsl.1 合并上游 v2.0.19 ~ v2.0.24
+
+### 上游新功能 (v2.0.19 ~ v2.0.24)
+
+| 版本 | 功能 | 描述 |
+|------|------|------|
+| 2.0.19 | **Pi Provider** | 新增 Pi coding agent 作为 AI provider |
+| 2.0.19 | **Markdown 内联编辑预览** | 内联编辑弹窗中渲染 Markdown |
+| 2.0.19 | **Claude 依赖安全修复** | 升级有漏洞的 Claude 依赖 |
+| 2.0.20 | **SDK 导入元数据修复** | 修复 Obsidian 中 SDK 导入的元数据问题 |
+| 2.0.21 | **@提及文件名空格支持** | 修复 `@filename with spaces.md` 无法识别的问题 |
+| 2.0.21 | **Pi 模型选择器样式** | 统一 Pi 模型选择器的 UI 风格 |
+| 2.0.22 | **聊天显示控制** | 改进聊天显示控件 |
+| 2.0.22 | **内联编辑 diff 渲染** | 以 Markdown 格式渲染内联编辑 diff |
+| 2.0.23 | **OpenCode 历史稳定化** | 修复 OpenCode 历史水合的大元数据问题 |
+| 2.0.23 | **TypeScript 警告修复** | 解决 provider 层的 TypeScript 警告 |
+| 2.0.24 | **样式优化** | 移除不必要的 `!important` 样式覆盖 |
+| 2.0.24 | **Node 版本锁定** | 固定 Node 版本以确保构建可复现 |
+| 2.0.24 | **安全修复** | 移除不安全的 kill binding |
+
+### WSL 新功能
+
+| 功能 | 描述 |
+|------|------|
+| **Pi Provider WSL 支持** | 完整的 WSL 支持：settings、CLI 解析、launch spec、子进程、UI、历史记录 |
+| **WSL 交互式 shell** | 使用 `bash -i` 启动以加载 fnm/nvm 等版本管理器 |
+| **系统提示文件传递** | WSL 模式下将系统提示写入临时文件，避免 bash 解释特殊字符 |
+
+### WSL Bug 修复
+
+| 修复 | 描述 |
+|------|------|
+| **Pi 历史加载** | 通过 `wsl.exe -- cat` 读取 WSL 内的 session 文件，解决 UNC 路径不可靠问题 |
+| **Pi Node.js 版本** | 用 `bash -i` 强制交互模式加载 fnm，避免使用系统自带的旧版 Node.js |
+| **Pi 系统提示** | 写入临时文件 + `--append-system-prompt <file>`，避免多行内容被 bash 当命令执行 |
+| **跨 provider fork 恢复** | 允许 fork source 的跨 provider session ID（如 OpenCode `ses_` 前缀） |
+
+### 冲突解决
+
+上游 v2.0.19→v2.0.24 涉及 157 个文件变更，123 个冲突文件。使用 5 个并行子代理分模块解决：
+- Core + Features（11 文件）
+- Claude Provider（17 文件）
+- OpenCode Provider（9 文件）
+- ACP 模块（3 文件）
+- 测试文件（14 文件）
+
+### WSL 功能保留
+
+- ✅ Claude WSL：Installation method、distro 检测、路径转换、历史记录、Rewind
+- ✅ OpenCode WSL：Installation method、数据库路径计算、sqlite3 历史加载
+- ✅ **Pi WSL（新增）**：Installation method、WSL 进程启动、bash -i 环境加载、session 文件读取
+- ✅ MCP server 路径映射
+- ✅ YOLO/bypassPermissions 重启检测
+- ✅ Root user 安全检测
+
+### 已知问题
+
+- 10 个测试失败（均为上游代码问题，非合并引入）
+  - `InlineAskUserQuestion`：4 个键盘导航测试
+  - `OpencodeChatRuntime`：1 个模式选择测试
+  - `InputController`：4 个测试（setTimeout 未定义）
+  - `StreamController`：1 个测试（clearInterval 未定义）
+
+---
+
 ## v2.0.18-wsl.1 合并上游 v2.0.18
 
 ### 上游新功能 (v2.0.18)

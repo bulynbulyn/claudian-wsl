@@ -1,3 +1,32 @@
+## v2.0.24-wsl.1
+
+基于 [YishenTu/claudian](https://github.com/YishenTu/claudian) v2.0.24，合并上游新功能并保留 WSL 支持。
+
+### 上游新功能 (v2.0.19 ~ v2.0.24)
+
+- **Pi Provider**：新增 Pi coding agent 作为 AI provider
+- **Markdown 内联编辑预览**：内联编辑弹窗中渲染 Markdown diff
+- **@提及文件名空格支持**：修复含空格文件名的识别
+- **聊天显示控制改进**：优化 UI 控件
+- **OpenCode 历史稳定化**：修复大元数据导致的水合问题
+- **样式优化和安全修复**
+
+### WSL 新功能
+
+- **Pi Provider WSL 支持**：完整的 WSL 支持，包括 settings、CLI 解析、launch spec、子进程、UI、历史记录
+- **WSL 交互式 shell**：使用 `bash -i` 启动以加载 fnm/nvm 等版本管理器
+- **系统提示文件传递**：WSL 模式下将系统提示写入临时文件，避免 bash 解释特殊字符
+- **Pi 历史加载**：通过 `wsl.exe -- cat` 读取 WSL 内的 session 文件
+
+### WSL 功能保留
+
+- ✅ Claude WSL：Installation method、distro 检测、路径转换、历史记录、Rewind
+- ✅ OpenCode WSL：Installation method、数据库路径计算、sqlite3 历史加载
+- ✅ **Pi WSL（新增）**：Installation method、WSL 进程启动、bash -i 环境加载、session 文件读取
+- ✅ MCP server 路径映射、Root user 安全检测
+
+---
+
 ## v2.0.18-wsl.1
 
 基于 [YishenTu/claudian](https://github.com/YishenTu/claudian) v2.0.18，合并上游新功能并保留 WSL 支持。
