@@ -1569,7 +1569,6 @@ describe('ClaudianService', () => {
     });
 
     it('should ignore legacy thinking budget changes', async () => {
-
       (mockPlugin as any).settings.model = 'custom-model';
       (service as any).currentConfig = (service as any).buildPersistentQueryConfig(
         '/mock/vault/path',
@@ -1583,7 +1582,6 @@ describe('ClaudianService', () => {
 
       expect(mockPersistentQuery.setMaxThinkingTokens).not.toHaveBeenCalled();
       expect(ensureReadySpy).not.toHaveBeenCalled();
-
     });
 
     it('should update effort level when changed for adaptive models', async () => {
@@ -1597,7 +1595,6 @@ describe('ClaudianService', () => {
     });
 
     it('should update effort level for custom model ids', async () => {
-
       (mockPlugin as any).settings.model = 'custom-model';
       (mockPlugin as any).settings.effortLevel = 'max';
 
@@ -1607,7 +1604,6 @@ describe('ClaudianService', () => {
     });
 
     it('should keep effort active when switching from custom to built-in model ids', async () => {
-
       (mockPlugin as any).settings.model = 'custom-model';
       (mockPlugin as any).settings.thinkingBudget = 'high';
       (service as any).currentConfig = (service as any).buildPersistentQueryConfig(
@@ -1631,7 +1627,6 @@ describe('ClaudianService', () => {
     });
 
     it('should keep effort active when switching from built-in to custom model ids', async () => {
-
       (mockPlugin as any).settings.model = 'sonnet';
       (mockPlugin as any).settings.thinkingBudget = 'high';
       (mockPlugin as any).settings.effortLevel = 'max';
@@ -1652,7 +1647,6 @@ describe('ClaudianService', () => {
 
       expect(previousQuery.setMaxThinkingTokens).not.toHaveBeenCalled();
       expect((service as any).currentConfig.effortLevel).toBe('max');
-
     });
 
     it('should update permission mode when changed', async () => {
@@ -1792,7 +1786,6 @@ describe('ClaudianService', () => {
     });
 
     it('should not dynamically update legacy thinking budget', async () => {
-
       (mockPlugin as any).settings.model = 'custom-model';
       (service as any).currentConfig = (service as any).buildPersistentQueryConfig(
         '/mock/vault/path',
@@ -1805,7 +1798,6 @@ describe('ClaudianService', () => {
       await expect((service as any).applyDynamicUpdates({})).resolves.toBeUndefined();
       expect(mockPersistentQuery.setMaxThinkingTokens).not.toHaveBeenCalled();
       expect(ensureReadySpy).not.toHaveBeenCalled();
-
     });
 
     it('should silently handle permission mode update error', async () => {
@@ -2322,7 +2314,6 @@ describe('ClaudianService', () => {
       (service as any).currentConfig = {
         model: 'claude-3-5-sonnet',
         effortLevel: 'high',
-
         permissionMode: 'ask',
         systemPromptKey: '',
         disallowedToolsKey: '',
@@ -2333,7 +2324,6 @@ describe('ClaudianService', () => {
         claudeCliPath: '/usr/local/bin/claude',
         enableChrome: false,
         enableAutoMode: false,
-
       };
 
       // Change CLI path to trigger restart
@@ -2501,7 +2491,6 @@ describe('ClaudianService', () => {
       (service as any).currentConfig = {
         model: 'claude-3-5-sonnet',
         effortLevel: 'high',
-
         permissionMode: 'ask',
         systemPromptKey: '',
         disallowedToolsKey: '',
@@ -2512,7 +2501,6 @@ describe('ClaudianService', () => {
         claudeCliPath: '/usr/local/bin/claude',
         enableChrome: false,
         enableAutoMode: false,
-
       };
 
       // Set up handler to resolve immediately
@@ -2568,7 +2556,6 @@ describe('ClaudianService', () => {
       (service as any).currentConfig = {
         model: 'claude-3-5-sonnet',
         effortLevel: 'high',
-
         permissionMode: 'ask',
         systemPromptKey: '',
         disallowedToolsKey: '',
@@ -2579,7 +2566,6 @@ describe('ClaudianService', () => {
         claudeCliPath: '/usr/local/bin/claude',
         enableChrome: false,
         enableAutoMode: false,
-
       };
 
       const chunks: any[] = [];
@@ -2614,7 +2600,6 @@ describe('ClaudianService', () => {
       (service as any).currentConfig = {
         model: 'claude-3-5-sonnet',
         effortLevel: 'high',
-
         permissionMode: 'ask',
         systemPromptKey: '',
         disallowedToolsKey: '',
@@ -2625,7 +2610,6 @@ describe('ClaudianService', () => {
         claudeCliPath: '/usr/local/bin/claude',
         enableChrome: false,
         enableAutoMode: false,
-
       };
 
       // Mock applyDynamicUpdates to clear persistent query (simulating restart failure)
@@ -2668,7 +2652,6 @@ describe('ClaudianService', () => {
       (service as any).currentConfig = {
         model: 'claude-3-5-sonnet',
         effortLevel: 'high',
-
         permissionMode: 'ask',
         systemPromptKey: '',
         disallowedToolsKey: '',
@@ -2679,7 +2662,6 @@ describe('ClaudianService', () => {
         claudeCliPath: '/usr/local/bin/claude',
         enableChrome: false,
         enableAutoMode: false,
-
       };
 
       const chunks: any[] = [];
@@ -2710,7 +2692,6 @@ describe('ClaudianService', () => {
       (service as any).currentConfig = {
         model: 'claude-3-5-sonnet',
         effortLevel: 'high',
-
         permissionMode: 'ask',
         systemPromptKey: '',
         disallowedToolsKey: '',
@@ -2721,7 +2702,6 @@ describe('ClaudianService', () => {
         claudeCliPath: '/usr/local/bin/claude',
         enableChrome: false,
         enableAutoMode: false,
-
       };
 
       // Mock applyDynamicUpdates to avoid side effects
@@ -2760,7 +2740,6 @@ describe('ClaudianService', () => {
       (service as any).currentConfig = {
         model: 'claude-3-5-sonnet',
         effortLevel: 'high',
-
         permissionMode: 'ask',
         systemPromptKey: '',
         disallowedToolsKey: '',
@@ -2771,7 +2750,6 @@ describe('ClaudianService', () => {
         claudeCliPath: '/usr/local/bin/claude',
         enableChrome: false,
         enableAutoMode: false,
-
       };
 
       // Mock applyDynamicUpdates to avoid side effects
@@ -2821,7 +2799,6 @@ describe('ClaudianService', () => {
       (service as any).currentConfig = {
         model: 'claude-3-5-sonnet',
         effortLevel: 'high',
-
         permissionMode: 'ask',
         systemPromptKey: '',
         disallowedToolsKey: '',
@@ -2832,7 +2809,6 @@ describe('ClaudianService', () => {
         claudeCliPath: '/usr/local/bin/claude',
         enableChrome: false,
         enableAutoMode: false,
-
       };
 
       // Mock applyDynamicUpdates to avoid side effects

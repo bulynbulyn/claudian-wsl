@@ -1,4 +1,4 @@
-import { RangeSetBuilder, StateEffect, StateField, type Text } from '@codemirror/state';
+import { StateEffect, StateField, type Text } from '@codemirror/state';
 import type { DecorationSet } from '@codemirror/view';
 import { Decoration, EditorView, WidgetType } from '@codemirror/view';
 import type { App, Editor, MarkdownView } from 'obsidian';
@@ -26,6 +26,7 @@ import { buildExternalContextDisplayEntries } from '../../../utils/externalConte
 import { externalContextScanner } from '../../../utils/externalContextScanner';
 import { normalizeInsertionText } from '../../../utils/inlineEdit';
 import { getVaultPath, normalizePathForVault as normalizePathForVaultUtil } from '../../../utils/path';
+import { renderInlineEditMarkdownPreview } from './inlineEditMarkdownPreview';
 
 export type InlineEditContext =
   | { mode: 'selection'; selectedText: string }
@@ -42,55 +43,17 @@ const showDiff = StateEffect.define<{
   from: number;
   to: number;
   diffOps: DiffOp[];
+  previewPos: number;
   widget: InlineEditController;
 }>();
 const showInsertion = StateEffect.define<{
-  pos: number;
   diffOps: DiffOp[];
+  previewPos: number;
   widget: InlineEditController;
 }>();
 const hideInlineEdit = StateEffect.define<null>();
 
 let activeController: InlineEditController | null = null;
-
-class DiffWidget extends WidgetType {
-  constructor(private diffOps: DiffOp[], private controller: InlineEditController) {
-    super();
-  }
-  toDOM(): HTMLElement {
-    const ownerDocument = this.controller.getOwnerDocument();
-    const span = ownerDocument.createElement('span');
-    span.className = 'claudian-inline-diff-replace';
-    appendDiffOps(span, this.diffOps);
-
-    const btns = ownerDocument.createElement('span');
-    btns.className = 'claudian-inline-diff-buttons';
-
-    const rejectBtn = ownerDocument.createElement('button');
-    rejectBtn.className = 'claudian-inline-diff-btn reject';
-    rejectBtn.textContent = '✕';
-    rejectBtn.title = 'Reject (esc)';
-    rejectBtn.onclick = () => this.controller.reject();
-
-    const acceptBtn = ownerDocument.createElement('button');
-    acceptBtn.className = 'claudian-inline-diff-btn accept';
-    acceptBtn.textContent = '✓';
-    acceptBtn.title = 'Accept (enter)';
-    acceptBtn.onclick = () => this.controller.accept();
-
-    btns.appendChild(rejectBtn);
-    btns.appendChild(acceptBtn);
-    span.appendChild(btns);
-
-    return span;
-  }
-  eq(other: DiffWidget): boolean {
-    return diffOpsEqual(this.diffOps, other.diffOps);
-  }
-  ignoreEvent(): boolean {
-    return true;
-  }
-}
 
 class InputWidget extends WidgetType {
   constructor(private controller: InlineEditController) {
@@ -101,6 +64,21 @@ class InputWidget extends WidgetType {
   }
   eq(): boolean {
     return false;
+  }
+  ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+class MarkdownDiffWidget extends WidgetType {
+  constructor(private diffOps: DiffOp[], private controller: InlineEditController) {
+    super();
+  }
+  toDOM(): HTMLElement {
+    return this.controller.createDiffPreviewDOM(this.diffOps);
+  }
+  eq(other: MarkdownDiffWidget): boolean {
+    return diffOpsEqual(this.diffOps, other.diffOps);
   }
   ignoreEvent(): boolean {
     return true;
@@ -143,18 +121,22 @@ const inlineEditField = StateField.define<DecorationSet>({
           widget: new InputWidget(e.value.widget),
         });
       } else if (e.is(showDiff)) {
-        const builder = new RangeSetBuilder<Decoration>();
-        builder.add(e.value.from, e.value.to, Decoration.replace({
-          widget: new DiffWidget(e.value.diffOps, e.value.widget),
-        }));
-        deco = builder.finish();
+        deco = Decoration.set([
+          Decoration.widget({
+            widget: new MarkdownDiffWidget(e.value.diffOps, e.value.widget),
+            block: true,
+            side: -1,
+          }).range(e.value.previewPos),
+          Decoration.replace({}).range(e.value.from, e.value.to),
+        ], true);
       } else if (e.is(showInsertion)) {
-        const builder = new RangeSetBuilder<Decoration>();
-        builder.add(e.value.pos, e.value.pos, Decoration.widget({
-          widget: new DiffWidget(e.value.diffOps, e.value.widget),
-          side: 1, // After the position
-        }));
-        deco = builder.finish();
+        deco = Decoration.set([
+          Decoration.widget({
+            widget: new MarkdownDiffWidget(e.value.diffOps, e.value.widget),
+            block: true,
+            side: -1,
+          }).range(e.value.previewPos),
+        ], true);
       } else if (e.is(hideInlineEdit)) {
         deco = Decoration.none;
       }
@@ -168,61 +150,94 @@ const installedEditors = new WeakSet<EditorView>();
 
 interface DiffOp { type: 'equal' | 'insert' | 'delete'; text: string; }
 
-function computeDiff(oldText: string, newText: string): DiffOp[] {
-  const oldWords = oldText.split(/(\s+)/);
-  const newWords = newText.split(/(\s+)/);
-  const m = oldWords.length, n = newWords.length;
+function splitLinesPreservingEndings(text: string): string[] {
+  if (!text) return [];
+  return text.match(/[^\n]*(?:\n|$)/g)?.filter(line => line.length > 0) ?? [];
+}
+
+function computeMarkdownDiff(oldText: string, newText: string): DiffOp[] {
+  const oldLines = splitLinesPreservingEndings(oldText);
+  const newLines = splitLinesPreservingEndings(newText);
+  const m = oldLines.length, n = newLines.length;
   const dp: number[][] = Array.from({ length: m + 1 }, () => Array<number>(n + 1).fill(0));
 
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
-      dp[i][j] = oldWords[i-1] === newWords[j-1]
+      dp[i][j] = oldLines[i-1] === newLines[j-1]
         ? dp[i-1][j-1] + 1
         : Math.max(dp[i-1][j], dp[i][j-1]);
     }
   }
 
-  const ops: DiffOp[] = [];
-  let i = m, j = n;
   const temp: DiffOp[] = [];
+  let i = m, j = n;
 
   while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && oldWords[i-1] === newWords[j-1]) {
-      temp.push({ type: 'equal', text: oldWords[i-1] });
+    if (i > 0 && j > 0 && oldLines[i-1] === newLines[j-1]) {
+      temp.push({ type: 'equal', text: oldLines[i-1] });
       i--; j--;
     } else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) {
-      temp.push({ type: 'insert', text: newWords[j-1] });
+      temp.push({ type: 'insert', text: newLines[j-1] });
       j--;
     } else {
-      temp.push({ type: 'delete', text: oldWords[i-1] });
+      temp.push({ type: 'delete', text: oldLines[i-1] });
       i--;
     }
   }
 
-  temp.reverse();
-  for (const op of temp) {
-    if (ops.length > 0 && ops[ops.length-1].type === op.type) {
-      ops[ops.length-1].text += op.text;
-    } else {
-      ops.push({ ...op });
-    }
-  }
-  return ops;
+  return mergeAdjacentDiffOps(temp.reverse());
 }
 
-function appendDiffOps(container: HTMLElement, ops: DiffOp[]): void {
+function mergeAdjacentDiffOps(ops: DiffOp[]): DiffOp[] {
+  const merged: DiffOp[] = [];
   for (const op of ops) {
-    switch (op.type) {
-      case 'delete':
-        container.createSpan({ cls: 'claudian-diff-del', text: op.text });
-        break;
-      case 'insert':
-        container.createSpan({ cls: 'claudian-diff-ins', text: op.text });
-        break;
-      default:
-        container.appendText(op.text);
+    if (merged.length > 0 && merged[merged.length-1].type === op.type) {
+      merged[merged.length-1].text += op.text;
+    } else {
+      merged.push({ ...op });
     }
   }
+  return merged;
+}
+
+function getDiffBlockClass(type: DiffOp['type']): string {
+  switch (type) {
+    case 'delete':
+      return 'claudian-diff-del';
+    case 'insert':
+      return 'claudian-diff-ins';
+    default:
+      return 'claudian-diff-equal';
+  }
+}
+
+function buildMarkdownDiffDocuments(diffOps: DiffOp[]): Array<{ type: DiffOp['type']; markdown: string }> {
+  const oldMarkdown = diffOps
+    .filter(op => op.type !== 'insert')
+    .map(op => op.text)
+    .join('');
+  const newMarkdown = diffOps
+    .filter(op => op.type !== 'delete')
+    .map(op => op.text)
+    .join('');
+  const hasDeletion = diffOps.some(op => op.type === 'delete');
+  const hasInsertion = diffOps.some(op => op.type === 'insert');
+
+  const documents: Array<{ type: DiffOp['type']; markdown: string }> = [];
+
+  if (hasDeletion && oldMarkdown) {
+    documents.push({ type: 'delete', markdown: oldMarkdown });
+  }
+
+  if (hasInsertion && newMarkdown) {
+    documents.push({ type: 'insert', markdown: newMarkdown });
+  }
+
+  if (documents.length === 0 && newMarkdown) {
+    documents.push({ type: 'equal', markdown: newMarkdown });
+  }
+
+  return documents;
 }
 
 function diffOpsEqual(left: DiffOp[], right: DiffOp[]): boolean {
@@ -308,6 +323,7 @@ class InlineEditController {
   private slashCommandDropdown: SlashCommandDropdown | null = null;
   private mentionDropdown: MentionDropdownController | null = null;
   private mentionDataProvider: VaultMentionDataProvider;
+  private agentReplyRenderVersion = 0;
 
   constructor(
     private app: App,
@@ -516,6 +532,82 @@ class InlineEditController {
     return container;
   }
 
+  createDiffPreviewDOM(diffOps: DiffOp[]): HTMLElement {
+    const ownerDocument = this.getOwnerDocument();
+    const previewEl = ownerDocument.createElement('div');
+    previewEl.className = 'claudian-inline-diff-preview';
+
+    const bodyEl = ownerDocument.createElement('div');
+    bodyEl.className = 'claudian-inline-diff-preview-body markdown-rendered';
+    previewEl.appendChild(bodyEl);
+
+    const actionsEl = ownerDocument.createElement('div');
+    actionsEl.className = 'claudian-inline-preview-actions';
+    actionsEl.appendChild(this.createPreviewActionButton('Reject', 'reject', () => this.reject()));
+    actionsEl.appendChild(this.createPreviewActionButton('Accept', 'accept', () => this.accept()));
+    previewEl.appendChild(actionsEl);
+
+    void this.renderMarkdownDiffPreview(bodyEl, diffOps);
+    return previewEl;
+  }
+
+  private createPreviewActionButton(
+    label: string,
+    variant: 'accept' | 'reject',
+    onClick: () => void
+  ): HTMLButtonElement {
+    const ownerDocument = this.getOwnerDocument();
+    const button = ownerDocument.createElement('button');
+    button.type = 'button';
+    button.className = `claudian-inline-preview-action ${variant}`;
+    button.textContent = label;
+    button.title = variant === 'accept' ? 'Accept (enter)' : 'Reject (esc)';
+    button.addEventListener('click', (event) => {
+      event.preventDefault?.();
+      event.stopPropagation?.();
+      onClick();
+    });
+    return button;
+  }
+
+  private async renderMarkdownPreview(container: HTMLElement, markdown: string): Promise<void> {
+    await renderInlineEditMarkdownPreview({
+      app: this.app,
+      component: this.plugin,
+      container,
+      markdown,
+      sourcePath: this.notePath,
+      mediaFolder: this.plugin.settings?.mediaFolder ?? '',
+    });
+  }
+
+  private async renderMarkdownDiffPreview(container: HTMLElement, diffOps: DiffOp[]): Promise<void> {
+    container.empty();
+    for (const document of buildMarkdownDiffDocuments(diffOps)) {
+      if (!document.markdown) continue;
+
+      const opEl = this.getOwnerDocument().createElement('div');
+      opEl.className = `claudian-diff-block ${getDiffBlockClass(document.type)}`;
+      container.appendChild(opEl);
+      await this.renderMarkdownPreview(opEl, document.markdown);
+    }
+  }
+
+  private replaceRenderedPreview(target: HTMLElement, rendered: HTMLElement): void {
+    target.empty();
+
+    if (rendered.childNodes) {
+      for (const child of Array.from(rendered.childNodes)) {
+        target.appendChild(child);
+      }
+      return;
+    }
+
+    for (const child of Array.from(rendered.children)) {
+      target.appendChild(child);
+    }
+  }
+
   private async generate() {
     if (!this.inputEl || !this.spinnerEl) return;
     const userMessage = this.inputEl.value.trim();
@@ -582,8 +674,18 @@ class InlineEditController {
 
   private showAgentReply(message: string) {
     if (!this.agentReplyEl || !this.containerEl) return;
-    this.agentReplyEl.removeClass('claudian-hidden');
-    this.agentReplyEl.textContent = message;
+    const replyEl = this.agentReplyEl;
+    const renderVersion = ++this.agentReplyRenderVersion;
+    const renderedEl = this.getOwnerDocument().createElement('div');
+
+    replyEl.removeClass('claudian-hidden');
+    replyEl.empty();
+    void this.renderMarkdownPreview(renderedEl, message).then(() => {
+      if (renderVersion !== this.agentReplyRenderVersion || replyEl !== this.agentReplyEl) {
+        return;
+      }
+      this.replaceRenderedPreview(replyEl, renderedEl);
+    });
     this.containerEl.classList.add('has-agent-reply');
   }
 
@@ -602,13 +704,15 @@ class InlineEditController {
 
     hideSelectionHighlight(this.editorView);
 
-    const diffOps = computeDiff(this.selectedText, this.editedText);
+    const diffOps = computeMarkdownDiff(this.selectedText, this.editedText);
+    const previewPos = this.editorView.state.doc.lineAt(this.selFrom).from;
 
     this.editorView.dispatch({
       effects: showDiff.of({
         from: this.selFrom,
         to: this.selTo,
         diffOps,
+        previewPos,
         widget: this,
       }),
     });
@@ -625,11 +729,12 @@ class InlineEditController {
     this.insertedText = trimmedText;
 
     const diffOps: DiffOp[] = [{ type: 'insert', text: trimmedText }];
+    const previewPos = this.editorView.state.doc.lineAt(this.selFrom).from;
 
     this.editorView.dispatch({
       effects: showInsertion.of({
-        pos: this.selFrom,
         diffOps,
+        previewPos,
         widget: this,
       }),
     });

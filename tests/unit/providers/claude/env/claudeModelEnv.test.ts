@@ -127,7 +127,6 @@ describe('getModelsFromEnvironment', () => {
     expect(result[0].label).toBe('Gateway Opus');
   });
 
-
   it('returns models for tier-specific env vars', () => {
     const result = getModelsFromEnvironment({
       ANTHROPIC_DEFAULT_OPUS_MODEL: 'my-opus',

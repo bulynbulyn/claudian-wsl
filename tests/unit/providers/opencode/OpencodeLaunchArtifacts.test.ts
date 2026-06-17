@@ -265,5 +265,4 @@ describe('prepareOpencodeLaunchArtifacts', () => {
     expect(result.databasePath).toBe(path.join(databaseDir, 'opencode.db'));
     await expect(fs.access(databaseDir)).resolves.toBeUndefined();
   });
-
 });

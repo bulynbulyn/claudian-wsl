@@ -1,8 +1,6 @@
-import * as fs from 'node:fs';
-
 import { getRuntimeEnvironmentText } from '../../../core/providers/providerEnvironment';
-import { getHostnameKey } from '../../../utils/env';
-import { expandHomePath } from '../../../utils/path';
+import { findCliBinaryPath, resolveConfiguredCliPath } from '../../../utils/cliBinaryLocator';
+import { getHostnameKey, parseEnvironmentVariables } from '../../../utils/env';
 import { getOpencodeProviderSettings } from '../settings';
 
 export class OpencodeCliResolver {
@@ -46,12 +44,21 @@ export class OpencodeCliResolver {
   resolve(
     hostnamePaths: Record<string, string> | undefined,
     legacyPath: string,
-    _envText: string,
+    envText: string,
     installationMethod?: string,
   ): string | null {
     const hostnamePath = (hostnamePaths?.[this.cachedHostname] ?? '').trim();
-    return resolveConfiguredCliPath(hostnamePath, installationMethod === 'wsl')
-      ?? resolveConfiguredCliPath(legacyPath.trim(), installationMethod === 'wsl');
+    const isWsl = installationMethod === 'wsl';
+
+    if (isWsl) {
+      return resolveWslCliPath(hostnamePath)
+        ?? resolveWslCliPath(legacyPath.trim());
+    }
+
+    const customEnv = parseEnvironmentVariables(envText || '');
+    return resolveConfiguredCliPath(hostnamePath)
+      ?? resolveConfiguredCliPath(legacyPath.trim())
+      ?? findCliBinaryPath('opencode', customEnv.PATH);
   }
 
   reset(): void {
@@ -63,30 +70,17 @@ export class OpencodeCliResolver {
   }
 }
 
-function resolveConfiguredCliPath(cliPath: string, isWslMode: boolean): string | null {
-  if (!cliPath) {
+function resolveWslCliPath(cliPath: string): string | null {
+  const trimmed = cliPath.trim();
+  if (!trimmed) {
     return null;
   }
 
   // WSL mode: skip fs validation for Linux paths
-  if (isWslMode) {
-    // Linux absolute path or plain command name
-    if (cliPath.startsWith('/') || !cliPath.includes('/') && !cliPath.includes('\\')) {
-      return cliPath;
-    }
-    // Windows path in WSL mode - should be converted, but accept as-is
-    return cliPath;
+  // Linux absolute path or plain command name
+  if (trimmed.startsWith('/') || (!trimmed.includes('/') && !trimmed.includes('\\'))) {
+    return trimmed;
   }
-
-  // Native mode: validate path exists
-  try {
-    const expanded = expandHomePath(cliPath);
-    if (fs.existsSync(expanded) && fs.statSync(expanded).isFile()) {
-      return expanded;
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
+  // Windows path in WSL mode - accept as-is
+  return trimmed;
 }

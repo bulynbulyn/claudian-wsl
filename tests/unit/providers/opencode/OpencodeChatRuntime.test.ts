@@ -227,7 +227,6 @@ describe('OpencodeChatRuntime', () => {
     expect(startProcess).toHaveBeenCalledTimes(2);
   });
 
-
   it('maps ACP permission options through the shared approval UI', async () => {
     const runtime = new OpencodeChatRuntime(createMockPlugin());
     const approvalCallback = jest.fn().mockResolvedValue('allow');

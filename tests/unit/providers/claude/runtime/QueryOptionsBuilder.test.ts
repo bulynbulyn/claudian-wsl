@@ -144,7 +144,6 @@ describe('QueryOptionsBuilder', () => {
       expect(QueryOptionsBuilder.needsRestart(currentConfig, newConfig)).toBe(false);
     });
 
-
     it('returns false when only model changes (dynamic update)', () => {
       const currentConfig = createMockPersistentQueryConfig();
       const newConfig = { ...currentConfig, model: 'claude-opus-4-5' };
@@ -202,7 +201,6 @@ describe('QueryOptionsBuilder', () => {
 
       expect(config.model).toBe('claude-sonnet-4-5');
       expect(config.effortLevel).toBe('high');
-
       expect(config.permissionMode).toBe('yolo');
       expect(config.sdkPermissionMode).toBe('bypassPermissions');
       expect(config.settingSources).toBe('project,local');
@@ -248,7 +246,6 @@ describe('QueryOptionsBuilder', () => {
       const config = QueryOptionsBuilder.buildPersistentQueryConfig(ctx);
 
       expect(config.effortLevel).toBe('medium');
-
     });
 
     it('includes effortLevel for adaptive model', () => {
@@ -261,12 +258,10 @@ describe('QueryOptionsBuilder', () => {
     });
 
     it('uses effort for Claude models even when a legacy budget is configured', () => {
-
       const ctx = createMockContext({
         settings: createMockSettings({ model: 'sonnet', thinkingBudget: 'high', effortLevel: 'max' }),
       });
       const config = QueryOptionsBuilder.buildPersistentQueryConfig(ctx);
-
 
       expect(config.effortLevel).toBe('max');
     });
@@ -281,14 +276,12 @@ describe('QueryOptionsBuilder', () => {
     });
 
     it('sets effortLevel for custom model ids', () => {
-
       const ctx = createMockContext({
         settings: createMockSettings({ model: 'custom-model', effortLevel: 'high' }),
       });
       const config = QueryOptionsBuilder.buildPersistentQueryConfig(ctx);
 
       expect(config.effortLevel).toBe('high');
-
     });
 
     it('includes enableChrome from settings', () => {
@@ -461,7 +454,6 @@ describe('QueryOptionsBuilder', () => {
       const ctx = {
         ...createMockContext({
           settings: createMockSettings({ model: 'custom-model', thinkingBudget: 'high', effortLevel: 'medium' }),
-
         }),
         abortController: new AbortController(),
         hooks: {},
@@ -470,7 +462,6 @@ describe('QueryOptionsBuilder', () => {
 
       expect(options.thinking).toEqual({ type: 'adaptive' });
       expect(options.effort).toBe('medium');
-
       expect(options.maxThinkingTokens).toBeUndefined();
     });
 

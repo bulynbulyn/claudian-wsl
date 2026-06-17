@@ -54,7 +54,11 @@
 @import "./settings/mcp-settings.css";
 @import "./settings/plugin-settings.css";
 @import "./settings/agent-settings.css";
+@import "./settings/provider-model-picker.css";
 @import "./settings/opencode-model-picker.css";
 
 /* Accessibility */
 @import "./accessibility.css";
+
+/* Utilities imported last to preserve cascade priority without importance flags */
+@import "./base/visibility.css";

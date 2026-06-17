@@ -51,7 +51,6 @@ describe('types.ts', () => {
       expect(DEFAULT_SETTINGS.customModelAliases).toEqual({});
     });
 
-
     it('should have lastClaudeModel set to haiku by default', () => {
       expect(getClaudeProviderSettings(DEFAULT_SETTINGS).lastModel).toBe('haiku');
     });
@@ -62,6 +61,10 @@ describe('types.ts', () => {
 
     it('should have lastCustomModel as empty string by default', () => {
       expect(DEFAULT_SETTINGS.lastCustomModel).toBe('');
+    });
+
+    it('should collapse file edits by default', () => {
+      expect(DEFAULT_SETTINGS.expandFileEditsByDefault).toBe(false);
     });
   });
 
@@ -83,7 +86,6 @@ describe('types.ts', () => {
         envSnippets: [],
         customContextLimits: {},
         customModelAliases: {},
-
         systemPrompt: '',
 
         persistentExternalContextPaths: [],
@@ -102,6 +104,7 @@ describe('types.ts', () => {
         tabBarPosition: 'input',
         enableAutoScroll: true,
         deferMathRenderingDuringStreaming: true,
+        expandFileEditsByDefault: false,
         chatViewPlacement: 'right-sidebar',
         hiddenProviderCommands: {
           claude: [],
@@ -138,7 +141,6 @@ describe('types.ts', () => {
         envSnippets: [],
         customContextLimits: {},
         customModelAliases: {},
-
         systemPrompt: '',
 
         persistentExternalContextPaths: [],
@@ -157,6 +159,7 @@ describe('types.ts', () => {
         tabBarPosition: 'input',
         enableAutoScroll: true,
         deferMathRenderingDuringStreaming: true,
+        expandFileEditsByDefault: false,
         chatViewPlacement: 'right-sidebar',
         hiddenProviderCommands: {
           claude: [],
@@ -194,7 +197,6 @@ describe('types.ts', () => {
         envSnippets: [],
         customContextLimits: {},
         customModelAliases: {},
-
         systemPrompt: '',
 
         persistentExternalContextPaths: [],
@@ -213,6 +215,7 @@ describe('types.ts', () => {
         tabBarPosition: 'header',
         enableAutoScroll: false,
         deferMathRenderingDuringStreaming: true,
+        expandFileEditsByDefault: true,
         chatViewPlacement: 'right-sidebar',
         hiddenProviderCommands: {
           claude: [],
@@ -243,7 +246,6 @@ describe('types.ts', () => {
         modelAliases: {
           'custom-model': 'Production model',
         },
-
       };
 
       expect(snippet.id).toBe('snippet-123');
@@ -251,7 +253,6 @@ describe('types.ts', () => {
       expect(snippet.description).toBe('Production environment variables');
       expect(snippet.envVars).toContain('API_KEY=prod-key');
       expect(snippet.modelAliases?.['custom-model']).toBe('Production model');
-
     });
 
     it('should allow empty description', () => {
@@ -692,7 +693,6 @@ describe('types.ts', () => {
       });
     });
   });
-
 
   describe('supportsXHighEffort', () => {
     it('returns true for opus aliases and 4.7+ opus ids', () => {

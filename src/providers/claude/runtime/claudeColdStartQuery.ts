@@ -66,7 +66,6 @@ export async function runColdStartQuery(
   );
   const enhancedPath = getEnhancedPath(customEnv.PATH, resolvedClaudePath);
 
-
   const settings = config.providerSettings
     ?? ProviderSettingsCoordinator.getProviderSettingsSnapshot(
       config.plugin.settings,

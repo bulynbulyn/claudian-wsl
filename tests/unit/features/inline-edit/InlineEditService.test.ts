@@ -342,7 +342,6 @@ describe('InlineEditService', () => {
 
     it('should set settingSources to project only when loadUserClaudeSettings is false', async () => {
       mockPlugin.settings.loadUserClaudeSettings = false;
-
       service = new InlineEditService(mockPlugin);
 
       setMockMessages([
@@ -439,7 +438,6 @@ describe('InlineEditService', () => {
       const options = getLastOptions();
       expect(options?.thinking).toEqual({ type: 'adaptive' });
       expect(options?.effort).toBe('medium');
-
       expect(options?.maxThinkingTokens).toBeUndefined();
     });
 

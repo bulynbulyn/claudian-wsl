@@ -7,6 +7,7 @@ import type { Conversation } from '../../../core/types';
 import { t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
 import { confirm } from '../../../shared/modals/ConfirmModal';
+import { extractUserDisplayContent } from '../../../utils/context';
 import type { MessageRenderer } from '../rendering/MessageRenderer';
 import { cleanupThinkingBlock } from '../rendering/ThinkingBlockRenderer';
 import { findRewindContext } from '../rewind';
@@ -324,26 +325,18 @@ export class ConversationController {
 
     // Ensure service is initialized before attempting rewind
     // Service is lazy-loaded and may not exist if user hasn't sent a message yet
-    console.log('[Claudian] Rewind: ensureServiceForConversation exists:', !!this.deps.ensureServiceForConversation);
-    console.log('[Claudian] Rewind: ensureServiceInitialized exists:', !!this.deps.ensureServiceInitialized);
     if (this.deps.ensureServiceForConversation) {
-      console.log('[Claudian] Rewind: calling ensureServiceForConversation');
       await this.deps.ensureServiceForConversation(null);
-      console.log('[Claudian] Rewind: ensureServiceForConversation completed');
     }
     if (this.deps.ensureServiceInitialized) {
-      console.log('[Claudian] Rewind: calling ensureServiceInitialized');
       const ready = await this.deps.ensureServiceInitialized();
-      console.log('[Claudian] Rewind: ensureServiceInitialized result:', ready);
       if (!ready) {
         new Notice(t('chat.rewind.failed', { error: 'Failed to initialize agent service' }));
         return;
       }
     }
 
-    console.log('[Claudian] Rewind: getAgentService exists:', !!this.deps.getAgentService);
     const agentService = this.getAgentService();
-    console.log('[Claudian] Rewind: agentService result:', agentService ? 'exists' : 'null', 'providerId:', agentService?.providerId);
     if (!agentService) {
       new Notice(t('chat.rewind.failed', { error: 'Agent service not available' }));
       return;
@@ -949,7 +942,9 @@ export class ConversationController {
     const firstUserMsg = fullConv.messages.find(m => m.role === 'user');
     if (!firstUserMsg) return;
 
-    const userContent = firstUserMsg.displayContent || firstUserMsg.content;
+    const userContent = firstUserMsg.displayContent
+      ?? extractUserDisplayContent(firstUserMsg.content)
+      ?? firstUserMsg.content;
 
     // Store current title to check if user renames during generation
     const expectedTitle = fullConv.title;

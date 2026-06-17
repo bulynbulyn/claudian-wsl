@@ -143,7 +143,6 @@ export class EnvSnippetModal extends Modal {
         aliasInput.title = 'Custom label shown in the model selector. Leave empty to use the default.';
         modelAliasInputs.set(modelId, aliasInput);
 
-
         const input = row.createEl('input', {
           type: 'text',
           placeholder: '200k',

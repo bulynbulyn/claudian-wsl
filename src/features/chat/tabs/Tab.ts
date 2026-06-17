@@ -170,23 +170,86 @@ function getTabHiddenCommands(
   );
 }
 
-function shouldSendMessageFromEnterKey(
-  e: KeyboardEvent,
-  settings: Pick<ClaudianSettings, 'requireCommandOrControlEnterToSend'>,
-): boolean {
+function isEnterWithoutShiftOrComposition(e: KeyboardEvent): boolean {
   if (e.key !== 'Enter' || e.shiftKey || e.isComposing) {
     return false;
   }
 
-  if (settings.requireCommandOrControlEnterToSend !== true) {
-    return true;
-  }
+  return true;
+}
 
+function hasPlatformSendModifier(e: KeyboardEvent): boolean {
   if (Platform.isMacOS) {
     return e.metaKey === true && !e.ctrlKey && !e.altKey;
   }
 
   return e.ctrlKey === true && !e.metaKey && !e.altKey;
+}
+
+function shouldSendMessageFromExplicitEnterShortcut(e: KeyboardEvent): boolean {
+  return isEnterWithoutShiftOrComposition(e) && hasPlatformSendModifier(e);
+}
+
+function shouldSendMessageFromEnterKey(
+  e: KeyboardEvent,
+  settings: Pick<ClaudianSettings, 'requireCommandOrControlEnterToSend'>,
+): boolean {
+  if (!isEnterWithoutShiftOrComposition(e)) {
+    return false;
+  }
+
+  if (settings.requireCommandOrControlEnterToSend === true) {
+    return hasPlatformSendModifier(e);
+  }
+
+  return true;
+}
+
+function isTabInputFocused(tab: TabData): boolean {
+  return tab.dom.inputEl.ownerDocument.activeElement === tab.dom.inputEl;
+}
+
+function sendTabInputMessage(
+  tab: TabData,
+  e: KeyboardEvent,
+  options?: { requireInputFocus?: boolean },
+): boolean {
+  if (options?.requireInputFocus && !isTabInputFocused(tab)) {
+    return false;
+  }
+
+  const inputController = tab.controllers.inputController;
+  if (!inputController) {
+    return false;
+  }
+
+  e.preventDefault();
+  void inputController.sendMessage();
+  return true;
+}
+
+export function sendTabInputMessageFromExplicitEnterShortcut(
+  tab: TabData,
+  e: KeyboardEvent,
+  options?: { requireInputFocus?: boolean },
+): boolean {
+  if (!shouldSendMessageFromExplicitEnterShortcut(e)) {
+    return false;
+  }
+
+  return sendTabInputMessage(tab, e, options);
+}
+
+function sendTabInputMessageFromEnterKey(
+  tab: TabData,
+  settings: Pick<ClaudianSettings, 'requireCommandOrControlEnterToSend'>,
+  e: KeyboardEvent,
+): boolean {
+  if (!shouldSendMessageFromEnterKey(e, settings)) {
+    return false;
+  }
+
+  return sendTabInputMessage(tab, e);
 }
 
 type ProviderCatalogInfo = {
@@ -828,6 +891,7 @@ function initializeInputToolbar(
         const newContextWindow = uiConfig.getContextWindowSize(
           model,
           providerSettings.customContextLimits,
+          providerSettings,
         );
         tab.state.usage = recalculateUsageForModel(currentUsage, model, newContextWindow);
       }
@@ -1299,8 +1363,6 @@ export function initializeTabControllers(
           if (tab.service?.providerId === tab.providerId) {
             return true;
           }
-          // Provider changed - need to reinitialize
-          console.log('[Claudian] ensureServiceInitialized: provider changed from', tab.service?.providerId, 'to', tab.providerId);
         }
 
         try {
@@ -1313,7 +1375,6 @@ export function initializeTabControllers(
             tab.providerId = derivedProvider;
           }
 
-          console.log('[Claudian] ensureServiceInitialized: initializing service for provider', tab.providerId);
           await initializeTabService(tab, plugin);
           setupServiceCallbacks(tab, plugin);
 
@@ -1475,6 +1536,10 @@ export function wireTabInputEvents(tab: TabData, plugin: ClaudianPlugin): void {
       return;
     }
 
+    if (sendTabInputMessageFromExplicitEnterShortcut(tab, e)) {
+      return;
+    }
+
     if (controllers.inputController?.handleResumeKeydown(e)) {
       return;
     }
@@ -1494,9 +1559,8 @@ export function wireTabInputEvents(tab: TabData, plugin: ClaudianPlugin): void {
       return;
     }
 
-    if (shouldSendMessageFromEnterKey(e, plugin.settings)) {
-      e.preventDefault();
-      void controllers.inputController?.sendMessage();
+    if (sendTabInputMessageFromEnterKey(tab, plugin.settings, e)) {
+      return;
     }
   };
   dom.inputEl.addEventListener('keydown', keydownHandler);

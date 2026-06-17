@@ -9,6 +9,7 @@ import {
 
 export type OpencodeInstallationMethod = 'native-windows' | 'wsl';
 export type HostnameInstallationMethods = Record<string, OpencodeInstallationMethod>;
+
 import {
   getOpencodeDiscoveryState,
   seedOpencodeDiscoveryStateFromLegacyConfig,

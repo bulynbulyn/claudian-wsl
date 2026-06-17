@@ -136,7 +136,6 @@ export class AcpJsonRpcTransport {
       }),
     );
 
-
     this.unregisterClose = this.streams.onClose?.((error) => {
       if (!this.disposed) {
         this.dispose(error ?? new JsonRpcTransportClosedError());
@@ -271,7 +270,6 @@ export class AcpJsonRpcTransport {
     while (this.streamUnsubscribers.length > 0) {
       this.streamUnsubscribers.pop()?.();
     }
-
 
     if (this.readline) {
       this.readline.removeAllListeners();

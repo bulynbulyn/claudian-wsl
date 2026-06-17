@@ -84,7 +84,6 @@ describe('claudeChatUIConfig', () => {
       });
     });
 
-
     it('keeps environment-defined custom models as a full override', () => {
       const options = claudeChatUIConfig.getModelOptions({
         providerConfigs: {
@@ -124,7 +123,6 @@ describe('claudeChatUIConfig', () => {
         },
       ]);
     });
-
   });
 
   describe('getReasoningOptions', () => {
@@ -146,7 +144,6 @@ describe('claudeChatUIConfig', () => {
       expect(options.map(option => option.value)).toEqual(['low', 'medium', 'high', 'max']);
       expect(options.some(option => option.tokens !== undefined)).toBe(false);
     });
-
   });
 
   describe('applyModelDefaults', () => {

@@ -293,10 +293,21 @@ export class ClaudianSettingTab extends PluginSettingTab {
           })
       );
 
+    new Setting(container)
+      .setName(t('settings.expandFileEditsByDefault.name'))
+      .setDesc(t('settings.expandFileEditsByDefault.desc'))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.expandFileEditsByDefault ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.expandFileEditsByDefault = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
     // --- Conversations ---
 
     new Setting(container).setName(t('settings.conversations')).setHeading();
-
     new Setting(container)
       .setName(t('settings.autoTitle.name'))
       .setDesc(t('settings.autoTitle.desc'))
@@ -581,7 +592,6 @@ export class ClaudianSettingTab extends PluginSettingTab {
       aliasInputEl.setAttribute('aria-label', `Alias for ${modelId}`);
       aliasInputEl.title = 'Custom label shown in the model selector. Leave empty to use the default.';
 
-
       const inputEl = inputWrapper.createEl('input', {
         type: 'text',
         placeholder: '200k',
@@ -615,7 +625,6 @@ export class ClaudianSettingTab extends PluginSettingTab {
           view.refreshModelSelector();
         }
       };
-
 
       const saveContextLimit = async (): Promise<void> => {
         const trimmed = inputEl.value.trim();

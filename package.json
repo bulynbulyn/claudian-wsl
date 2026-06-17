@@ -1,8 +1,11 @@
 {
   "name": "claudian",
-  "version": "2.0.18-wsl.1",
+  "version": "2.0.24-wsl.1",
   "description": "Claudian - Claude Code embedded in Obsidian sidebar",
   "main": "main.js",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "postinstall": "node scripts/postinstall.mjs",
     "build:css": "node scripts/build-css.mjs",
@@ -44,7 +47,7 @@
     "typescript": "^6.0.2"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.112",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.159",
     "@codemirror/state": "^6.5.0",
     "@codemirror/view": "^6.38.6",
     "@modelcontextprotocol/sdk": "~1.29.0",
