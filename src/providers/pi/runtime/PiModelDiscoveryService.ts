@@ -7,7 +7,7 @@ import {
   type PiDiscoveredModel,
 } from '../models';
 import { getPiProviderSettings } from '../settings';
-import { buildPiLaunchSpec } from './PiLaunchSpec';
+import { buildPiLaunchSpec, buildPiWslLaunchSpec } from './PiLaunchSpec';
 import { PiRpcTransport } from './PiRpcTransport';
 import { PiSubprocess } from './PiSubprocess';
 
@@ -36,6 +36,22 @@ export class PiModelDiscoveryService {
       noSession: true,
       settings,
     });
+
+    // WSL mode: build WSL launch spec
+    if (settings.installationMethod === 'wsl') {
+      const wslSpec = buildPiWslLaunchSpec({
+        command,
+        cliArgs: launchSpec.args,
+        hostVaultPath: cwd,
+        env,
+        installationMethod: settings.installationMethod,
+        wslDistroOverride: settings.wslDistroOverride,
+      });
+      if (wslSpec) {
+        launchSpec.wslLaunchSpec = wslSpec;
+      }
+    }
+
     const subprocess = new PiSubprocess(launchSpec);
     let transport: PiRpcTransport | null = null;
     let removeEventListener: (() => void) | null = null;
