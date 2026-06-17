@@ -20,7 +20,7 @@
 | ------------ | ------------------------------------------------------------- |
 | **Claude**   | WSL distro 自动检测、路径自动转换、历史记录、Rewind           |
 | **OpenCode** | 数据库路径自动计算、历史记录加载（sqlite3）                   |
-| **Pi**       | WSL 进程启动、交互式 shell 环境加载、session 文件读取         |
+| **Pi**       | WSL 进程启动（bash -i）、fnm/nvm 版本管理器加载、session 历史读取 |
 
 ## 安装
 
@@ -64,6 +64,12 @@
 4. **WSL home path**（可选）：填 WSL 用户目录，如 `/home/username`。用于 session 历史加载
 
 **前提条件**：WSL 中需安装 Pi CLI 和 Node.js（建议通过 fnm/nvm 管理版本）
+
+**Pi WSL 特殊说明**：
+
+- Pi 是 Node.js 脚本（非预编译二进制），依赖 WSL 中正确的 Node.js 版本。如果使用 fnm/nvm 管理 Node.js，确保 `.bashrc` 中有对应的初始化代码。插件会使用 `bash -i`（交互式模式）启动 Pi，以加载 `.bashrc` 中的版本管理器配置。
+- Session 历史存储在 WSL 文件系统中（`~/.pi/agent/sessions/<cwd>/`），插件通过 `wsl.exe` 读取文件，无需 UNC 路径访问。
+- 系统提示通过临时文件传递（`--append-system-prompt <file>`），避免多行内容被 bash 解释为命令。
 
 ### 参数说明
 
